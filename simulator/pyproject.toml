@@ -5,7 +5,9 @@ description = "World Domination Simulator Tool"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "matplotlib>=3.10.8",
     "pydantic>=2.12.5",
+    "pyside6>=6.10.2",
     "pytest>=9.0.2",
     "ruff>=0.15.1",
     "ty>=0.0.17",

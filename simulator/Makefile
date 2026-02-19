@@ -8,4 +8,4 @@ test:
 	uv run pytest ./test
 
 run:
-	uv run src/main.py
+	PYTHONPATH=src uv run src/main.py

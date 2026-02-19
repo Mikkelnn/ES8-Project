@@ -1,5 +1,7 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 from simulator.src.simulator.global_time import time_global
-import pytest
 
 def test_singleton_behavior():
     t1 = time_global()

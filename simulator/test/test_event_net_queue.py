@@ -1,6 +1,9 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
+import pytest
 from simulator.src.simulator.event_net_queue import event_net_queue
 from simulator.src.custom_types import EventNet
-import pytest
 
 @pytest.fixture
 def sample_event():

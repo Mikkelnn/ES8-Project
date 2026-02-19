@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 import pytest
 from simulator.src.simulator.logger import Logger
 from simulator.src.custom_types import Severity, Area

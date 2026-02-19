@@ -1,21 +1,40 @@
 
+
 import threading
 import os
-import sys
-
 from .global_time import time_global
-from ..custom_types import Severity, Area
+from custom_types import Severity, Area
+
+LOG_PATH = os.path.join(os.path.dirname(__file__), '../../simulator.log')
 
 class Logger:
+
+	@classmethod
+	def set_log_file(cls, log_file):
+		# Ensure the log file exists
+		log_path = os.path.abspath(log_file)
+		os.makedirs(os.path.dirname(log_path), exist_ok=True)
+		if not os.path.exists(log_path):
+			with open(log_path, 'w', encoding='utf-8') as f:
+				pass
+		with cls._lock:
+			if cls._instance is not None:
+				cls._instance._log_file = log_path
+			else:
+				cls._log_file = log_path
+
 	_instance = None
 	_lock = threading.Lock()
-	_log_file = os.path.join(os.path.dirname(__file__), '../../simulator.log')
+	_log_file = LOG_PATH
 
-	def __new__(cls):
+
+	def __new__(cls, log_file=None):
 		with cls._lock:
 			if cls._instance is None:
 				cls._instance = super().__new__(cls)
 				cls._instance._logs = []
+			if log_file is not None:
+				cls._instance._log_file = log_file
 		return cls._instance
 
 	def add(self, severity: Severity, area: Area, msg: str):
