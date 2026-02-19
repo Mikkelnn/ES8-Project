@@ -1,17 +1,19 @@
 
-class Battery:
-    def __init__(self, capacityJule, rechargeRateJulePerSecond, secondToGlobalTick):
-        self.capacity = capacityJule
-        self.current_charge = capacityJule
+from simulator.src.node.Imodule import IModule
 
-        self.recharge_rate = rechargeRateJulePerSecond * secondToGlobalTick # jules charged per global tick
-        self.secondToGlobalTick = secondToGlobalTick
+
+class Battery(IModule):
+    def __init__(self, capacity_joule, recharge_rate_jule_per_second: int, second_to_global_tick: float):
+        self.capacity = capacity_joule
+        self.current_charge = capacity_joule
+
+        self.recharge_rate = recharge_rate_jule_per_second * second_to_global_tick # jules charged per global tick
     
     """ Returns False if battery is empty, True otherwise. """
-    def tick(self, currentConsumptionJule):
+    def tick(self, current_consumption_joule) -> bool:
         # Simulate gradual discharge over time (e.g., 1 unit per 100 steps)
         self.__recharge(self.recharge_rate)
-        self.__consume(currentConsumptionJule)
+        self.__consume(current_consumption_joule)
 
         if self.__is_empty():
             return False # Battery is empty

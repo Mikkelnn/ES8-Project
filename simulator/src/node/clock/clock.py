@@ -1,19 +1,29 @@
-from simulator.src.node.eventBus.localEventBus import LocalEventBus
+from simulator.src.custom_types import LocalEventTypes
+from simulator.src.node.Imodule import IModule
+from simulator.src.node.event_local_queue import LocalEventQueue
 
-class Clock:
-    def __init__(self, localeventbus: LocalEventBus, secondToGlobalTick):
-        self.localeventbus = localeventbus
-        self.secondToGlobalTick = secondToGlobalTick
-        self.julesPerSecondConsumption = 1 # TODO: Set realistic value
-        self.consuptionPerTick = self.julesPerSecondConsumption * self.secondToGlobalTick
+class Clock(IModule):
+    def __init__(self, local_event_queue: LocalEventQueue, second_to_global_tick: float):
+        self.local_event_queue = local_event_queue
+        self.second_to_global_tick = second_to_global_tick
+        self.joules_per_second_consumption = 1 # TODO: Set realistic value
+        self.consuption_per_tick = self.joules_per_second_consumption * self.second_to_global_tick
 
-        self.localTick = 0
+        self.local_time: int = 0
+        self.local_tick: int = 0
         
-    def tick(self):
+    def tick(self, current_global_tick: int) -> float:
         self.localTick += 1 # increment local tick with some drift
 
-        # Puplish tick event to local event bus
-        self.localeventbus.add_event_to_current_tick({"type": "tick", "tick": self.localTick})
+        if self.local_tick >= 100:
+            self.local_time += 1
+            self.local_tick = 0
 
-        return self.consuptionPerTick # Power consumption for this tick
+        # Puplish tick event to local event bus
+        self.local_event_queue.add_event_to_current_tick(LocalEventTypes.LOCALTIME, self.local_time)
+
+        return self.consuption_per_tick # Power consumption for this tick
     
+    def reset(self):
+        self.local_time = 0
+        self.local_tick = 0

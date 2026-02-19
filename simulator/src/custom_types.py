@@ -27,3 +27,21 @@ class EventNet(BaseModel):
     time_end: int
     data: List[Any] = Field(default_factory=list)
     type: str
+
+
+
+class LocalEventTypes(str, Enum):
+    LOCAL_TIME = "LOCAL_TIME"
+    TRANCEIVER_STATUS = "TRANCEIVER_STATUS"
+    TRANCEIVER_RECEIVED_DATA = "TRANCEIVER_RECEIVED_DATA"
+    TRANCEIVER_TRANSMIT_DATA = "TRANCEIVER_TRANSMIT_DATA"
+    TRANCEIVER_SET_STATE = "TRANCEIVER_SET_STATE"
+
+class LocalEventSubTypes(str, Enum):
+    LORA_WAN = "LORA_WAN"
+    LORA_D2D = "LORA_D2D"
+
+class LocalEventNet(BaseModel):
+    type: LocalEventTypes
+    sub_type: LocalEventSubTypes | None = None
+    data: Any
