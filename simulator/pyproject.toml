@@ -1,0 +1,7 @@
+[project]
+name = "WDST"
+version = "0.1.0"
+description = "World Domination Simulator Tool"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = []
