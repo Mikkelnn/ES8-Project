@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field
 from typing import List, Any
 from enum import Enum
 
+from simulator.src.node.tranceiver.baseTranceiver import TranceiverState
+
 # Define allowed severities
 class Severity(str, Enum):
     DEBUG = "DEBUG"
@@ -44,4 +46,4 @@ class LocalEventSubTypes(str, Enum):
 class LocalEventNet(BaseModel):
     type: LocalEventTypes
     sub_type: LocalEventSubTypes | None = None
-    data: Any
+    data: TranceiverState | List[Any]

@@ -1,6 +1,7 @@
+from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List
-from simulator.src.custom_types import EventNet, LocalEventTypes
+from simulator.src.custom_types import EventNet, LocalEventSubTypes, LocalEventTypes
 from simulator.src.node.Imodule import IModule
 from simulator.src.node.event_local_queue import LocalEventQueue
 from simulator.src.simulator import event_net_queue
@@ -10,46 +11,61 @@ class TranceiverState(Enum):
     SENDING = 1
     RECEIVING = 2
 
-class BaseTranceiver(IModule):
-    def __init__(self, node_id: int, global_event_queue: event_net_queue, local_event_queue: LocalEventQueue, second_to_global_tick: float):
+class BaseTranceiver(ABC, IModule):
+    def __init__(self, node_id: int, global_event_queue: event_net_queue, local_event_queue: LocalEventQueue, 
+                 second_to_global_tick: float, local_event_sub_type: LocalEventSubTypes,
+                 joules_per_second_consumption_transmit: float, joules_per_second_consumption_receive: float, joules_per_second_consumption_idle: float):
+        
+        self.state = TranceiverState.IDLE
+        self.local_event_sub_type = local_event_sub_type
+        self._second_to_global_tick = second_to_global_tick
+
         self.__node_id = node_id
         self.__global_event_queue = global_event_queue
         self.__local_event_queue = local_event_queue
-        self.__second_to_global_tick = second_to_global_tick
 
-        self.state = TranceiverState.IDLE
+        
         self.__current_transmission_end_global_tick = 0
         self.__current_reception_start_global_tick: int | None = None
         self.__receive_queue: List[EventNet] = [] # TODO: simulator should fill this queue....
 
-        self.__joules_per_second_consumption_transmit = 1 # TODO: Set realistic value
-        self.__joules_per_second_consumption_receive = 0.5 # TODO: Set realistic value
-        self.__joules_per_second_consumption_idle = 0.1 # TODO: Set realistic value
-
-        self.__consuption_per_tick_transmit = self.__joules_per_second_consumption_transmit * second_to_global_tick
-        self.__consuption_per_tick_receive = self.__joules_per_second_consumption_receive * second_to_global_tick
-        self.__consuption_per_tick_idle = self.__joules_per_second_consumption_idle * second_to_global_tick
+        self.__consuption_per_tick_transmit = joules_per_second_consumption_transmit * second_to_global_tick
+        self.__consuption_per_tick_receive = joules_per_second_consumption_receive * second_to_global_tick
+        self.__consuption_per_tick_idle = joules_per_second_consumption_idle * second_to_global_tick
 
     def tick(self, current_global_tick):
         self.__housekeep_receive_queue(current_global_tick)
 
-        state_change = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=None) # TODO: Maybe we want to specify sub_type for different protocols?
-        transmit_data_events = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=None) # TODO: Maybe we want to specify sub_type for different protocols?
+        state_change = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=self.local_event_sub_type)
+        transmit_data_events = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=self.local_event_sub_type)
+
+        if state_change:
+            next_state = state_change[0].data
+            if next_state != self.state:
+                self.__cancel_transmission(current_global_tick) # If we are changing state, we should not have any ongoing transmission. Just to be sure, cancel any transmission if it exists.
+                self.__cancel_reception() # If we are changing state, we should not have any
+                self.state = next_state
 
         if self.state == TranceiverState.IDLE:
-            # Check if we should start transmitting or receiving based on events in the global event queue
-            pass
-
+            if transmit_data_events:
+                # For simplicity, we assume that if multiple transmit events are triggered in the same tick, we only handle one and ignore the rest. 
+                # In a more complex implementation, we might want to queue these or handle them in some other way.
+                event = transmit_data_events[0]
+                transmission_duration_ticks = self._calculate_transmission_duration_ticks(event.data)
+                self.__current_transmission_end_global_tick = current_global_tick + transmission_duration_ticks
+                self.__global_event_queue.push_event(EventNet(self.__node_id, current_global_tick, self.__current_transmission_end_global_tick, data=event.data, type="transmit"))
+                self.state = TranceiverState.SENDING
+                                        
         if self.state == TranceiverState.SENDING:
             # Check if we have finished transmitting
             if current_global_tick >= self.__current_transmission_end_global_tick:
                 self.__current_transmission_end_global_tick = 0
                 self.state = TranceiverState.IDLE
-        
+
         if self.state == TranceiverState.RECEIVING:
             received_events = self.__get_successful_receptions(current_global_tick)
             for event in received_events:
-                self.__local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=None) # TODO: Maybe we want to specify sub_type for different protocols?
+                self.__local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.local_event_sub_type)
 
         match self.state:
             case TranceiverState.IDLE:
@@ -61,17 +77,26 @@ class BaseTranceiver(IModule):
     
     def reset(self, current_global_tick):
         self.__cancel_transmission(current_global_tick) # Cancel any ongoing transmission
-        self.state = TranceiverState.IDLE        
-        self.__current_reception_start_global_tick = None
-        return
+        self.__cancel_reception() # Cancel any ongoing reception
     
+    @abstractmethod
+    def _calculate_transmission_duration_ticks(self, data) -> int:
+        pass
+
     def __cancel_transmission(self, current_global_tick):
         # Logic to determine if a transmission can be cancelled (e.g., if the node dies during transmission)
-        if self.state != TranceiverState.SENDING:
-            return False # No transmission to cancel
+        if self.__current_transmission_end_global_tick == 0:
+            return
         
         self.__global_event_queue.push_event_stop(EventNet(self.node_id, current_global_tick, self.__current_transmission_end_global_tick, data=None, type="transmit_cancelled"))
         self.__current_transmission_end_global_tick = 0
+        self.state = TranceiverState.IDLE
+
+    def __cancel_reception(self):
+        if self.__current_reception_start_global_tick is None:
+            return
+        
+        self.__current_reception_start_global_tick = None
         self.state = TranceiverState.IDLE
 
     def __housekeep_receive_queue(self, current_global_tick):        
