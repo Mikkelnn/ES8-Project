@@ -1,10 +1,8 @@
 from enum import Enum
-from unittest import case
 
 from simulator.src.node.battery.battery import Battery
 from simulator.src.node.clock.clock import Clock
 from simulator.src.node.event_local_queue import LocalEventQueue
-from simulator.src.node.tranceiver.D2DLoRa import D2DLoRa
 from simulator.src.node.tranceiver.tranceiverManager import TranceiverManager
 from simulator.src.simulator import event_net_queue
 

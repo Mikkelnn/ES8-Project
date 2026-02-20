@@ -23,6 +23,7 @@ class Engine:
         self.paused = False
         while self.running:
             if stop_time is not None and timer.get_time() >= stop_time:
+                self.running = False
                 break
             if self.paused:
                 self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine paused; waiting to resume")
@@ -48,7 +49,6 @@ class Engine:
 
             timer.increment_time(1)
         self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")
-        self.running = False
 
     def run(self):
         import threading

@@ -9,3 +9,9 @@ test:
 
 run:
 	uv run src/main.py
+
+benchmark:
+	uv run scalene run src/main.py
+
+benchmark_view:
+	uv run scalene view

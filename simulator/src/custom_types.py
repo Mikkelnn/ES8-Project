@@ -31,7 +31,6 @@ class MediumTypes(str, Enum):
     LORA = "LORA"
     LORAD2D = "LORAD2D"
     LORAWAN = "LORAWAN"
-    
 
 class EventNet(BaseModel):
     node_id: int
@@ -40,8 +39,6 @@ class EventNet(BaseModel):
     data: List[Any] = Field(default_factory=list)
     type: EventNetTypes
     type_medium: MediumTypes
-
-
 
 class LocalEventTypes(str, Enum):
     LOCAL_TIME = "LOCAL_TIME"

@@ -28,16 +28,21 @@ def test_logger_add_and_get():
 
 def test_logger_add_wrong_severity():
     logger = Logger()
-    with pytest.raises(ValueError):
-        logger.add("NOT_A_SEVERITY", Area.SIMULATOR, "Bad severity")
+    with pytest.raises(TypeError):
+        logger.add("NOT_A_SEVERITY", Area.SIMULATOR, "Bad severity")  # Intentionally wrong type
 
 def test_logger_add_wrong_area():
     logger = Logger()
-    with pytest.raises(ValueError):
-        logger.add(Severity.INFO, "NOT_AN_AREA", "Bad area")
+    with pytest.raises(TypeError):
+        logger.add(Severity.INFO, "NOT_AN_AREA", "Bad area")  # Intentionally wrong type
 
 def test_logger_get_wrong_types():
     logger = Logger()
-    # Should not raise, but will not match anything
+    # Should raise TypeError for wrong types
+    with pytest.raises(TypeError):
+        logger.get(severity="INFO")
+    with pytest.raises(TypeError):
+        logger.get(area="SIMULATOR")
+    # Should not raise for correct types
     logs = logger.get(severity=Severity.INFO, area=Area.SIMULATOR, msg="notfound")
     assert isinstance(logs, list)

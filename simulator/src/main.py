@@ -9,6 +9,65 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtCore import QTimer
 from simulator.engine import Engine
+from simulator.logger import Logger
+
+from PySide6.QtCore import QThread, Signal, QObject
+
+class PlotWorker(QObject):
+    finished = Signal(dict, dict)
+    def __init__(self, data_buffer, subscribed_areas):
+        super().__init__()
+        self.data_buffer = data_buffer
+        self.subscribed_areas = subscribed_areas
+    def run(self):
+        # Prepare plot data in background
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+        label_plots = {}
+        label_units = {}
+        for area, enabled in self.subscribed_areas.items():
+            if enabled and self.data_buffer.get(area):
+                for t, v, label, unit in self.data_buffer[area]:
+                    label_plots.setdefault(label, []).append((t, v, area))
+                    if unit:
+                        label_units[label] = unit
+        figures = {}
+        canvases = {}
+        for label, points in label_plots.items():
+            fig = Figure(figsize=(5, 3))
+            ax = fig.add_subplot(111)
+            area_groups = {}
+            area_title = None
+            for t, v, area in points:
+                area_groups.setdefault(area, []).append((t, v))
+                area_title = area
+            min_time, max_time = None, None
+            for area, area_points in area_groups.items():
+                x, y = zip(*sorted(area_points)) if area_points else ([], [])
+                if x and y:
+                    ax.plot(x, y)
+                    if min_time is None or min(x) < min_time:
+                        min_time = min(x)
+                    if max_time is None or max(x) > max_time:
+                        max_time = max(x)
+            if min_time is not None and max_time is not None:
+                ax.set_xlim(min_time, max_time)
+            fig.set_size_inches(9, 3)
+            fig.subplots_adjust(bottom=0.22)
+            ax.set_xlabel("Time [ms]")
+            unit = label_units.get(label, None)
+            if unit:
+                ax.set_ylabel(f"{label} [{unit}]")
+            else:
+                ax.set_ylabel(f"{label}")
+            if area_title:
+                ax.set_title(area_title)
+            else:
+                ax.set_title(label)
+            ax.legend(loc='upper right')
+            figures[label] = fig
+            canvases[label] = FigureCanvas(fig)
+        self.finished.emit(figures, canvases)
 
 class SimulatorGUI(QWidget):
     def _auto_export_if_needed(self):
@@ -24,14 +83,17 @@ class SimulatorGUI(QWidget):
                 self.timer.timeout.disconnect()
             except Exception:
                 pass
-        # Always export latest data on close
-        self._export_csv()
-        self._export_svg()
+        # Only save the log file on close for speed
+        try:
+            with open(self.sim_log_path, 'w', encoding='utf-8') as f:
+                for log in self.logger.get():
+                    f.write(str(log) + '\n')
+        except Exception:
+            pass
         self.log_display = None
         super().closeEvent(event)
     def __init__(self):
         super().__init__()
-        from simulator.logger import Logger
         self.logger = Logger()
         self.setWindowTitle("Simulator Control Panel")
         self._paused = False
@@ -72,7 +134,7 @@ class SimulatorGUI(QWidget):
 
     def _setup_logger(self):
         from simulator.logger import Logger
-        Logger.set_log_file(str(self.sim_log_path))
+        Logger().set_log_file(str(self.sim_log_path))
 
     def _build_ui(self):
         main_layout = QHBoxLayout(self)
@@ -362,21 +424,48 @@ class SimulatorGUI(QWidget):
             except RuntimeError:
                 self.log_display = None
                 return
-            # Display all logs
-            for log in self.logger._logs:
+            # Only show the 40 latest logs for subscribed areas, fast
+            all_logs = self.logger.get()
+            filtered_logs = []
+            count = 0
+            for log in reversed(all_logs):
+                if log.get('area') in self.subscribed_areas and self.subscribed_areas[log.get('area')]:
+                    filtered_logs.append(log)
+                    count += 1
+                    if count >= 40:
+                        break
+            latest_logs = list(reversed(filtered_logs))
+            # Display logs and update severity counters
+            severity_counts = {
+                'DEBUG': 0,
+                'INFO': 0,
+                'WARNING': 0,
+                'ERROR': 0,
+                'CRITICAL': 0,
+            }
+            for log in latest_logs:
                 if 'severity' in log:
+                    sev = log['severity']
+                    if sev in severity_counts:
+                        severity_counts[sev] += 1
                     color = {
                         'DEBUG': '#7ecfff',
                         'INFO': '#b3ff7e',
                         'WARNING': '#ffe97e',
                         'ERROR': '#ffb37e',
                         'CRITICAL': '#ff7e7e',
-                    }.get(log['severity'], '#f0f0f0')
-                    log_display.append(f'<span style="font-family:monospace;color:{color}">[t={log["sim_time"]}] [{log["severity"]}] ({log["area"]}): {log["msg"]}</span>')
+                    }.get(sev, '#f0f0f0')
+                    log_display.append(f'<span style="font-family:monospace;color:{color}">[t={log["sim_time"]}] [{sev}] ({log["area"]}): {log["msg"]}</span>')
                 elif 'label' in log and 'data' in log:
                     log_display.append(f'<span style="font-family:monospace;color:#b3ff7e">[t={log["sim_time"]}] (DATA) ({log["area"]}) [{log["label"]}]: {log["data"]}</span>')
+            # Update severity counter labels (only for visible logs)
+            self.counter_debug.setText(f"DEBUG: {severity_counts['DEBUG']}")
+            self.counter_info.setText(f"INFO: {severity_counts['INFO']}")
+            self.counter_warning.setText(f"WARNING: {severity_counts['WARNING']}")
+            self.counter_error.setText(f"ERROR: {severity_counts['ERROR']}")
+            self.counter_critical.setText(f"CRITICAL: {severity_counts['CRITICAL']}")
             # Only plot and save CSV with data logs
-            data_logs = self.logger.get_data()
+            data_logs = [log for log in self.logger.get_data() if log.get('area') in self.subscribed_areas and self.subscribed_areas[log.get('area')]]
             # Rebuild self.data_buffer from data logs
             self.data_buffer = {area: [] for area in self.subscribed_areas}
             for log in data_logs:
@@ -387,60 +476,42 @@ class SimulatorGUI(QWidget):
             self._auto_export_if_needed()
             self._update_plot()
     def _update_plot(self):
-        # Live update matplotlib plot for subscribed areas
+        # Run plot update in a background thread
+        if hasattr(self, '_plot_thread') and self._plot_thread is not None:
+            try:
+                if self._plot_thread.isRunning():
+                    return  # Avoid overlapping plot updates
+            except RuntimeError:
+                self._plot_thread = None
+        self._plot_thread = QThread()
+        self._plot_worker = PlotWorker(self.data_buffer.copy(), self.subscribed_areas.copy())
+        self._plot_worker.moveToThread(self._plot_thread)
+        self._plot_thread.started.connect(self._plot_worker.run)
+        self._plot_worker.finished.connect(self._on_plot_ready)
+        self._plot_worker.finished.connect(self._plot_thread.quit)
+        self._plot_worker.finished.connect(self._plot_worker.deleteLater)
+        self._plot_thread.finished.connect(self._plot_thread.deleteLater)
+        self._plot_thread.finished.connect(self._clear_plot_thread)
+        self._plot_thread.start()
+
+    def _clear_plot_thread(self):
+        self._plot_thread = None
+
+    def _on_plot_ready(self, figures, canvases):
         # Remove old plots
         for canvas in self.canvases.values():
             self.plot_layout.removeWidget(canvas)
             canvas.setParent(None)
         self.figures.clear()
         self.canvases.clear()
-        # Plot time vs data for each label in each area
-        label_plots = {}
-        label_units = {}
-        for area, enabled in self.subscribed_areas.items():
-            if enabled and self.data_buffer.get(area):
-                for t, v, label, unit in self.data_buffer[area]:
-                    label_plots.setdefault(label, []).append((t, v, area))
-                    if unit:
-                        label_units[label] = unit
-        for label, points in label_plots.items():
-            fig = Figure(figsize=(5, 3))
-            ax = fig.add_subplot(111)
-            area_groups = {}
-            area_title = None
-            for t, v, area in points:
-                area_groups.setdefault(area, []).append((t, v))
-                area_title = area  # Use the last area (all points for a label are from the same area)
-            min_time, max_time = None, None
-            for area, area_points in area_groups.items():
-                x, y = zip(*sorted(area_points)) if area_points else ([], [])
-                if x and y:
-                    ax.plot(x, y)
-                    if min_time is None or min(x) < min_time:
-                        min_time = min(x)
-                    if max_time is None or max(x) > max_time:
-                        max_time = max(x)
-            # Lock time axis to full range
-            if min_time is not None and max_time is not None:
-                ax.set_xlim(min_time, max_time)
-            fig.set_size_inches(9, 3)
-            fig.subplots_adjust(bottom=0.22)  # Increase bottom margin for label visibility
-            canvas = FigureCanvas(fig)
+        # Add new plots
+        for label, canvas in canvases.items():
             canvas.setFixedSize(900, 300)
-            ax.set_xlabel("Time [ms]")
-            unit = label_units.get(label, None)
-            if unit:
-                ax.set_ylabel(f"{label} [{unit}]")
-            else:
-                ax.set_ylabel(f"{label}")
-            if area_title:
-                ax.set_title(area_title)
-            else:
-                ax.set_title(label)
-            ax.legend(loc='upper right')
             self.plot_layout.addWidget(canvas)
-            self.figures[label] = fig
+            self.figures[label] = figures[label]
             self.canvases[label] = canvas
+        # Mark thread as done
+        self._plot_thread = None
     def handle_run(self):
         # Do not force scroll; allow user to control cursor position
         time_str = self.time_input.text().strip()
@@ -456,10 +527,15 @@ class SimulatorGUI(QWidget):
         self.engine.stop()
 
 def main():    
+    import signal
     app = QApplication(sys.argv)
     gui = SimulatorGUI()
     gui.resize(600, 400)
     gui.show()
+    # Handle Ctrl+C gracefully: quit app on SIGINT
+    def handle_sigint(*args):
+        app.quit()
+    signal.signal(signal.SIGINT, handle_sigint)
     try:
         sys.exit(app.exec())
     except Exception:

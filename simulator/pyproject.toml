@@ -10,5 +10,6 @@ dependencies = [
     "pyside6>=6.10.2",
     "pytest>=9.0.2",
     "ruff>=0.15.1",
+    "scalene>=2.1.4",
     "ty>=0.0.17",
 ]
