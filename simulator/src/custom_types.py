@@ -23,12 +23,23 @@ class Area(str, Enum):
     TRANCEIVER = "TRANCEIVER"
     OTHER = "OTHER"
 
+class EventNetTypes(str, Enum):
+    CANCELED = "CANCELED"
+    TRANSMIT = "TRANSMIT"
+
+class MediumTypes(str, Enum):
+    LORA = "LORA"
+    LORAD2D = "LORAD2D"
+    LORAWAN = "LORAWAN"
+    
+
 class EventNet(BaseModel):
     node_id: int
     time_start: int
     time_end: int
     data: List[Any] = Field(default_factory=list)
-    type: str
+    type: EventNetTypes
+    type_medium: MediumTypes
 
 
 

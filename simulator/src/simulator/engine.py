@@ -34,13 +34,17 @@ class Engine:
             #TODO change later
             # Simulate different data areas with data to export 
             current_time = timer.get_time()
-            data_areas = {
-                Area.SIMULATOR: {"status": "running", "time": current_time},
-                Area.BATTERY: {"level": 75 + random.uniform(-5, 5)},  # Add random noise to battery level
-                Area.CLOCK: {"tick": 1 + random.randint(-1, 1)},      # Add random noise to clock tick
-            }
-            for area, data in data_areas.items():
-                self.logger.add(Severity.INFO, area, str(data))
+            # Simulate log messages
+            self.logger.add(Severity.INFO, Area.SIMULATOR, f"Status: running, time: {current_time}")
+            self.logger.add(Severity.DEBUG, Area.NODE, f"Node event at t={current_time}")
+            self.logger.add(Severity.WARNING, Area.GATEWAY, f"Gateway warning at t={current_time}")
+            # Simulate data logs with units
+            self.logger.add_data(Area.BATTERY, "level", 75 + random.uniform(-5, 5), unit="percent")
+            self.logger.add_data(Area.BATTERY, "voltage", 3.7 + random.uniform(-0.1, 0.1), unit="V")
+            self.logger.add_data(Area.CLOCK, "tick", 1 + random.randint(-1, 1), unit="ms")
+            self.logger.add_data(Area.CLOCK, "drift", random.uniform(-0.05, 0.05), unit="ms")
+            self.logger.add_data(Area.TRANCEIVER, "signal", random.uniform(0, 100), unit="dBm")
+            self.logger.add_data(Area.TRANCEIVER, "snr", random.uniform(-10, 20), unit="dB")
 
             timer.increment_time(1)
         self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")

@@ -15,7 +15,7 @@ class Logger:
 		log_path = os.path.abspath(log_file)
 		os.makedirs(os.path.dirname(log_path), exist_ok=True)
 		if not os.path.exists(log_path):
-			with open(log_path, 'w', encoding='utf-8') as f:
+			with open(log_path, 'w', encoding='utf-8'):
 				pass
 		with cls._lock:
 			if cls._instance is not None:
@@ -55,6 +55,26 @@ class Logger:
 		with open(self._log_file, 'a', encoding='utf-8') as f:
 			f.write(f"[t={sim_time}] [{severity.value}] ({area.value}): {msg}\n")
 
+	def add_data(self, area: Area, label: str, data: float, unit: str = None):
+		# Use global simulation time for timestamp
+		if not isinstance(area, Area):
+			raise ValueError(f"area must be an Area enum, got {area}")
+		sim_time = time_global().get_time()
+		entry = {
+			'sim_time': sim_time,
+			'area': area.value,
+			'label': label,
+			'data': data,
+			'unit': unit
+		}
+		self._logs.append(entry)
+		# Write to file
+		with open(self._log_file, 'a', encoding='utf-8') as f:
+			if unit:
+				f.write(f"[t={sim_time}] [DATA] ({area.value}) [{label}]: {data} {unit}\n")
+			else:
+				f.write(f"[t={sim_time}] [DATA] ({area.value}) [{label}]: {data}\n")
+
 	def get(self, severity: Severity = None, area: Area = None, msg: str = None):
 		results = self._logs
 		if severity is not None:
@@ -64,3 +84,10 @@ class Logger:
 		if msg is not None:
 			results = [log for log in results if msg in log['msg']]
 		return results
+
+	def get_data(self, label: str = None):
+		# Return only entries that have 'label' and 'data' fields (data logs)
+		data_logs = [log for log in self._logs if 'label' in log and 'data' in log]
+		if label is not None:
+			data_logs = [log for log in data_logs if log['label'] == label]
+		return data_logs
