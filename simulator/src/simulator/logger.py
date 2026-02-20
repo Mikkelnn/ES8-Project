@@ -15,7 +15,7 @@ class Logger:
 		log_path = os.path.abspath(log_file)
 		os.makedirs(os.path.dirname(log_path), exist_ok=True)
 		if not os.path.exists(log_path):
-			with open(log_path, 'w', encoding='utf-8') as f:
+			with open(log_path, 'w', encoding='utf-8'):
 				pass
 		with cls._lock:
 			if cls._instance is not None:

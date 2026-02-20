@@ -142,7 +142,6 @@ class SimulatorGUI(QWidget):
         simulator_layout.addLayout(btn_layout)
         simulator_layout.addWidget(self.status_label)
         # --- Matplotlib live plots ---
-        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         self.figures = {}
         self.canvases = {}
         from PySide6.QtWidgets import QScrollArea
@@ -243,7 +242,6 @@ class SimulatorGUI(QWidget):
 
     def init_ui(self):
         print("init_ui start")
-        main_layout = QHBoxLayout()
 
         # Simulator submodule (left)
         simulator_widget = QWidget()
@@ -327,7 +325,6 @@ class SimulatorGUI(QWidget):
 
     def _export_svg(self):
         # Save each label's figure to a separate SVG file
-        import os
         for label, fig in self.figures.items():
             svg_path = os.path.join(os.path.dirname(self.sim_svg_path), f'result_{label}.svg')
             fig.savefig(svg_path, format='svg')
@@ -465,7 +462,7 @@ def main():
     gui.show()
     try:
         sys.exit(app.exec())
-    except Exception as e:
+    except Exception:
         # Try to save data if simulator fails
         try:
             gui._export_csv()
