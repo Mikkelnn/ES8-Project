@@ -1,10 +1,10 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List
-from simulator.src.custom_types import EventNet, LocalEventSubTypes, LocalEventTypes
+from simulator.src.custom_types import EventNet, EventNetTypes, LocalEventSubTypes, LocalEventTypes, MediumTypes
 from simulator.src.node.Imodule import IModule
 from simulator.src.node.event_local_queue import LocalEventQueue
-from simulator.src.simulator import event_net_queue
+from simulator.src.simulator.global_event_queue import GlobalEventQueue
 
 class TranceiverState(Enum):
     IDLE = 0
@@ -12,7 +12,7 @@ class TranceiverState(Enum):
     RECEIVING = 2
 
 class BaseTranceiver(ABC, IModule):
-    def __init__(self, node_id: int, global_event_queue: event_net_queue, local_event_queue: LocalEventQueue, 
+    def __init__(self, node_id: int, global_event_queue: GlobalEventQueue, local_event_queue: LocalEventQueue, 
                  second_to_global_tick: float, local_event_sub_type: LocalEventSubTypes,
                  joules_per_second_consumption_transmit: float, joules_per_second_consumption_receive: float, joules_per_second_consumption_idle: float):
         
@@ -53,9 +53,9 @@ class BaseTranceiver(ABC, IModule):
                 event = transmit_data_events[0]
                 transmission_duration_ticks = self._calculate_transmission_duration_ticks(event.data)
                 self.__current_transmission_end_global_tick = current_global_tick + transmission_duration_ticks
-                self.__global_event_queue.push_event(EventNet(self.__node_id, current_global_tick, self.__current_transmission_end_global_tick, data=event.data, type="transmit"))
+                self.__global_event_queue.push_event(EventNet(self.__node_id, current_global_tick, self.__current_transmission_end_global_tick, data=event.data, type=EventNetTypes.TRANSMIT, type_medium=self.local_event_sub_type))
                 self.state = TranceiverState.SENDING
-                                        
+
         if self.state == TranceiverState.SENDING:
             # Check if we have finished transmitting
             if current_global_tick >= self.__current_transmission_end_global_tick:
@@ -88,7 +88,7 @@ class BaseTranceiver(ABC, IModule):
         if self.__current_transmission_end_global_tick == 0:
             return
         
-        self.__global_event_queue.push_event_stop(EventNet(self.node_id, current_global_tick, self.__current_transmission_end_global_tick, data=None, type="transmit_cancelled"))
+        self.__global_event_queue.push_event_stop(EventNet(self.node_id, current_global_tick, self.__current_transmission_end_global_tick, data=None, type=EventNetTypes.CANCELED))
         self.__current_transmission_end_global_tick = 0
         self.state = TranceiverState.IDLE
 
@@ -122,14 +122,14 @@ class BaseTranceiver(ABC, IModule):
             return successful_receptions # No events can be successful if reception is not started
 
         # Gather cancellation events from the receive queue (do not consult global queue)
-        cancellations = [e for e in self.__receive_queue if getattr(e, "type", None) == "transmit_cancelled"]
+        cancellations = [e for e in self.__receive_queue if e.type == EventNetTypes.CANCELED]
         canc_by_node: dict[int, List[EventNet]] = {}
         for c in cancellations:
             canc_by_node.setdefault(c.node_id, []).append(c)
 
         for event in self.__receive_queue:
             # ignore cancellation entries themselves
-            if getattr(event, "type", None) == "transmit_cancelled":
+            if event.type == EventNetTypes.CANCELED:
                 continue
 
             # event end must have passed
@@ -149,7 +149,7 @@ class BaseTranceiver(ABC, IModule):
             for other in self.__receive_queue:
                 if other is event:
                     continue
-                if getattr(other, "type", None) == "transmit_cancelled":
+                if other.type == EventNetTypes.CANCELED:
                     continue
 
                 # compute effective end for the other event, considering cancellations

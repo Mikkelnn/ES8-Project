@@ -2,7 +2,7 @@ from collections import deque
 from typing import Deque
 from ..custom_types import EventNet
 
-class event_net_queue():
+class GlobalEventQueue():
 
     def __init__(self) -> None:
         self.queue: Deque[EventNet] = deque()

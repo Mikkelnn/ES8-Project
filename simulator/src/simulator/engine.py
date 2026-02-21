@@ -1,15 +1,20 @@
 
+from simulator.src.node.Imodule import IModule
+from simulator.src.node.node import Node
+from simulator.src.simulator.global_event_queue import GlobalEventQueue
 from .logger import Logger
 from custom_types import Severity, Area
 import threading
 from .global_time import time_global
 import random
 class Engine:
-
     def __init__(self):
         self.logger = Logger()
         self.running = False
         self.paused = False
+        
+        self.nodes: list[IModule] = []  # This will hold references to all nodes in the simulation
+        self.global_event_queue = GlobalEventQueue()
 
     def _run_loop(self, stop_time=None):
         from .global_time import time_global
@@ -32,9 +37,17 @@ class Engine:
                 if not self.running:
                     self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped during pause in run")
                     break
+
+            # Tick all nodes
+            current_time = timer.get_time()
+            for node in self.nodes:
+                node.tick(current_time)
+            
+            # handle global event using specific medium handlers (e.g., LoRaD2D, LoRaWAN, etc.) - TODO: Implement this
+            
+                        
             #TODO change later
             # Simulate different data areas with data to export 
-            current_time = timer.get_time()
             # Simulate log messages
             self.logger.add(Severity.INFO, Area.SIMULATOR, f"Status: running, time: {current_time}")
             self.logger.add(Severity.DEBUG, Area.NODE, f"Node event at t={current_time}")
@@ -73,6 +86,12 @@ class Engine:
             self.paused = False
             self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped")
 
+    def initialize_nodes(self):
+        self.nodes = [
+            Node(node_id=1, second_to_global_tick=0.1, global_event_queue=self.global_event_queue),
+            Node(node_id=2, second_to_global_tick=0.1, global_event_queue=self.global_event_queue),
+            # Add more nodes as needed
+        ]
 
 if __name__ == "__main__":
     engine = Engine()

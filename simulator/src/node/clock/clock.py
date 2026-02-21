@@ -13,7 +13,7 @@ class Clock(IModule):
         self.local_tick: int = 0
         
     def tick(self, current_global_tick: int) -> float:
-        self.localTick += 1 # increment local tick with some drift
+        self.local_tick += 1 # increment local tick TODO with some drift
 
         if self.local_tick >= 100:
             self.local_time += 1
@@ -24,6 +24,6 @@ class Clock(IModule):
 
         return self.consuption_per_tick # Power consumption for this tick
     
-    def reset(self):
+    def reset(self, current_global_tick: int) -> None:
         self.local_time = 0
         self.local_tick = 0

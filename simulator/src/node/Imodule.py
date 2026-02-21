@@ -16,6 +16,6 @@ class IModule(Protocol):
         """
         ...
 
-    def reset(self) -> None:
+    def reset(self, current_global_tick: int) -> None:
         """Reset the module to its initial state."""
         ...

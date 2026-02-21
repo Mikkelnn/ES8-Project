@@ -29,8 +29,8 @@ class EventNetTypes(str, Enum):
 
 class MediumTypes(str, Enum):
     LORA = "LORA"
-    LORAD2D = "LORAD2D"
-    LORAWAN = "LORAWAN"
+    LORAD2D = "LORA_D2D"
+    LORAWAN = "LORA_WAN"
 
 class EventNet(BaseModel):
     node_id: int
