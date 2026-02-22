@@ -92,6 +92,7 @@ class SimulatorGUI(QWidget):
             pass
         self.log_display = None
         super().closeEvent(event)
+    
     def __init__(self):
         super().__init__()
         self.logger = Logger()
@@ -117,7 +118,7 @@ class SimulatorGUI(QWidget):
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_log)
         # Timer will be started after showEvent
-
+        
     def _setup_simulation_files(self):
         import datetime
         import pathlib
@@ -417,6 +418,7 @@ class SimulatorGUI(QWidget):
         except RuntimeError:
             self.log_display = None
             return
+        
         log_display = getattr(self, 'log_display', None)
         if log_display is not None:
             try:
@@ -424,6 +426,7 @@ class SimulatorGUI(QWidget):
             except RuntimeError:
                 self.log_display = None
                 return
+            
             # Only show the 40 latest logs for subscribed areas, fast
             all_logs = self.logger.get()
             filtered_logs = []
@@ -434,6 +437,7 @@ class SimulatorGUI(QWidget):
                     count += 1
                     if count >= 40:
                         break
+
             latest_logs = list(reversed(filtered_logs))
             # Display logs and update severity counters
             severity_counts = {
@@ -443,6 +447,7 @@ class SimulatorGUI(QWidget):
                 'ERROR': 0,
                 'CRITICAL': 0,
             }
+            
             for log in latest_logs:
                 if 'severity' in log:
                     sev = log['severity']
@@ -458,14 +463,17 @@ class SimulatorGUI(QWidget):
                     log_display.append(f'<span style="font-family:monospace;color:{color}">[t={log["sim_time"]}] [{sev}] ({log["area"]}): {log["msg"]}</span>')
                 elif 'label' in log and 'data' in log:
                     log_display.append(f'<span style="font-family:monospace;color:#b3ff7e">[t={log["sim_time"]}] (DATA) ({log["area"]}) [{log["label"]}]: {log["data"]}</span>')
+
             # Update severity counter labels (only for visible logs)
             self.counter_debug.setText(f"DEBUG: {severity_counts['DEBUG']}")
             self.counter_info.setText(f"INFO: {severity_counts['INFO']}")
             self.counter_warning.setText(f"WARNING: {severity_counts['WARNING']}")
             self.counter_error.setText(f"ERROR: {severity_counts['ERROR']}")
             self.counter_critical.setText(f"CRITICAL: {severity_counts['CRITICAL']}")
+            
             # Only plot and save CSV with data logs
             data_logs = [log for log in self.logger.get_data() if log.get('area') in self.subscribed_areas and self.subscribed_areas[log.get('area')]]
+
             # Rebuild self.data_buffer from data logs
             self.data_buffer = {area: [] for area in self.subscribed_areas}
             for log in data_logs:
@@ -473,16 +481,20 @@ class SimulatorGUI(QWidget):
                 unit = log.get('unit', None)
                 if self.subscribed_areas.get(area, False):
                     self.data_buffer[area].append((log['sim_time'], log['data'], log['label'], unit))
+
             self._auto_export_if_needed()
             self._update_plot()
+    
     def _update_plot(self):
         # Run plot update in a background thread
         if hasattr(self, '_plot_thread') and self._plot_thread is not None:
             try:
                 if self._plot_thread.isRunning():
+                    print("Previous plot update still running, skipping this update to avoid overlap")
                     return  # Avoid overlapping plot updates
             except RuntimeError:
                 self._plot_thread = None
+
         self._plot_thread = QThread()
         self._plot_worker = PlotWorker(self.data_buffer.copy(), self.subscribed_areas.copy())
         self._plot_worker.moveToThread(self._plot_thread)
@@ -502,16 +514,17 @@ class SimulatorGUI(QWidget):
         for canvas in self.canvases.values():
             self.plot_layout.removeWidget(canvas)
             canvas.setParent(None)
+
         self.figures.clear()
         self.canvases.clear()
+
         # Add new plots
         for label, canvas in canvases.items():
             canvas.setFixedSize(900, 300)
             self.plot_layout.addWidget(canvas)
             self.figures[label] = figures[label]
             self.canvases[label] = canvas
-        # Mark thread as done
-        self._plot_thread = None
+    
     def handle_run(self):
         # Do not force scroll; allow user to control cursor position
         time_str = self.time_input.text().strip()
@@ -535,7 +548,9 @@ def main():
     # Handle Ctrl+C gracefully: quit app on SIGINT
     def handle_sigint(*args):
         app.quit()
+    
     signal.signal(signal.SIGINT, handle_sigint)
+
     try:
         sys.exit(app.exec())
     except Exception:
@@ -548,7 +563,7 @@ def main():
         raise
 
 if __name__ == "__main__":
-    # main()
-    engine = Engine()
-    engine.initialize_nodes()
-    engine.run_for(100)
+    main()
+    # engine = Engine()
+    # engine.initialize_nodes()
+    # engine.run_for(100)

@@ -67,13 +67,14 @@ class Engine:
         self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")
 
     def run(self):
+        print("Engine will run indefinitely")
         import threading
         t = threading.Thread(target=self._run_loop, daemon=True)
         t.start()
 
     def run_for(self, time_units: int):
-        self._run_loop(time_units)
-        return
+        print(f"Engine will run for {time_units} time units")
+        self.initialize_nodes()
         timer = time_global()
         stop_time = timer.get_time() + time_units
         t = threading.Thread(target=self._run_loop, args=(stop_time,), daemon=True)
