@@ -48,10 +48,14 @@ class LocalEventTypes(str, Enum):
     TRANCEIVER_SET_STATE = "TRANCEIVER_SET_STATE"
 
 class LocalEventSubTypes(str, Enum):
-    LORA_WAN = "LORA_WAN"
-    LORA_D2D = "LORA_D2D"
+    Placeholder = "PLACEHOLDER" # This is a placeholder value, you can replace it with actual subtypes as needed
 
 class LocalEventNet(BaseModel):
     type: LocalEventTypes
-    sub_type: LocalEventSubTypes | None = None
+    sub_type: MediumTypes | LocalEventSubTypes | None = None
     data: TranceiverState | List[Any]
+
+class NodeMediumInfo(BaseModel):
+    pos_x: int
+    pos_y: int
+    neighbors: List[int]

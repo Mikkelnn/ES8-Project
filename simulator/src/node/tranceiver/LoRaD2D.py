@@ -2,18 +2,18 @@ import math
 from typing import List
 
 from simulator.src.custom_types import LocalEventSubTypes
+from simulator.src.medium.medium_service import MediumService
 from simulator.src.node.event_local_queue import LocalEventQueue
 from simulator.src.node.tranceiver.baseTranceiver import BaseTranceiver
-from simulator.src.simulator.global_event_queue import GlobalEventQueue
 
 
 class LoRaD2D(BaseTranceiver):
-    def __init__(self, node_id: int, globaleventbus: GlobalEventQueue, localeventbus: LocalEventQueue, secondToGlobalTick: float):
+    def __init__(self, node_id: int, medium_service: MediumService, local_event_bus: LocalEventQueue, second_to_global_tick: float):
         joules_per_second_consumption_transmit = 1
         joules_per_second_consumption_receive = 0.1
         joules_per_second_consumption_idle = 0.001
 
-        super().__init__(node_id, globaleventbus, localeventbus, secondToGlobalTick, LocalEventSubTypes.D2D_LORA, 
+        super().__init__(node_id, medium_service, local_event_bus, second_to_global_tick, LocalEventSubTypes.D2D_LORA, 
                          joules_per_second_consumption_transmit, joules_per_second_consumption_receive, joules_per_second_consumption_idle)
         
         self.__sf = 7 # Spreading factor

@@ -1,10 +1,12 @@
 from enum import Enum
 
+from simulator.src.medium.medium_service import MediumService
 from simulator.src.node.Imodule import IModule
 from simulator.src.node.battery.battery import Battery
 from simulator.src.node.clock.clock import Clock
 from simulator.src.node.event_local_queue import LocalEventQueue
-from simulator.src.node.tranceiver.tranceiverManager import TranceiverManager
+from simulator.src.node.protocols.ping_pong import PingPongProtocol
+from simulator.src.node.tranceiver.tranceiverManager import TranceiverManager, TranceiverService
 from simulator.src.simulator.global_event_queue import GlobalEventQueue
 
 class State(Enum):
@@ -14,47 +16,46 @@ class State(Enum):
     WAKE = 3
 
 class Node(IModule):
-    def __init__(self, node_id: int, second_to_global_tick: float, global_event_queue: GlobalEventQueue):
+    def __init__(self, node_id: int, second_to_global_tick: float, medium_service: MediumService):
         self.node_id = node_id
-        
-        self.global_event_queue = global_event_queue
         self.local_event_queue = LocalEventQueue()
 
         self.battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=10, second_to_global_tick=second_to_global_tick) #TODO: Make these parameters configurable
         self.clock = Clock(self.local_event_queue, second_to_global_tick)
 
-        self.tranceiver = TranceiverManager(self.node_id, self.global_event_queue, self.local_event_queue, second_to_global_tick)
+        self.tranceiver = TranceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick)
+        self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick) 
         self.state = State.DEAD
 
     def tick(self, current_global_tick: int):
         match self.state:
             case State.DEAD:
-                havePower = self.battery.tick(current_power_consumption=0)
-                if havePower:
-                    self.state = State.SLEEP
+                self.battery.tick(current_power_consumption=0)
             case State.SLEEP:
                 current_power_consumption = 0 # Base system usage
                 current_power_consumption += self.clock.tick()
-                havePower = self.battery.tick(current_power_consumption)
-                if not havePower:
-                    self.state = State.JUST_DIED
+                self.battery.tick(current_power_consumption)
             case State.WAKE:
                 current_power_consumption = 0 # Base system usage
                 current_power_consumption += self.clock.tick()
-                # Sensor
+                # TODO: Sensor
                 current_power_consumption += self.tranceiver.tick(current_global_tick)
-                # Protocol
-                havePower = self.battery.tick(current_power_consumption)
-                if not havePower:
-                    self.state = State.JUST_DIED
+                current_power_consumption += self.protocol.tick(current_global_tick)
+                self.battery.tick(current_power_consumption)
+        
+        if self.battery.is_dead() and self.state != State.DEAD:
+            self.state = State.JUST_DIED
+        
+        if not self.battery.is_dead() and self.state == State.DEAD:
+            self.state = State.WAKE # We can decide to start in sleep mode instead if we want to test that
         
         if self.state == State.JUST_DIED:
             # TODO: Tell all modules we just died -> they need to reset and maybe do some cleanup
             self.clock.reset(current_global_tick)
             self.tranceiver.reset(current_global_tick)
+            self.protocol.reset(current_global_tick)
             self.local_event_queue.reset(current_global_tick)
             self.state = State.DEAD
-            return
 
         # Clear local event bus
         self.local_event_queue.clear_events()

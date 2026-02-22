@@ -1,7 +1,8 @@
 
+from typing import List
+from simulator.src.medium.medium_service import MediumService
 from simulator.src.node.Imodule import IModule
 from simulator.src.node.node import Node
-from simulator.src.simulator.global_event_queue import GlobalEventQueue
 from .logger import Logger
 from custom_types import Severity, Area
 import threading
@@ -13,8 +14,8 @@ class Engine:
         self.running = False
         self.paused = False
         
-        self.nodes: list[IModule] = []  # This will hold references to all nodes in the simulation
-        self.global_event_queue = GlobalEventQueue()
+        self.nodes: List[IModule] = []  # This will hold references to all nodes in the simulation, this will be initialized in initialize_nodes()
+        self.medium_service: MediumService = None  # This will be initialized in initialize_nodes()
 
     def _run_loop(self, stop_time=None):
         from .global_time import time_global
@@ -38,14 +39,14 @@ class Engine:
                     self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped during pause in run")
                     break
 
-            # Tick all nodes
+            # Tick all nodes, do this in parallel if needed
             current_time = timer.get_time()
             for node in self.nodes:
                 node.tick(current_time)
             
-            # handle global event using specific medium handlers (e.g., LoRaD2D, LoRaWAN, etc.) - TODO: Implement this
-            
-                        
+            # propagate all new transmissions in the mediums and handle receptions
+            self.medium_service.propagate_mediums()
+
             #TODO change later
             # Simulate different data areas with data to export 
             # Simulate log messages
@@ -88,10 +89,15 @@ class Engine:
 
     def initialize_nodes(self):
         self.nodes = [
-            Node(node_id=1, second_to_global_tick=0.1, global_event_queue=self.global_event_queue),
-            Node(node_id=2, second_to_global_tick=0.1, global_event_queue=self.global_event_queue),
+            Node(node_id=1, second_to_global_tick=0.1, medium_service=self.medium_service),
+            Node(node_id=2, second_to_global_tick=0.1, medium_service=self.medium_service),
             # Add more nodes as needed
         ]
+
+        self.medium_service = MediumService(node_neighbors={
+            1: (0, 0, [2]),  # Node 1 is at (0, 0) and has Node 2 as a neighbor
+            2: (10, 0, [1]), # Node 2 is at (10, 0) and has Node 1 as a neighbor
+        })
 
 if __name__ == "__main__":
     engine = Engine()

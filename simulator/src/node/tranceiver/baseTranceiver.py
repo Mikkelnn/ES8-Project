@@ -2,26 +2,27 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List
 from simulator.src.custom_types import EventNet, EventNetTypes, LocalEventSubTypes, LocalEventTypes, MediumTypes
+from simulator.src.medium.medium_service import MediumService
 from simulator.src.node.Imodule import IModule
 from simulator.src.node.event_local_queue import LocalEventQueue
 from simulator.src.simulator.global_event_queue import GlobalEventQueue
 
 class TranceiverState(Enum):
     IDLE = 0
-    SENDING = 1
+    TRANSMITTING = 1
     RECEIVING = 2
 
 class BaseTranceiver(ABC, IModule):
-    def __init__(self, node_id: int, global_event_queue: GlobalEventQueue, local_event_queue: LocalEventQueue, 
-                 second_to_global_tick: float, local_event_sub_type: LocalEventSubTypes,
+    def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, 
+                 second_to_global_tick: float, medium_type: MediumTypes,
                  joules_per_second_consumption_transmit: float, joules_per_second_consumption_receive: float, joules_per_second_consumption_idle: float):
         
         self.state = TranceiverState.IDLE
-        self.local_event_sub_type = local_event_sub_type
+        self.medium_type = medium_type
         self._second_to_global_tick = second_to_global_tick
 
         self.__node_id = node_id
-        self.__global_event_queue = global_event_queue
+        self.__medium_service = medium_service
         self.__local_event_queue = local_event_queue
 
         
@@ -35,9 +36,10 @@ class BaseTranceiver(ABC, IModule):
 
     def tick(self, current_global_tick):
         self.__housekeep_receive_queue(current_global_tick)
+        self.__receive_queue.extend(self.__medium_service.receive(self.__node_id, self.medium_type))
 
-        state_change = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=self.local_event_sub_type)
-        transmit_data_events = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=self.local_event_sub_type)
+        state_change = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=self.medium_type)
+        transmit_data_events = self.__local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=self.medium_type)
 
         if state_change:
             next_state = state_change[0].data
@@ -53,10 +55,10 @@ class BaseTranceiver(ABC, IModule):
                 event = transmit_data_events[0]
                 transmission_duration_ticks = self._calculate_transmission_duration_ticks(event.data)
                 self.__current_transmission_end_global_tick = current_global_tick + transmission_duration_ticks
-                self.__global_event_queue.push_event(EventNet(self.__node_id, current_global_tick, self.__current_transmission_end_global_tick, data=event.data, type=EventNetTypes.TRANSMIT, type_medium=self.local_event_sub_type))
-                self.state = TranceiverState.SENDING
+                self.__medium_service.transmit(self.__node_id, self.medium_type, event.data, current_global_tick, self.__current_transmission_end_global_tick)
+                self.state = TranceiverState.TRANSMITTING
 
-        if self.state == TranceiverState.SENDING:
+        if self.state == TranceiverState.TRANSMITTING:
             # Check if we have finished transmitting
             if current_global_tick >= self.__current_transmission_end_global_tick:
                 self.__current_transmission_end_global_tick = 0
@@ -65,12 +67,12 @@ class BaseTranceiver(ABC, IModule):
         if self.state == TranceiverState.RECEIVING:
             received_events = self.__get_successful_receptions(current_global_tick)
             for event in received_events:
-                self.__local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.local_event_sub_type)
+                self.__local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.medium_type)
 
         match self.state:
             case TranceiverState.IDLE:
                 return self.__consuption_per_tick_idle
-            case TranceiverState.SENDING:
+            case TranceiverState.TRANSMITTING:
                 return self.__consuption_per_tick_transmit 
             case TranceiverState.RECEIVING:
                 return self.__consuption_per_tick_receive
@@ -88,7 +90,7 @@ class BaseTranceiver(ABC, IModule):
         if self.__current_transmission_end_global_tick == 0:
             return
         
-        self.__global_event_queue.push_event_stop(EventNet(self.node_id, current_global_tick, self.__current_transmission_end_global_tick, data=None, type=EventNetTypes.CANCELED))
+        self.__medium_service.cancel_transmission(self.__node_id, self.medium_type, current_global_tick, self.__current_transmission_end_global_tick)
         self.__current_transmission_end_global_tick = 0
         self.state = TranceiverState.IDLE
 

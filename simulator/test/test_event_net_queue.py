@@ -2,7 +2,7 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 import pytest
-from simulator.src.simulator.event_net_queue import event_net_queue
+from simulator.src.simulator.global_event_queue import GlobalEventQueue
 from simulator.src.custom_types import EventNet, EventNetTypes, MediumTypes
 
 @pytest.fixture
@@ -15,18 +15,18 @@ def another_event():
 
 @pytest.fixture
 def queue_with_events(sample_event, another_event):
-    q = event_net_queue()
+    q = GlobalEventQueue()
     q.push_event_stop(sample_event)
     q.push_event_stop(another_event)
     return q
 
 def test_push_and_pop_event_start(sample_event):
-    q = event_net_queue()
+    q = GlobalEventQueue()
     q.push_event_start(sample_event)
     assert q.pop_event_start() == sample_event
 
 def test_push_and_pop_event_end(sample_event):
-    q = event_net_queue()
+    q = GlobalEventQueue()
     q.push_event_stop(sample_event)
     assert q.pop_event_end() == sample_event
 
@@ -52,7 +52,7 @@ def test_pop_event_end_as_json(queue_with_events):
     assert isinstance(json_event, dict)
 
 def test_sort_queue_time_start(sample_event, another_event):
-    q = event_net_queue()
+    q = GlobalEventQueue()
     q.push_event_stop(another_event)
     q.push_event_stop(sample_event)
     q.sort_queue_time_start()
@@ -63,7 +63,7 @@ def test_sort_queue_time_start(sample_event, another_event):
 @pytest.fixture
 def multi_event_queue():
     from simulator.src.custom_types import EventNetTypes, MediumTypes
-    q = event_net_queue()
+    q = GlobalEventQueue()
     e1 = EventNet(node_id=1, time_start=0, time_end=10, data=["a"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA)
     e2 = EventNet(node_id=2, time_start=5, time_end=15, data=["b"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA)
     e3 = EventNet(node_id=3, time_start=20, time_end=30, data=["c"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA)

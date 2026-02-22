@@ -19,6 +19,8 @@ class Battery(IModule):
             return False # Battery is empty
         return True # Battery still has charge
 
+    def is_dead(self) -> bool:
+        return self.__is_empty()
 
     def __consume(self, amount):
         self.current_charge -= amount

@@ -4,7 +4,7 @@ from simulator.src.custom_types import LocalEventNet, LocalEventSubTypes, LocalE
 class LocalEventQueue:
     def __init__(self):        
         self.current_events: List[LocalEventNet] = []
-        self.nextTickEvents: List[LocalEventNet] = []
+        self.next_tick_events: List[LocalEventNet] = []
     
     """ Only modules called after in this global tick can see the event. """
     def add_event_to_current_tick(self, type: LocalEventTypes, data: Any, sub_type: LocalEventSubTypes | None = None):
@@ -12,7 +12,7 @@ class LocalEventQueue:
     
     """ Only modules called in the next global tick can see the event. """
     def add_event_to_next_tick(self, type: LocalEventTypes, data: Any, sub_type: LocalEventSubTypes | None = None):
-        self.nextTickEvents.append(LocalEventNet(type, sub_type, data))
+        self.next_tick_events.append(LocalEventNet(type, sub_type, data))
 
     def get_all_current_events(self) -> List[LocalEventNet]:
         return self.current_events
@@ -21,9 +21,9 @@ class LocalEventQueue:
         return [event for event in self.current_events if event.type == type and (event.sub_type == sub_type or sub_type is None)]
     
     def clear_events(self):
-        self.current_events = self.nextTickEvents
-        self.nextTickEvents = []
+        self.current_events = self.next_tick_events
+        self.next_tick_events = []
     
     def reset(self):
         self.current_events = []
-        self.nextTickEvents = []
+        self.next_tick_events = []
