@@ -133,7 +133,7 @@ class BaseTranceiver(ABC, IModule):
                 continue
 
             # event end must have passed
-            if event.time_end > current_global_tick:
+            if event.time_end >= current_global_tick:
                 continue
 
             # ensure reception start (if any) is before this event's start
