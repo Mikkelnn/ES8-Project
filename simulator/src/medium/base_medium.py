@@ -1,7 +1,7 @@
 
 from abc import ABC, abstractmethod
 from typing import List
-from simulator.src.custom_types import EventNet, EventNetTypes, MediumTypes
+from custom_types import EventNet, EventNetTypes, MediumTypes
 
 
 class BaseMedium(ABC):
@@ -27,6 +27,7 @@ class BaseMedium(ABC):
                 self.ongoing_transmissions[event.node_id] = (event.time_end, received_node_ids)
                 for to_node_id in received_node_ids:
                     self.__add_reception_event_for_node(to_node_id, event)
+                    print(f"Medium {self.type} transmitting from node {event.node_id} to node {to_node_id} with data {event.data} from global tick {event.time_start} to global tick {event.time_end}")
         
         self.transmit_event_queue.clear() # Clear the transmit event queue after processing all events
         self.__housekeep_ongoing_transmissions(current_global_tick)
@@ -54,3 +55,5 @@ class BaseMedium(ABC):
             events = self.node_receptions[to_node_id]
             del self.node_receptions[to_node_id] # Clear the reception queue for this node after popping the events
             return events
+        else:
+            return []

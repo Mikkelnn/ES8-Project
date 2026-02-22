@@ -1,12 +1,12 @@
 
 from typing import List
-from simulator.src.custom_types import MediumTypes, NodeMediumInfo
-from simulator.src.medium.base_medium import BaseMedium
+from custom_types import MediumTypes, NodeMediumInfo
+from medium.base_medium import BaseMedium
 
 
 class LoraD2DMedium(BaseMedium):
     def __init__(self, node_neighbors: dict[int, NodeMediumInfo]):
-        super().__init__(type=MediumTypes.LORAD2D)
+        super().__init__(type=MediumTypes.LORA_D2D)
         self.node_neighbors = node_neighbors # key: node_id, value: List[node_id]
 
     def _get_reception_node_ids(self, event):

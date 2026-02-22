@@ -1,13 +1,14 @@
 
 from typing import List
-from simulator.src.medium.medium_service import MediumService
-from simulator.src.node.Imodule import IModule
-from simulator.src.node.node import Node
+from medium.medium_service import MediumService
+from node.Imodule import IModule
+from node.node import Node
 from .logger import Logger
-from custom_types import Severity, Area
+from custom_types import NodeMediumInfo, Severity, Area
 import threading
 from .global_time import time_global
 import random
+
 class Engine:
     def __init__(self):
         self.logger = Logger()
@@ -39,27 +40,28 @@ class Engine:
                     self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped during pause in run")
                     break
 
+            print(f"Global tick: {timer.get_time()}") # Print the current global tick at the start of each loop iteration for debugging purposes
             # Tick all nodes, do this in parallel if needed
             current_time = timer.get_time()
             for node in self.nodes:
                 node.tick(current_time)
             
             # propagate all new transmissions in the mediums and handle receptions
-            self.medium_service.propagate_mediums()
+            self.medium_service.propagate_mediums(current_time)
 
             #TODO change later
             # Simulate different data areas with data to export 
             # Simulate log messages
-            self.logger.add(Severity.INFO, Area.SIMULATOR, f"Status: running, time: {current_time}")
-            self.logger.add(Severity.DEBUG, Area.NODE, f"Node event at t={current_time}")
-            self.logger.add(Severity.WARNING, Area.GATEWAY, f"Gateway warning at t={current_time}")
-            # Simulate data logs with units
-            self.logger.add_data(Area.BATTERY, "level", 75 + random.uniform(-5, 5), unit="percent")
-            self.logger.add_data(Area.BATTERY, "voltage", 3.7 + random.uniform(-0.1, 0.1), unit="V")
-            self.logger.add_data(Area.CLOCK, "tick", 1 + random.randint(-1, 1), unit="ms")
-            self.logger.add_data(Area.CLOCK, "drift", random.uniform(-0.05, 0.05), unit="ms")
-            self.logger.add_data(Area.TRANCEIVER, "signal", random.uniform(0, 100), unit="dBm")
-            self.logger.add_data(Area.TRANCEIVER, "snr", random.uniform(-10, 20), unit="dB")
+            # self.logger.add(Severity.INFO, Area.SIMULATOR, f"Status: running, time: {current_time}")
+            # self.logger.add(Severity.DEBUG, Area.NODE, f"Node event at t={current_time}")
+            # self.logger.add(Severity.WARNING, Area.GATEWAY, f"Gateway warning at t={current_time}")
+            # # Simulate data logs with units
+            # self.logger.add_data(Area.BATTERY, "level", 75 + random.uniform(-5, 5), unit="percent")
+            # self.logger.add_data(Area.BATTERY, "voltage", 3.7 + random.uniform(-0.1, 0.1), unit="V")
+            # self.logger.add_data(Area.CLOCK, "tick", 1 + random.randint(-1, 1), unit="ms")
+            # self.logger.add_data(Area.CLOCK, "drift", random.uniform(-0.05, 0.05), unit="ms")
+            # self.logger.add_data(Area.TRANCEIVER, "signal", random.uniform(0, 100), unit="dBm")
+            # self.logger.add_data(Area.TRANCEIVER, "snr", random.uniform(-10, 20), unit="dB")
 
             timer.increment_time(1)
         self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")
@@ -70,7 +72,8 @@ class Engine:
         t.start()
 
     def run_for(self, time_units: int):
-
+        self._run_loop(time_units)
+        return
         timer = time_global()
         stop_time = timer.get_time() + time_units
         t = threading.Thread(target=self._run_loop, args=(stop_time,), daemon=True)
@@ -88,17 +91,19 @@ class Engine:
             self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped")
 
     def initialize_nodes(self):
+        self.medium_service = MediumService(node_neighbors={
+            1: NodeMediumInfo(position=(0, 0), neighbors=[2]),  # Node 1 is at (0, 0) and has Node 2 as a neighbor
+            2: NodeMediumInfo(position=(10, 0), neighbors=[1]), # Node 2 is at (10, 0) and has Node 1 as a neighbor
+        })
+
         self.nodes = [
             Node(node_id=1, second_to_global_tick=0.1, medium_service=self.medium_service),
             Node(node_id=2, second_to_global_tick=0.1, medium_service=self.medium_service),
             # Add more nodes as needed
         ]
 
-        self.medium_service = MediumService(node_neighbors={
-            1: (0, 0, [2]),  # Node 1 is at (0, 0) and has Node 2 as a neighbor
-            2: (10, 0, [1]), # Node 2 is at (10, 0) and has Node 1 as a neighbor
-        })
 
 if __name__ == "__main__":
     engine = Engine()
-    engine.run()
+    engine.initialize_nodes()
+    engine.run_for(100)

@@ -1,11 +1,11 @@
 from typing import List
-from simulator.src.custom_types import LocalEventTypes, MediumTypes
-from simulator.src.medium.medium_service import MediumService
-from simulator.src.node.Imodule import IModule
-from simulator.src.node.event_local_queue import LocalEventQueue
-from simulator.src.node.tranceiver import LoRaD2D
-from simulator.src.node.tranceiver.LoRaWan import LoRaWan
-from simulator.src.node.tranceiver.baseTranceiver import BaseTranceiver, TranceiverState
+from custom_types import LocalEventTypes, MediumTypes, TranceiverState
+from medium.medium_service import MediumService
+from node.Imodule import IModule
+from node.event_local_queue import LocalEventQueue
+from node.tranceiver.LoRaD2D import LoRaD2D
+from node.tranceiver.LoRaWan import LoRaWan
+from node.tranceiver.baseTranceiver import BaseTranceiver
 
 class TranceiverService(IModule):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, second_to_global_tick: float):
@@ -16,7 +16,7 @@ class TranceiverService(IModule):
 
         self.tranceivers: List[BaseTranceiver] = [
             LoRaD2D(node_id, medium_service, local_event_queue, second_to_global_tick),
-            LoRaWan(node_id, medium_service, local_event_queue, second_to_global_tick)
+            # LoRaWan(node_id, medium_service, local_event_queue, second_to_global_tick)
         ]
         
     def tick(self, current_global_tick: int) -> float:

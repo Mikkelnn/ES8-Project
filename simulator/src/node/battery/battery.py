@@ -1,5 +1,5 @@
 
-from simulator.src.node.Imodule import IModule
+from node.Imodule import IModule
 
 
 class Battery(IModule):

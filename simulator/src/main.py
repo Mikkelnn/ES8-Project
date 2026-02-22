@@ -548,4 +548,7 @@ def main():
         raise
 
 if __name__ == "__main__":
-    main()
+    # main()
+    engine = Engine()
+    engine.initialize_nodes()
+    engine.run_for(100)

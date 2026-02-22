@@ -1,7 +1,7 @@
 
 from typing import List
-from simulator.src.custom_types import EventNet, EventNetTypes, MediumTypes
-from simulator.src.medium.lora_d2d_medium import LoraD2DMedium
+from custom_types import EventNet, EventNetTypes, MediumTypes
+from .lora_d2d_medium import LoraD2DMedium
 
 
 class MediumService:
@@ -12,9 +12,9 @@ class MediumService:
             # LoRaWanMedium()
         ]
 
-    def propagate_mediums(self):
+    def propagate_mediums(self, current_global_tick: int):
         for medium in self.mediums:
-            medium.propagate_queue()
+            medium.propagate_queue(current_global_tick)
     
     def transmit(self, from_node_id: int, medium_type: MediumTypes, data: List[int], time_start_global_tick: int, time_end_global_tick: int):
         event = EventNet(node_id=from_node_id, time_start=time_start_global_tick, time_end=time_end_global_tick, data=data, type=EventNetTypes.TRANSMIT, type_medium=medium_type)

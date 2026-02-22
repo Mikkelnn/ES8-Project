@@ -1,10 +1,10 @@
 import math
 from typing import List
 
-from simulator.src.custom_types import MediumTypes
-from simulator.src.medium.medium_service import MediumService
-from simulator.src.node.event_local_queue import LocalEventQueue
-from simulator.src.node.tranceiver.baseTranceiver import BaseTranceiver
+from custom_types import MediumTypes
+from medium.medium_service import MediumService
+from node.event_local_queue import LocalEventQueue
+from node.tranceiver.baseTranceiver import BaseTranceiver
 
 
 class LoRaWan(BaseTranceiver):
@@ -13,7 +13,7 @@ class LoRaWan(BaseTranceiver):
         joules_per_second_consumption_receive = 0.1
         joules_per_second_consumption_idle = 0.001
 
-        super().__init__(node_id, medium_service, local_event_bus, second_to_global_tick, MediumTypes.LORAWAN, 
+        super().__init__(node_id, medium_service, local_event_bus, second_to_global_tick, MediumTypes.LORA_WAN,
                          joules_per_second_consumption_transmit, joules_per_second_consumption_receive, joules_per_second_consumption_idle)
         
         self.__sf = 7 # Spreading factor

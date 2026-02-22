@@ -1,16 +1,10 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List
-from simulator.src.custom_types import EventNet, EventNetTypes, LocalEventSubTypes, LocalEventTypes, MediumTypes
-from simulator.src.medium.medium_service import MediumService
-from simulator.src.node.Imodule import IModule
-from simulator.src.node.event_local_queue import LocalEventQueue
-from simulator.src.simulator.global_event_queue import GlobalEventQueue
-
-class TranceiverState(Enum):
-    IDLE = 0
-    TRANSMITTING = 1
-    RECEIVING = 2
+from custom_types import EventNet, EventNetTypes, LocalEventTypes, MediumTypes, TranceiverState
+from medium.medium_service import MediumService
+from node.Imodule import IModule
+from node.event_local_queue import LocalEventQueue
 
 class BaseTranceiver(ABC, IModule):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, 
@@ -65,6 +59,10 @@ class BaseTranceiver(ABC, IModule):
                 self.state = TranceiverState.IDLE
 
         if self.state == TranceiverState.RECEIVING:
+            # just changed to receiving state, set the reception start global tick if not already set
+            if self.__current_reception_start_global_tick is None:
+                self.__current_reception_start_global_tick = current_global_tick
+
             received_events = self.__get_successful_receptions(current_global_tick)
             for event in received_events:
                 self.__local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.medium_type)

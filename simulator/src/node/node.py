@@ -1,12 +1,12 @@
 from enum import Enum
 
-from simulator.src.medium.medium_service import MediumService
-from simulator.src.node.Imodule import IModule
-from simulator.src.node.battery.battery import Battery
-from simulator.src.node.clock.clock import Clock
-from simulator.src.node.event_local_queue import LocalEventQueue
-from simulator.src.node.protocols.ping_pong import PingPongProtocol
-from simulator.src.node.tranceiver.tranceiverService import TranceiverService
+from medium.medium_service import MediumService
+from node.Imodule import IModule
+from node.battery.battery import Battery
+from node.clock.clock import Clock
+from node.event_local_queue import LocalEventQueue
+from node.protocols.ping_pong import PingPongProtocol
+from node.tranceiver.tranceiverService import TranceiverService
 
 class State(Enum):
     DEAD = 1
@@ -27,14 +27,14 @@ class Node(IModule):
     def tick(self, current_global_tick: int):
         match self.state:
             case State.DEAD:
-                self.battery.tick(current_power_consumption=0)
+                self.battery.tick(0)
             case State.SLEEP:
                 current_power_consumption = 0 # Base system usage
-                current_power_consumption += self.clock.tick()
+                current_power_consumption += self.clock.tick(current_global_tick)
                 self.battery.tick(current_power_consumption)
             case State.WAKE:
                 current_power_consumption = 0 # Base system usage
-                current_power_consumption += self.clock.tick()
+                current_power_consumption += self.clock.tick(current_global_tick)
                 # TODO: Sensor
                 current_power_consumption += self.tranceiver.tick(current_global_tick)
                 current_power_consumption += self.protocol.tick(current_global_tick)

@@ -2,8 +2,8 @@ import sys
 import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 import pytest
-from simulator.src.simulator.global_event_queue import GlobalEventQueue
-from simulator.src.custom_types import EventNet, EventNetTypes, MediumTypes
+from simulator.global_event_queue import GlobalEventQueue
+from custom_types import EventNet, EventNetTypes, MediumTypes
 
 @pytest.fixture
 def sample_event():
@@ -62,7 +62,7 @@ def test_sort_queue_time_start(sample_event, another_event):
 # Additional tests for time_start and time_end filtering
 @pytest.fixture
 def multi_event_queue():
-    from simulator.src.custom_types import EventNetTypes, MediumTypes
+    from custom_types import EventNetTypes, MediumTypes
     q = GlobalEventQueue()
     e1 = EventNet(node_id=1, time_start=0, time_end=10, data=["a"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA)
     e2 = EventNet(node_id=2, time_start=5, time_end=15, data=["b"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA)

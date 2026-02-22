@@ -1,5 +1,5 @@
 from typing import List, Any
-from simulator.src.custom_types import LocalEventNet, LocalEventSubTypes, LocalEventTypes
+from custom_types import LocalEventNet, LocalEventSubTypes, LocalEventTypes, TranceiverState
 
 class LocalEventQueue:
     def __init__(self):        
@@ -8,11 +8,11 @@ class LocalEventQueue:
     
     """ Only modules called after in this global tick can see the event. """
     def add_event_to_current_tick(self, type: LocalEventTypes, data: Any, sub_type: LocalEventSubTypes | None = None):
-        self.current_events.append(LocalEventNet(type, sub_type, data))
+        self.current_events.append(LocalEventNet(type=type, sub_type=sub_type, data=data))
     
     """ Only modules called in the next global tick can see the event. """
     def add_event_to_next_tick(self, type: LocalEventTypes, data: Any, sub_type: LocalEventSubTypes | None = None):
-        self.next_tick_events.append(LocalEventNet(type, sub_type, data))
+        self.next_tick_events.append(LocalEventNet(type=type, sub_type=sub_type, data=data))
 
     def get_all_current_events(self) -> List[LocalEventNet]:
         return self.current_events

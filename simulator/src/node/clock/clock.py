@@ -1,6 +1,6 @@
-from simulator.src.custom_types import LocalEventTypes
-from simulator.src.node.Imodule import IModule
-from simulator.src.node.event_local_queue import LocalEventQueue
+from custom_types import LocalEventTypes
+from node.Imodule import IModule
+from node.event_local_queue import LocalEventQueue
 
 class Clock(IModule):
     def __init__(self, local_event_queue: LocalEventQueue, second_to_global_tick: float):

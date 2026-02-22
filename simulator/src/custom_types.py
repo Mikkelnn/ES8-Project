@@ -2,8 +2,6 @@ from pydantic import BaseModel, Field
 from typing import List, Any
 from enum import Enum
 
-from simulator.src.node.tranceiver.baseTranceiver import TranceiverState
-
 # Define allowed severities
 class Severity(str, Enum):
     DEBUG = "DEBUG"
@@ -28,9 +26,8 @@ class EventNetTypes(str, Enum):
     TRANSMIT = "TRANSMIT"
 
 class MediumTypes(str, Enum):
-    LORA = "LORA"
-    LORAD2D = "LORA_D2D"
-    LORAWAN = "LORA_WAN"
+    LORA_D2D = "LORA_D2D"
+    LORA_WAN = "LORA_WAN"
 
 class EventNet(BaseModel):
     node_id: int
@@ -47,15 +44,19 @@ class LocalEventTypes(str, Enum):
     TRANCEIVER_TRANSMIT_DATA = "TRANCEIVER_TRANSMIT_DATA"
     TRANCEIVER_SET_STATE = "TRANCEIVER_SET_STATE"
 
+class TranceiverState(Enum):
+    IDLE = 0
+    TRANSMITTING = 1
+    RECEIVING = 2
+
 class LocalEventSubTypes(str, Enum):
     Placeholder = "PLACEHOLDER" # This is a placeholder value, you can replace it with actual subtypes as needed
 
 class LocalEventNet(BaseModel):
     type: LocalEventTypes
     sub_type: MediumTypes | LocalEventSubTypes | None = None
-    data: TranceiverState | List[Any]
+    data: int | dict[MediumTypes, TranceiverState] |TranceiverState | List[Any]
 
 class NodeMediumInfo(BaseModel):
-    pos_x: int
-    pos_y: int
+    position: tuple[int, int]
     neighbors: List[int]
