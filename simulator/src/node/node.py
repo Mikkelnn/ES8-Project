@@ -6,11 +6,9 @@ from simulator.src.node.battery.battery import Battery
 from simulator.src.node.clock.clock import Clock
 from simulator.src.node.event_local_queue import LocalEventQueue
 from simulator.src.node.protocols.ping_pong import PingPongProtocol
-from simulator.src.node.tranceiver.tranceiverManager import TranceiverManager, TranceiverService
-from simulator.src.simulator.global_event_queue import GlobalEventQueue
+from simulator.src.node.tranceiver.tranceiverService import TranceiverService
 
 class State(Enum):
-    JUST_DIED = 0
     DEAD = 1
     SLEEP = 2
     WAKE = 3
@@ -20,9 +18,8 @@ class Node(IModule):
         self.node_id = node_id
         self.local_event_queue = LocalEventQueue()
 
-        self.battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=10, second_to_global_tick=second_to_global_tick) #TODO: Make these parameters configurable
+        self.battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=10, second_to_global_tick=second_to_global_tick)
         self.clock = Clock(self.local_event_queue, second_to_global_tick)
-
         self.tranceiver = TranceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick)
         self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick) 
         self.state = State.DEAD
@@ -44,23 +41,18 @@ class Node(IModule):
                 self.battery.tick(current_power_consumption)
         
         if self.battery.is_dead() and self.state != State.DEAD:
-            self.state = State.JUST_DIED
-        
-        if not self.battery.is_dead() and self.state == State.DEAD:
-            self.state = State.WAKE # We can decide to start in sleep mode instead if we want to test that
-        
-        if self.state == State.JUST_DIED:
-            # TODO: Tell all modules we just died -> they need to reset and maybe do some cleanup
+            # Tell all modules we just died -> they need to reset and maybe do some cleanup
             self.clock.reset(current_global_tick)
             self.tranceiver.reset(current_global_tick)
             self.protocol.reset(current_global_tick)
             self.local_event_queue.reset(current_global_tick)
             self.state = State.DEAD
 
+        if not self.battery.is_dead() and self.state == State.DEAD:
+            self.state = State.WAKE # We can decide to start in sleep mode instead if we want to test that
+
         # Clear local event bus
         self.local_event_queue.clear_events()
-
-
 
         
 
