@@ -74,8 +74,10 @@ class Engine:
 
     def run_for(self, time_units: int):
         print(f"Engine will run for {time_units} time units")
-        self.initialize_nodes()
         timer = time_global()
+        if timer.get_time() == 0:
+            self.initialize_nodes()
+
         stop_time = timer.get_time() + time_units
         t = threading.Thread(target=self._run_loop, args=(stop_time,), daemon=True)
         t.start()

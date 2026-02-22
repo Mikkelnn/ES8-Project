@@ -1,5 +1,6 @@
 import sys
 import os
+import threading
 import matplotlib
 matplotlib.use('QtAgg')
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -14,7 +15,8 @@ from simulator.logger import Logger
 from PySide6.QtCore import QThread, Signal, QObject
 
 class PlotWorker(QObject):
-    finished = Signal(dict, dict)
+    # finished = Signal(dict, dict)
+    finished = Signal(dict)
     def __init__(self, data_buffer, subscribed_areas):
         super().__init__()
         self.data_buffer = data_buffer
@@ -22,7 +24,7 @@ class PlotWorker(QObject):
     def run(self):
         # Prepare plot data in background
         from matplotlib.figure import Figure
-        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
+        # from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
         label_plots = {}
         label_units = {}
         for area, enabled in self.subscribed_areas.items():
@@ -32,7 +34,7 @@ class PlotWorker(QObject):
                     if unit:
                         label_units[label] = unit
         figures = {}
-        canvases = {}
+        # canvases = {}
         for label, points in label_plots.items():
             fig = Figure(figsize=(5, 3))
             ax = fig.add_subplot(111)
@@ -66,8 +68,9 @@ class PlotWorker(QObject):
                 ax.set_title(label)
             ax.legend(loc='upper right')
             figures[label] = fig
-            canvases[label] = FigureCanvas(fig)
-        self.finished.emit(figures, canvases)
+            # canvases[label] = FigureCanvas(fig)
+
+        self.finished.emit(figures)
 
 class SimulatorGUI(QWidget):
     def _auto_export_if_needed(self):
@@ -505,11 +508,11 @@ class SimulatorGUI(QWidget):
         self._plot_thread.finished.connect(self._plot_thread.deleteLater)
         self._plot_thread.finished.connect(self._clear_plot_thread)
         self._plot_thread.start()
-
+        
     def _clear_plot_thread(self):
         self._plot_thread = None
 
-    def _on_plot_ready(self, figures, canvases):
+    def _on_plot_ready(self, figures): #, canvases
         # Remove old plots
         for canvas in self.canvases.values():
             self.plot_layout.removeWidget(canvas)
@@ -519,10 +522,11 @@ class SimulatorGUI(QWidget):
         self.canvases.clear()
 
         # Add new plots
-        for label, canvas in canvases.items():
+        for label, fig in figures.items():
+            canvas = FigureCanvas(fig)
             canvas.setFixedSize(900, 300)
             self.plot_layout.addWidget(canvas)
-            self.figures[label] = figures[label]
+            self.figures[label] = fig
             self.canvases[label] = canvas
     
     def handle_run(self):
