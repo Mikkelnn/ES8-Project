@@ -32,9 +32,6 @@ class Logger:
         return tuple(sorted(entry.items()))
 
     def add(self, severity: Severity, area: Area, msg: str):
-        if area != Area.SIMULATOR:
-            return
-
         if not isinstance(severity, Severity) or not isinstance(area, Area):
             raise TypeError("Logger.add requires Severity and Area enums for severity and area arguments.")
         sim_time = time_global().get_time()
@@ -49,8 +46,6 @@ class Logger:
             self._logs[key] = entry
 
     def add_data(self, area: Area, label: str, data: float, unit: str = None):
-        return
-
         if not isinstance(area, Area):
             raise TypeError("Logger.add_data requires Area enum for area argument.")
         sim_time = time_global().get_time()
