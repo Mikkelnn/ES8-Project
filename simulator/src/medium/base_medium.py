@@ -4,7 +4,7 @@ from typing import List
 from custom_types import EventNet, EventNetTypes, MediumTypes, Severity, Area
 from simulator.logger import Logger
 
-log = Logger()
+# log = Logger()
 
 
 class BaseMedium(ABC):
@@ -44,7 +44,7 @@ class BaseMedium(ABC):
         self.ongoing_transmissions[event.node_id] = (event.time_end, received_node_ids)
         for to_node_id in received_node_ids:
             self.__add_reception_event_for_node(to_node_id, event)
-            log.add(Severity.INFO, Area.MEDIUM, f"Medium {self.type} transmitting from node {event.node_id} to node {to_node_id} with data {event.data} from global tick {event.time_start} to global tick {event.time_end}")
+            # log.add(Severity.INFO, Area.MEDIUM, f"Medium {self.type} transmitting from node {event.node_id} to node {to_node_id} with data {event.data} from global tick {event.time_start} to global tick {event.time_end}")
         
 
     def __housekeep_ongoing_transmissions(self, current_global_tick: int):

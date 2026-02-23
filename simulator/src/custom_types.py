@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from pydantic import BaseModel, Field
 from typing import List, Any
 from enum import Enum
@@ -30,15 +31,16 @@ class MediumTypes(str, Enum):
     LORA_D2D = "LORA_D2D"
     LORA_WAN = "LORA_WAN"
 
-class EventNet(BaseModel):
+@dataclass
+class EventNet:
     node_id: int
     time_start: int
     time_end: int
-    data: List[Any] = Field(default_factory=list)
     type: EventNetTypes
     type_medium: MediumTypes
+    data: List[Any] = Field(default_factory=list)
 
-class LocalEventTypes(str, Enum):
+class LocalEventTypes(Enum):
     LOCAL_TIME = "LOCAL_TIME"
     TRANCEIVER_STATUS = "TRANCEIVER_STATUS"
     TRANCEIVER_RECEIVED_DATA = "TRANCEIVER_RECEIVED_DATA"
@@ -53,11 +55,13 @@ class TranceiverState(Enum):
 class LocalEventSubTypes(str, Enum):
     Placeholder = "PLACEHOLDER" # This is a placeholder value, you can replace it with actual subtypes as needed
 
-class LocalEventNet(BaseModel):
+@dataclass
+class LocalEventNet:
     type: LocalEventTypes
-    sub_type: MediumTypes | LocalEventSubTypes | None = None
     data: int | dict[MediumTypes, TranceiverState] |TranceiverState | List[Any]
+    sub_type: MediumTypes | LocalEventSubTypes | None = None
 
-class NodeMediumInfo(BaseModel):
+@dataclass
+class NodeMediumInfo:
     position: tuple[int, int]
     neighbors: List[int]

@@ -565,6 +565,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # engine = Engine()
-    # engine.initialize_nodes()
-    # engine.run_for(100)

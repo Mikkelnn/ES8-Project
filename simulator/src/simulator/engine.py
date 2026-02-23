@@ -132,6 +132,8 @@ class Engine:
 
 
 if __name__ == "__main__":
-    engine = Engine()
-    engine.initialize_nodes()
-    engine.run_for(100)
+    pass
+    # engine = Engine()
+    # engine.initialize_nodes()
+    # engine.run_for(1000)
+    # engine.logger.save_to_file()

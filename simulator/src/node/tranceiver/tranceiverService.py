@@ -8,7 +8,7 @@ from node.tranceiver.LoRaWan import LoRaWan
 from node.tranceiver.baseTranceiver import BaseTranceiver
 from simulator.logger import Logger
 
-log = Logger()
+# log = Logger()
 
 class TranceiverService(IModule):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, second_to_global_tick: float):
@@ -31,7 +31,7 @@ class TranceiverService(IModule):
             tranceiver_statuses[tranceiver.medium_type] = tranceiver.state
             
         self.local_event_queue.add_event_to_current_tick(type=LocalEventTypes.TRANCEIVER_STATUS, sub_type=None, data=tranceiver_statuses)
-        self.__log_warnings(tranceiver_statuses)
+        # self.__log_warnings(tranceiver_statuses)
 
         return current_power_consumed # Power consumption for this tick
     
@@ -44,4 +44,4 @@ class TranceiverService(IModule):
         if MediumTypes.LORA_D2D in tranceiver_statuses and MediumTypes.LORA_WAN in tranceiver_statuses:
             if tranceiver_statuses[MediumTypes.LORA_D2D] != TranceiverState.IDLE and tranceiver_statuses[MediumTypes.LORA_WAN] != TranceiverState.IDLE:
                 message = f"Node {self.node_id} is transmitting/receiving on both LoRaD2D and LoRaWan at the same time, this should not happen!"
-                log.add(Severity.WARNING, Area.TRANCEIVER, message)
+                # log.add(Severity.WARNING, Area.TRANCEIVER, message)

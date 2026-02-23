@@ -4,7 +4,7 @@ from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
 from simulator.logger import Logger
 
-log = Logger()
+# log = Logger()
 class Clock(IModule):
     def __init__(self, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float):
         self.node_id = node_id
@@ -29,9 +29,9 @@ class Clock(IModule):
         # Puplish tick event to local event bus
         self.local_event_queue.add_event_to_current_tick(LocalEventTypes.LOCAL_TIME, self.local_time)
         
-        ideal_local_time = int(current_global_tick / self.global_ticks_per_local_time_increment)
-        log.add_data(Area.CLOCK, "clock_drift", self.local_time - ideal_local_time, "local_time_steps")
-        log.add(Severity.DEBUG, Area.CLOCK, f"Node {self.node_id} local time: {self.local_time}, local time drift: {self.local_time - ideal_local_time}")
+        # ideal_local_time = int(current_global_tick / self.global_ticks_per_local_time_increment)
+        # log.add_data(Area.CLOCK, "clock_drift", self.local_time - ideal_local_time, "local_time_steps")
+        # log.add(Severity.DEBUG, Area.CLOCK, f"Node {self.node_id} local time: {self.local_time}, local time drift: {self.local_time - ideal_local_time}")
 
         return self.consuption_per_tick # Power consumption for this tick
     
