@@ -19,7 +19,7 @@ class Node(IModule):
         self.local_event_queue = LocalEventQueue()
 
         self.battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=10, second_to_global_tick=second_to_global_tick)
-        self.clock = Clock(self.local_event_queue, second_to_global_tick)
+        self.clock = Clock(self.node_id, self.local_event_queue, second_to_global_tick)
         self.tranceiver = TranceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick)
         self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick) 
         self.state = State.DEAD

@@ -23,6 +23,9 @@ class Engine:
         self.running = True
         self.paused = False
         timer = time_global()
+        stopwatch_start_time = time.time()
+        propagation_time = 0
+        node_tick_time = 0
 
         while self.running:
             if stop_time is not None and timer.get_time() >= stop_time:
@@ -38,12 +41,16 @@ class Engine:
 
             self.logger.add(Severity.DEBUG, Area.SIMULATOR, f"Global tick: {timer.get_time()}")  # Log the current global tick at the start of each loop iteration for debugging purposes
             # Tick all nodes, do this in parallel if needed
+            node_start_time = time.time()
             current_time = timer.get_time()
             for node in self.nodes:
                 node.tick(current_time)
+            
+            node_tick_time += time.time() - node_start_time
 
-
+            propagation_start_time = time.time()
             self.medium_service.propagate_mediums(current_time) # propagate all new transmissions in the mediums and handle receptions
+            propagation_time += time.time() - propagation_start_time
 
             #TODO change later
             # Simulate different data areas with data to export 
@@ -60,8 +67,13 @@ class Engine:
             # self.logger.add_data(Area.TRANCEIVER, "snr", random.uniform(-10, 20), unit="dB")
 
             timer.increment_time(1)
-        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")
 
+        elapsed_time = time.time() - stopwatch_start_time
+        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")
+        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
+        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Total node tick time: {node_tick_time:.2f} seconds")
+        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Total propagation time: {propagation_time:.2f} seconds")
+                        
     def run(self):
         self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine will run indefinitely")
         import threading
@@ -90,16 +102,33 @@ class Engine:
             self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped")
 
     def initialize_nodes(self):
-        self.medium_service = MediumService(node_neighbors={
-            1: NodeMediumInfo(position=(0, 0), neighbors=[2]),  # Node 1 is at (0, 0) and has Node 2 as a neighbor
-            2: NodeMediumInfo(position=(10, 0), neighbors=[1]), # Node 2 is at (10, 0) and has Node 1 as a neighbor
-        })
+        # self.medium_service = MediumService(node_neighbors={
+        #     1: NodeMediumInfo(position=(0, 0), neighbors=[2]),  # Node 1 is at (0, 0) and has Node 2 as a neighbor
+        #     2: NodeMediumInfo(position=(10, 0), neighbors=[1]), # Node 2 is at (10, 0) and has Node 1 as a neighbor
+        # })
 
-        self.nodes = [
-            Node(node_id=1, second_to_global_tick=0.1, medium_service=self.medium_service),
-            Node(node_id=2, second_to_global_tick=0.1, medium_service=self.medium_service),
-            # Add more nodes as needed
-        ]
+        # self.nodes = [
+        #     Node(node_id=1, second_to_global_tick=0.01, medium_service=self.medium_service),
+        #     Node(node_id=2, second_to_global_tick=0.01, medium_service=self.medium_service),
+        #     # Add more nodes as needed
+        # ]
+
+        # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
+        num_nodes = 1000
+        self.nodes = []
+        node_neighbors = {}
+        for i in range(1, num_nodes + 1):
+            neighbors = []
+            if i % 2 == 1 and i < num_nodes:  # Odd node, add next node as neighbor
+                neighbors.append(i + 1)
+            elif i % 2 == 0:  # Even node, add previous node as neighbor
+                neighbors.append(i - 1)
+            node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
+        self.medium_service = MediumService(node_neighbors=node_neighbors)
+        
+        for i in range(1, num_nodes + 1):
+            self.nodes.append(Node(node_id=i, second_to_global_tick=0.01, medium_service=self.medium_service))
+
 
 
 if __name__ == "__main__":

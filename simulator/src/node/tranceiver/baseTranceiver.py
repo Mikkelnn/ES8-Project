@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List
-from custom_types import EventNet, EventNetTypes, LocalEventTypes, MediumTypes, TranceiverState
+from custom_types import Area, EventNet, EventNetTypes, LocalEventTypes, MediumTypes, Severity, TranceiverState
 from medium.medium_service import MediumService
 from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
+from  simulator.logger import Logger
+
+log = Logger()
 
 class BaseTranceiver(ABC, IModule):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, 
@@ -40,6 +43,7 @@ class BaseTranceiver(ABC, IModule):
             if next_state != self.state:
                 self.__cancel_transmission(current_global_tick) # If we are changing state, we should not have any ongoing transmission. Just to be sure, cancel any transmission if it exists.
                 self.__cancel_reception() # If we are changing state, we should not have any
+                log.add(Severity.INFO, Area.TRANCEIVER, f"Node {self.__node_id} changing state of {self.medium_type} from {self.state} to {next_state}")
                 self.state = next_state
 
         if self.state == TranceiverState.IDLE:
@@ -51,12 +55,14 @@ class BaseTranceiver(ABC, IModule):
                 self.__current_transmission_end_global_tick = current_global_tick + transmission_duration_ticks
                 self.__medium_service.transmit(self.__node_id, self.medium_type, event.data, current_global_tick, self.__current_transmission_end_global_tick)
                 self.state = TranceiverState.TRANSMITTING
+                log.add(Severity.INFO, Area.TRANCEIVER, f"Node {self.__node_id} started transmitting on {self.medium_type} with data {event.data} for a duration of {transmission_duration_ticks} ticks (until global tick {self.__current_transmission_end_global_tick})")
 
         if self.state == TranceiverState.TRANSMITTING:
             # Check if we have finished transmitting
             if current_global_tick >= self.__current_transmission_end_global_tick:
                 self.__current_transmission_end_global_tick = 0
                 self.state = TranceiverState.IDLE
+                log.add(Severity.INFO, Area.TRANCEIVER, f"Node {self.__node_id} finished transmitting on {self.medium_type}")
 
         if self.state == TranceiverState.RECEIVING:
             # just changed to receiving state, set the reception start global tick if not already set
@@ -66,6 +72,9 @@ class BaseTranceiver(ABC, IModule):
             received_events = self.__get_successful_receptions(current_global_tick)
             for event in received_events:
                 self.__local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.medium_type)
+                log.add(Severity.INFO, Area.TRANCEIVER, f"Node {self.__node_id} successfully received data {event.data} on {self.medium_type} from node {event.node_id}")
+        
+        log.add(Severity.DEBUG, Area.TRANCEIVER, f"Node {self.__node_id} tranceiver {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self.__receive_queue]}")
 
         match self.state:
             case TranceiverState.IDLE:
@@ -91,6 +100,7 @@ class BaseTranceiver(ABC, IModule):
         self.__medium_service.cancel_transmission(self.__node_id, self.medium_type, current_global_tick, self.__current_transmission_end_global_tick)
         self.__current_transmission_end_global_tick = 0
         self.state = TranceiverState.IDLE
+        log.add(Severity.INFO, Area.TRANCEIVER, f"Node {self.__node_id} cancelled transmission on {self.medium_type}")
 
     def __cancel_reception(self):
         if self.__current_reception_start_global_tick is None:
@@ -98,6 +108,7 @@ class BaseTranceiver(ABC, IModule):
         
         self.__current_reception_start_global_tick = None
         self.state = TranceiverState.IDLE
+        log.add(Severity.INFO, Area.TRANCEIVER, f"Node {self.__node_id} cancelled reception on {self.medium_type}")
 
     def __housekeep_receive_queue(self, current_global_tick):        
         # If the event is still ongoing, we keep it in the receive queue. 

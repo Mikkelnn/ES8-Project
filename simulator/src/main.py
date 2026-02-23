@@ -482,8 +482,8 @@ class SimulatorGUI(QWidget):
                 if self.subscribed_areas.get(area, False):
                     self.data_buffer[area].append((log['sim_time'], log['data'], log['label'], unit))
 
-            self._auto_export_if_needed()
-            self._update_plot()
+            # self._auto_export_if_needed()
+            # self._update_plot()
     
     def _update_plot(self):
         # Run plot update in a background thread
