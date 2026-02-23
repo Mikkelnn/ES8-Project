@@ -8,26 +8,22 @@ from custom_types import NodeMediumInfo, Severity, Area
 import threading
 from .global_time import time_global
 import random
+from .global_time import time_global
+import time
 
 class Engine:
     def __init__(self):
         self.logger = Logger()
         self.running = False
         self.paused = False
-        
         self.nodes: List[IModule] = []  # This will hold references to all nodes in the simulation, this will be initialized in initialize_nodes()
         self.medium_service: MediumService = None  # This will be initialized in initialize_nodes()
 
     def _run_loop(self, stop_time=None):
-        from .global_time import time_global
-        import time
-        timer = time_global()
-        if stop_time is not None:
-            self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine running from t={timer.get_time()} to t={stop_time}")
-        else:
-            self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine started running (infinite)")
         self.running = True
         self.paused = False
+        timer = time_global()
+
         while self.running:
             if stop_time is not None and timer.get_time() >= stop_time:
                 self.running = False
@@ -40,14 +36,14 @@ class Engine:
                     self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped during pause in run")
                     break
 
-            print(f"Global tick: {timer.get_time()}") # Print the current global tick at the start of each loop iteration for debugging purposes
+            self.logger.add(Severity.DEBUG, Area.SIMULATOR, f"Global tick: {timer.get_time()}")  # Log the current global tick at the start of each loop iteration for debugging purposes
             # Tick all nodes, do this in parallel if needed
             current_time = timer.get_time()
             for node in self.nodes:
                 node.tick(current_time)
-            
-            # propagate all new transmissions in the mediums and handle receptions
-            self.medium_service.propagate_mediums(current_time)
+
+
+            self.medium_service.propagate_mediums(current_time) # propagate all new transmissions in the mediums and handle receptions
 
             #TODO change later
             # Simulate different data areas with data to export 
@@ -67,13 +63,13 @@ class Engine:
         self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")
 
     def run(self):
-        print("Engine will run indefinitely")
+        self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine will run indefinitely")
         import threading
         t = threading.Thread(target=self._run_loop, daemon=True)
         t.start()
 
     def run_for(self, time_units: int):
-        print(f"Engine will run for {time_units} time units")
+        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine will run for {time_units} time units")
         timer = time_global()
         if timer.get_time() == 0:
             self.initialize_nodes()

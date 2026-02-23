@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QTimer
 from simulator.engine import Engine
 from simulator.logger import Logger
+from custom_types import Severity, Area
 
 from PySide6.QtCore import QThread, Signal, QObject
 
@@ -307,8 +308,6 @@ class SimulatorGUI(QWidget):
             self._timer_started = True
 
     def init_ui(self):
-        print("init_ui start")
-
         # Simulator submodule (left)
         simulator_widget = QWidget()
         simulator_layout = QVBoxLayout()
@@ -396,12 +395,10 @@ class SimulatorGUI(QWidget):
             fig.savefig(svg_path, format='svg')
 
     def setup_timer(self):
-        print("setup_timer start")
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update_log)
         self.timer.start(1000)  # Update every second
         self.update_log()
-        print("setup_timer end")
 
     def update_log(self):
         # Prevent update if widget is being deleted
@@ -493,7 +490,7 @@ class SimulatorGUI(QWidget):
         if hasattr(self, '_plot_thread') and self._plot_thread is not None:
             try:
                 if self._plot_thread.isRunning():
-                    print("Previous plot update still running, skipping this update to avoid overlap")
+                    self.logger.add(Severity.INFO, Area.SIMULATOR, "Previous plot update still running, skipping this update to avoid overlap")
                     return  # Avoid overlapping plot updates
             except RuntimeError:
                 self._plot_thread = None

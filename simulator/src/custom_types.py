@@ -14,6 +14,7 @@ class Severity(str, Enum):
 class Area(str, Enum):
     SIMULATOR = "SIMULATOR"
     NODE = "NODE"
+    MEDIUM = "MEDIUM"
     GATEWAY = "GATEWAY"
     EVENT = "EVENT"
     BATTERY = "BATTERY"
