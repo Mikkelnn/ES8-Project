@@ -7,6 +7,7 @@ from node.tranceiver.LoRaD2D import LoRaD2D
 from node.tranceiver.LoRaWan import LoRaWan
 from node.tranceiver.baseTranceiver import BaseTranceiver
 
+
 class TranceiverService(IModule):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, second_to_global_tick: float):
         self.node_id = node_id
@@ -34,3 +35,4 @@ class TranceiverService(IModule):
     def reset(self, current_global_tick: int) -> None:
         for tranceiver in self.tranceivers:
             tranceiver.reset(current_global_tick=current_global_tick)
+    
