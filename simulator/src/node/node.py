@@ -24,7 +24,7 @@ class Node:
         self.clock = Clock(self.node_id, self.local_event_queue, second_to_global_tick)
         self.tranceiver = TranceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick)
         self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick) 
-        self.state = State.DEAD
+        self.state = State.WAKE
 
     def tick(self, current_global_tick: int) -> int | None:
         self.accumelated_state.reset()

@@ -2,11 +2,11 @@
 from typing import List
 from custom_types import MediumTypes, NodeMediumInfo
 from medium.base_medium import BaseMedium
-
+from simulator.global_event_queue import GlobalEventQueue
 
 class LoraD2DMedium(BaseMedium):
-    def __init__(self, node_neighbors: dict[int, NodeMediumInfo]):
-        super().__init__(type=MediumTypes.LORA_D2D)
+    def __init__(self, node_neighbors: dict[int, NodeMediumInfo], event_queue: GlobalEventQueue):
+        super().__init__(type=MediumTypes.LORA_D2D, event_queue=event_queue)
         self.node_neighbors = node_neighbors # key: node_id, value: List[node_id]
 
     def _get_reception_node_ids(self, event):

@@ -29,5 +29,5 @@ class LoRaWan(BaseTranceiver):
         # Calculate the transmission time in seconds based on the size of the data
         transmission_time_seconds = (len(data) * 8 / effective_data_rate) + preamble_time_seconds
         # Convert the transmission time to global ticks and apply ceiling
-        transmission_time_global_ticks = int(math.ceil(transmission_time_seconds * self._second_to_global_tick))
+        transmission_time_global_ticks = int(math.ceil(transmission_time_seconds / self._second_to_global_tick))
         return transmission_time_global_ticks

@@ -24,3 +24,6 @@ class LocalEventQueue:
     def reset(self):
         self.current_events = []
         self.next_tick_events = []
+
+    def have_events(self) -> bool:
+        return len(self.current_events) > 0

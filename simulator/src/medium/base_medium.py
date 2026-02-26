@@ -1,23 +1,26 @@
 
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import List
 from custom_types import EventNet, EventNetTypes, MediumTypes, Severity, Area
 from simulator.logger import Logger
+from simulator.global_event_queue import GlobalEventQueue
 
 # log = Logger()
 
 
 class BaseMedium(ABC):
-    def __init__(self, type: MediumTypes):
+    def __init__(self, type: MediumTypes, event_queue: GlobalEventQueue):
         self.type = type
+        self.event_queue = event_queue
 
         self.transmit_event_queue: List[EventNet] = []
         self.ongoing_transmissions: dict[int, tuple[int, List[int]]] = {} # key: from_node_id, value: (globaltick_end_transmission, [received node_ids])
-        self.node_receptions: dict[int, List[EventNet]] = {} # key: to_node_id, value: List[EventNet]
+        self.node_receptions: dict[int, List[EventNet]] = defaultdict(list[EventNet]) # key: to_node_id, value: List[EventNet]
 
     def propagate_queue(self, current_global_tick: int):
         for event in self.transmit_event_queue:
-            self.__propagate_canceled_transmission(event)            
+            self.__propagate_canceled_transmission(event)
             self.__propagate_transmission(event)
 
         self.transmit_event_queue.clear() # Clear the transmit event queue after processing all events
@@ -54,9 +57,11 @@ class BaseMedium(ABC):
                 del self.ongoing_transmissions[from_node_id]
                     
     def __add_reception_event_for_node(self, to_node_id: int, event: EventNet):
-        if to_node_id not in self.node_receptions:
-            self.node_receptions[to_node_id] = []
         self.node_receptions[to_node_id].append(event)
+
+        # nodes evaluate the tick after the end time
+        next_tick = (event.time_start if event.type == event.type == EventNetTypes.CANCELED else event.time_end) + 1
+        self.event_queue.add_event(to_node_id, next_tick)
 
     @abstractmethod
     def _get_reception_node_ids(self, event: EventNet) -> List[int]:

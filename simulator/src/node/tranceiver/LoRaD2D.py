@@ -16,18 +16,16 @@ class LoRaD2D(BaseTranceiver):
         super().__init__(node_id, medium_service, local_event_bus, second_to_global_tick, MediumTypes.LORA_D2D, 
                          joules_per_second_consumption_transmit, joules_per_second_consumption_receive, joules_per_second_consumption_idle)
         
-        self.__sf = 7 # Spreading factor
-        self.__bandwidth = 125000 # Bandwidth in Hz
-        self.__coding_rate = 1 # Coding rate (1 means 4/5, 2 means 4/6, etc.)
-        self.__preamble_length = 8 # Preamble length in symbols
+        __sf = 7 # Spreading factor
+        __bandwidth = 125000 # Bandwidth in Hz
+        __coding_rate = 1 # Coding rate (1 means 4/5, 2 means 4/6, etc.)
+        __preamble_length = 8 # Preamble length in symbols
+        
+        # Calculate the effective data rate based on SF, bandwidth, and coding rate
+        self.__effective_data_rate_tick = (__bandwidth / (2 ** __sf)) * (4 / (4 + __coding_rate)) * self._second_to_global_tick
+        # Calculate the preamble time in seconds
+        self.__preamble_time_ticks = ((__preamble_length + 4.25) * (2 ** __sf) / __bandwidth) / self._second_to_global_tick
 
     def _calculate_transmission_duration_ticks(self, data: List[int]) -> int:
-        # Calculate the effective data rate based on SF, bandwidth, and coding rate
-        effective_data_rate = (self.__bandwidth / (2 ** self.__sf)) * (4 / (4 + self.__coding_rate))
-        # Calculate the preamble time in seconds
-        preamble_time_seconds = (self.__preamble_length + 4.25) * (2 ** self.__sf) / self.__bandwidth
-        # Calculate the transmission time in seconds based on the size of the data
-        transmission_time_seconds = (len(data) * 8 / effective_data_rate) + preamble_time_seconds
-        # Convert the transmission time to global ticks and apply ceiling
-        transmission_time_global_ticks = int(math.ceil(transmission_time_seconds * self._second_to_global_tick))
-        return transmission_time_global_ticks
+        # Calculate the transmission time in global ticks based on the size of the data
+        return int(math.ceil((len(data) * 8 / self.__effective_data_rate_tick) + self.__preamble_time_ticks))

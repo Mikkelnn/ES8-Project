@@ -39,6 +39,9 @@ class Battery(IModule):
 
         return (0, next_event_global_tick) # The interface specifies consumption, and since battery is not consuming power but rather providing it, we return 0 here.
 
+    def reset(self, current_global_tick: int) -> None:
+        pass
+
     def is_dead(self) -> bool:
         return self.current_charge <= 0
     

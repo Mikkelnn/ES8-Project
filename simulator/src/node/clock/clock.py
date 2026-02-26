@@ -41,3 +41,4 @@ class Clock(IModule):
     def reset(self, current_global_tick: int) -> None:
         # self.local_time = 0
         # self.local_tick = 0
+        pass

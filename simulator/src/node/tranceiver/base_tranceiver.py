@@ -9,7 +9,7 @@ from  simulator.logger import Logger
 
 # log = Logger()
 
-class BaseTranceiver(ABC, IModule):
+class BaseTranceiver(IModule):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, 
                  second_to_global_tick: float, medium_type: MediumTypes,
                  joules_per_second_consumption_transmit: float, joules_per_second_consumption_receive: float, joules_per_second_consumption_idle: float):
@@ -30,7 +30,7 @@ class BaseTranceiver(ABC, IModule):
         self.__consuption_per_tick_receive = joules_per_second_consumption_receive * second_to_global_tick
         self.__consuption_per_tick_idle = joules_per_second_consumption_idle * second_to_global_tick
 
-    def tick(self, current_global_tick):
+    def tick(self, current_global_tick) -> tuple[float, int | None]:
         self.__housekeep_receive_queue(current_global_tick)
         self.__receive_queue.extend(self.__medium_service.receive(self.__node_id, self.medium_type))
 
@@ -83,7 +83,7 @@ class BaseTranceiver(ABC, IModule):
             case TranceiverState.RECEIVING:
                 return (self.__consuption_per_tick_receive, None)
     
-    def reset(self, current_global_tick):
+    def reset(self, current_global_tick) -> None:
         self.__cancel_transmission(current_global_tick) # Cancel any ongoing transmission
         self.__cancel_reception() # Cancel any ongoing reception
     
