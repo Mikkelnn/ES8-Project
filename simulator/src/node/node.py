@@ -6,28 +6,15 @@ from node.battery.battery import Battery
 from node.clock.clock import Clock
 from node.event_local_queue import LocalEventQueue
 from node.protocols.ping_pong import PingPongProtocol
-from node.tranceiver.tranceiverService import TranceiverService
+from node.tranceiver.tranceiver_service import TranceiverService
+from node.helpers.accumulated_state import AccumulatedState
 
 class State(Enum):
     DEAD = 1
     SLEEP = 2
     WAKE = 3
 
-class AccumulatedState:
-    def __init__(self):
-        self.reset()
-    
-    def update(self, state: tuple[float, int | None]) -> None:
-        (power, tick) = state
-        self.power += abs(power)
-        if tick is not None and (self.earliest_global_tick is None or self.earliest_global_tick > tick):
-            self.earliest_global_tick = tick
-        
-    def reset(self):
-        self.power = 0
-        self.earliest_global_tick = None
-
-class Node(IModule):
+class Node:
     def __init__(self, node_id: int, second_to_global_tick: float, medium_service: MediumService):
         self.node_id = node_id
         self.local_event_queue = LocalEventQueue()
@@ -39,7 +26,7 @@ class Node(IModule):
         self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick) 
         self.state = State.DEAD
 
-    def tick(self, current_global_tick: int):
+    def tick(self, current_global_tick: int) -> int | None:
         self.accumelated_state.reset()
 
         match self.state:
@@ -57,7 +44,8 @@ class Node(IModule):
 
         # battery is always evaluated and done last
         self.accumelated_state.update(self.battery.tick(current_global_tick, self.accumelated_state.power))
-        
+
+        # deterimine if we died during the current tick        
         if self.battery.is_dead() and self.state != State.DEAD:
             # Tell all modules we just died -> they need to reset and maybe do some cleanup
             self.clock.reset(current_global_tick)
@@ -66,10 +54,11 @@ class Node(IModule):
             self.local_event_queue.reset(current_global_tick)
             self.state = State.DEAD
 
+        # deterrmine if we just came alive in this tick
         if self.state == State.DEAD and not self.battery.is_dead():
             self.state = State.WAKE # We can decide to start in sleep mode instead if we want to test that
 
-        # Clear local event bus        
+        # Clear local event bus
         self.local_event_queue.clear_events()
 
         # determine earliest next tick among modules

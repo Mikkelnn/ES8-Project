@@ -22,7 +22,6 @@ class BaseTranceiver(ABC, IModule):
         self.__medium_service = medium_service
         self.__local_event_queue = local_event_queue
 
-        
         self.__current_transmission_end_global_tick = 0
         self.__current_reception_start_global_tick: int | None = None
         self.__receive_queue: List[EventNet] = [] # TODO: simulator should fill this queue....
@@ -78,11 +77,11 @@ class BaseTranceiver(ABC, IModule):
 
         match self.state:
             case TranceiverState.IDLE:
-                return self.__consuption_per_tick_idle
+                return (self.__consuption_per_tick_idle, None)
             case TranceiverState.TRANSMITTING:
-                return self.__consuption_per_tick_transmit 
+                return (self.__consuption_per_tick_transmit, self.__current_transmission_end_global_tick) 
             case TranceiverState.RECEIVING:
-                return self.__consuption_per_tick_receive
+                return (self.__consuption_per_tick_receive, None)
     
     def reset(self, current_global_tick):
         self.__cancel_transmission(current_global_tick) # Cancel any ongoing transmission

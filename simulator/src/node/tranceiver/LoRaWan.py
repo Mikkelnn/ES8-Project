@@ -4,7 +4,7 @@ from typing import List
 from custom_types import MediumTypes
 from medium.medium_service import MediumService
 from node.event_local_queue import LocalEventQueue
-from node.tranceiver.baseTranceiver import BaseTranceiver
+from node.tranceiver.base_tranceiver import BaseTranceiver
 
 
 class LoRaWan(BaseTranceiver):
