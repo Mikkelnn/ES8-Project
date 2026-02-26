@@ -128,6 +128,8 @@ class BaseTranceiver(ABC, IModule):
         #   start_time, treat that cancellation's start time as the overlapping event's
         #   effective end time when checking for overlap.
 
+        # TODO: use vectors and matrix operations to eliminate nested looping
+
         successful_receptions: List[EventNet] = []
         if self.__current_reception_start_global_tick is None:
             return successful_receptions # No events can be successful if reception is not started

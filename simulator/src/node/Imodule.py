@@ -4,7 +4,7 @@ from typing import Protocol
 class IModule(Protocol):
     """Interface for module implementations."""
 
-    def tick(self, currentGlobalTick: int) -> float:
+    def tick(self, currentGlobalTick: int) -> tuple[float, int | None]:
         """
         Execute one tick of the module.
         
@@ -12,7 +12,9 @@ class IModule(Protocol):
             currentGlobalStep: The current global simulation step.
             
         Returns:
-            float: Used power for tick.
+            tuple[ float, int | None]:
+            T1 (float): Used power for tick.
+            T2 (int | None): None if no event scheduled, otherwise the next global tick to evaluate
         """
         ...
 
