@@ -2,7 +2,7 @@
 from custom_types import LocalEventTypes, MediumTypes, TranceiverState, Severity, Area
 from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
-from simulator.logger import Logger
+from simulator.src.simulator.logger import Logger
 
 # log = Logger()
 

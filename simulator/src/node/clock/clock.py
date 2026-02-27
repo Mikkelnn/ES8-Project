@@ -2,7 +2,7 @@ import numpy as np
 from custom_types import Area, LocalEventTypes, Severity
 from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
-from simulator.logger import Logger
+from simulator.src.simulator.logger import Logger
 
 # log = Logger()
 class Clock(IModule):

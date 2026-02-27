@@ -1,17 +1,25 @@
-.PHONY:	lint test run
+.PHONY: lint test run
+
+PYTHONPATH := $(shell find src -type d | tr '\n' ':')
+
+print_path:
+	@echo $(PYTHONPATH)
 
 lint:
-	uv run ruff check . --fix
-	uv run ty check . -- --fix
+	PYTHONPATH=$(PYTHONPATH) uv run ruff check . --fix
+	PYTHONPATH=$(PYTHONPATH) uv run ty check . -- --fix
 
 test:
-	uv run pytest ./test
+	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test
+
+test_log:
+	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test/test_logger.py
 
 run:
-	uv run src/main.py
+	PYTHONPATH=$(PYTHONPATH) uv run src/main.py
 
 benchmark:
-	uv run scalene run src/main.py
+	PYTHONPATH=$(PYTHONPATH) uv run scalene run src/main.py
 
 benchmark_view:
-	uv run scalene view
+	PYTHONPATH=$(PYTHONPATH) uv run scalene view

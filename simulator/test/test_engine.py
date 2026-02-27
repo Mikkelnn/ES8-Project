@@ -1,9 +1,6 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 import time
-from simulator.engine import Engine
-from simulator.global_time import time_global
+from simulator.src.simulator.engine import Engine
+from simulator.src.simulator.global_time import time_global
 
 def test_engine_run_for_pause_resume():
     # Reset global time

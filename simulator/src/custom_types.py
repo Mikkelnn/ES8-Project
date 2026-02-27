@@ -31,6 +31,12 @@ class MediumTypes(str, Enum):
     LORA_D2D = "LORA_D2D"
     LORA_WAN = "LORA_WAN"
 
+class TimeScales(float, Enum):
+    MS = 0.001
+    MUS = 0.000001
+    NS = 0.000000001
+    PS = 0.000000000001
+
 @dataclass
 class EventNet:
     node_id: int
@@ -65,3 +71,11 @@ class LocalEventNet:
 class NodeMediumInfo:
     position: tuple[int, int]
     neighbors: List[int]
+
+@dataclass
+class LogMessage:
+    global_time: int
+    severity: Severity
+    area: Area
+    info: str
+    data: Any

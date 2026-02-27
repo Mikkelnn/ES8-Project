@@ -3,7 +3,8 @@ from typing import List
 from medium.medium_service import MediumService
 from node.Imodule import IModule
 from node.node import Node
-from .logger import Logger
+from .logger import LoggerClientSync
+from simulator.src.custom_types import LogMessage, Severity, Area
 from custom_types import NodeMediumInfo, Severity, Area
 import threading
 from .global_time import time_global
@@ -13,7 +14,8 @@ import time
 
 class Engine:
     def __init__(self):
-        self.logger = Logger()
+        from simulator.src.custom_types import LogMessage, Severity, Area
+        self.logger = LoggerClientSync()
         self.running = False
         self.paused = False
         self.nodes: List[IModule] = []  # This will hold references to all nodes in the simulation, this will be initialized in initialize_nodes()
@@ -27,19 +29,23 @@ class Engine:
         propagation_time = 0
         node_tick_time = 0
 
+        # Ensure simulation is initialized
+        if self.medium_service is None:
+            self.initialize_nodes()
+
         while self.running:
             if stop_time is not None and timer.get_time() >= stop_time:
                 self.running = False
                 break
             if self.paused:
-                self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine paused; waiting to resume")
+                self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, "Engine paused; waiting to resume", data=None))
                 while self.paused and self.running:
                     time.sleep(0.1)
                 if not self.running:
-                    self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped during pause in run")
+                    self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, "Engine stopped during pause in run", data=None))
                     break
 
-            self.logger.add(Severity.DEBUG, Area.SIMULATOR, f"Global tick: {timer.get_time()}")  # Log the current global tick at the start of each loop iteration for debugging purposes
+            self.logger.add(LogMessage(time_global().get_time(), Severity.DEBUG, Area.SIMULATOR, f"Global tick: {timer.get_time()}", data=None))
             # Tick all nodes, do this in parallel if needed
             node_start_time = time.time()
             current_time = timer.get_time()
@@ -69,19 +75,19 @@ class Engine:
             timer.increment_time(1)
 
         elapsed_time = time.time() - stopwatch_start_time
-        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}")
-        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
-        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Total node tick time: {node_tick_time:.2f} seconds")
-        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Total propagation time: {propagation_time:.2f} seconds")
+        self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, f"Engine finished running at t={timer.get_time()}", data=None))
+        self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes", data=None))
+        self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, f"Total node tick time: {node_tick_time:.2f} seconds", data=None))
+        self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, f"Total propagation time: {propagation_time:.2f} seconds", data=None))
                         
     def run(self):
-        self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine will run indefinitely")
+        self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, "Engine will run indefinitely", data=None))
         import threading
         t = threading.Thread(target=self._run_loop, daemon=True)
         t.start()
 
     def run_for(self, time_units: int):
-        self.logger.add(Severity.INFO, Area.SIMULATOR, f"Engine will run for {time_units} time units")
+        self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, f"Engine will run for {time_units} time units", data=None))
         timer = time_global()
         if timer.get_time() == 0:
             self.initialize_nodes()
@@ -93,13 +99,13 @@ class Engine:
     def pause(self):
         if self.running:
             self.paused = True
-            self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine paused")
+            self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, "Engine paused", data=None))
 
     def stop(self):
         if self.running:
             self.running = False
             self.paused = False
-            self.logger.add(Severity.INFO, Area.SIMULATOR, "Engine stopped")
+            self.logger.add(LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, "Engine stopped", data=None))
 
     def initialize_nodes(self):
         # self.medium_service = MediumService(node_neighbors={

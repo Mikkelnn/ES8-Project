@@ -1,17 +1,14 @@
-import sys
-import os
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
 import pytest
-from simulator.global_event_queue import GlobalEventQueue
-from custom_types import EventNet, EventNetTypes, MediumTypes
+from simulator.src.simulator.global_event_queue import GlobalEventQueue
+from simulator.src.custom_types import EventNet, EventNetTypes, MediumTypes
 
 @pytest.fixture
 def sample_event():
-    return EventNet(node_id=1, time_start=10, time_end=20, data=["payload"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA)
+    return EventNet(node_id=1, time_start=10, time_end=20, data=["payload"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA_D2D)
 
 @pytest.fixture
 def another_event():
-    return EventNet(node_id=2, time_start=15, time_end=25, data=["payload2"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA)
+    return EventNet(node_id=2, time_start=15, time_end=25, data=["payload2"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA_D2D)
 
 @pytest.fixture
 def queue_with_events(sample_event, another_event):
@@ -62,12 +59,11 @@ def test_sort_queue_time_start(sample_event, another_event):
 # Additional tests for time_start and time_end filtering
 @pytest.fixture
 def multi_event_queue():
-    from custom_types import EventNetTypes, MediumTypes
     q = GlobalEventQueue()
-    e1 = EventNet(node_id=1, time_start=0, time_end=10, data=["a"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA)
-    e2 = EventNet(node_id=2, time_start=5, time_end=15, data=["b"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA)
-    e3 = EventNet(node_id=3, time_start=20, time_end=30, data=["c"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA)
-    e4 = EventNet(node_id=4, time_start=12, time_end=18, data=["d"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA)
+    e1 = EventNet(node_id=1, time_start=0, time_end=10, data=["a"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA_D2D)
+    e2 = EventNet(node_id=2, time_start=5, time_end=15, data=["b"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA_D2D)
+    e3 = EventNet(node_id=3, time_start=20, time_end=30, data=["c"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA_D2D)
+    e4 = EventNet(node_id=4, time_start=12, time_end=18, data=["d"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA_D2D)
     for e in [e1, e2, e3, e4]:
         q.push_event_stop(e)
     return q, [e1, e2, e3, e4]
