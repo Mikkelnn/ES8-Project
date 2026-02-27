@@ -5,16 +5,17 @@ import time
 from custom_types import NodeMediumInfo
 from medium.medium_service import MediumService
 from node.node import Node
-from simulator.src.simulator.logger import LoggerClientSync
-from simulator.src.custom_types import LogMessage, Severity, Area
+from simulator.global_event_queue import GlobalEventQueue
+from simulator.logger import Logger, LoggerClientSync
+from custom_types import LogMessage, Severity, Area
 
 
 class TestEngine():
     
     def initialize_nodes(self):
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
-        num_nodes = 10000
-        self.nodes = []
+        num_nodes = 10_000
+        self.nodes: list[Node] = []
         node_neighbors = {}
         
         self.event_queue = GlobalEventQueue()
@@ -34,6 +35,7 @@ class TestEngine():
             self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service))
 
     def run_for(self, stop_tick):
+        LOGGER = Logger("profile-result.log")
         stopwatch_start_time = time.time()
         propagation_time = 0
         node_tick_time = 0
@@ -60,10 +62,14 @@ class TestEngine():
             total_evaluated += 1
 
         elapsed_time = time.time() - stopwatch_start_time
+
+        print(f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
+
         logger = LoggerClientSync()
-        logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes"))
-        logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total node tick time: {node_tick_time:.2f} seconds"))
-        logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total propagation time: {propagation_time:.2f} seconds"))
+        for _ in range(1024*10):
+            logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes"))
+            logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total node tick time: {node_tick_time:.2f} seconds"))
+            logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total propagation time: {propagation_time:.2f} seconds"))
 
 
 if __name__ == "__main__":

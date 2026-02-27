@@ -3,8 +3,9 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import List
 from custom_types import EventNet, EventNetTypes, MediumTypes, Severity, Area
-from simulator.src.simulator.logger import LoggerClientSync
-from simulator.src.custom_types import LogMessage, Severity, Area
+from simulator.global_event_queue import GlobalEventQueue
+from simulator.logger import LoggerClientSync
+from custom_types import LogMessage, Severity, Area
 
 # log = Logger()
 

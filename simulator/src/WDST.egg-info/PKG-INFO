@@ -1,0 +1,39 @@
+Metadata-Version: 2.4
+Name: WDST
+Version: 0.1.0
+Summary: World Domination Simulator Tool
+Requires-Python: >=3.13
+Description-Content-Type: text/markdown
+Requires-Dist: folium>=0.20.0
+Requires-Dist: geopandas>=1.1.2
+Requires-Dist: numpy>=2.4.2
+Requires-Dist: matplotlib>=3.10.8
+Requires-Dist: pydantic>=2.12.5
+Requires-Dist: pyside6>=6.10.2
+Requires-Dist: pytest>=9.0.2
+Requires-Dist: ruff>=0.15.1
+Requires-Dist: scalene>=2.1.4
+Requires-Dist: ty>=0.0.17
+Requires-Dist: sortedcontainers>=2.4.0
+Requires-Dist: pytest-asyncio>=1.3.0
+Requires-Dist: rich>=14.3.3
+
+## Imports
+correct: `from simulator.x.y.z import module`
+<br>
+correct: `from node.x.y.z import module`
+<br>
+wrong: `from .x.y.z import module`
+<br>
+wrong: `from simulator.src.x.y.z import module`
+
+## Run file
+Always: `cd ES8-Project/simulator`
+<br>
+a) Main entry (GUI): `make run`
+<br>
+b) Profile: `make profile`
+<br>
+c) Custom module directly:
+1. `make install`
+2. `uv run python -m folder.sub_folder.file` ('folder' is relative to src)

@@ -78,4 +78,4 @@ class LogMessage:
     severity: Severity
     area: Area
     info: str
-    data: Any
+    data: Any | None = None

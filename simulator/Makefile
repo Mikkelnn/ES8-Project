@@ -1,6 +1,9 @@
 .PHONY: lint test run
 
-PYTHONPATH := $(shell find src -type d | tr '\n' ':')
+# PYTHONPATH := $(shell find src -type d | tr '\n' ':')
+
+install:
+	uv pip install -e .
 
 print_path:
 	@echo $(PYTHONPATH)
@@ -9,17 +12,20 @@ lint:
 	PYTHONPATH=$(PYTHONPATH) uv run ruff check . --fix
 	PYTHONPATH=$(PYTHONPATH) uv run ty check . -- --fix
 
-test:
+test: install
 	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test
 
-test_log:
+test_log: install
 	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test/test_logger.py
 
-run:
-	PYTHONPATH=$(PYTHONPATH) uv run src/main.py
+run: install
+	PYTHONPATH=$(PYTHONPATH) uv run python -m main.py
 
 benchmark:
 	PYTHONPATH=$(PYTHONPATH) uv run scalene run src/main.py
 
 benchmark_view:
 	PYTHONPATH=$(PYTHONPATH) uv run scalene view
+
+profile: install
+	PYTHONPATH=$(PYTHONPATH) uv run python -m profile_code

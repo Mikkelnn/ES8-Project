@@ -8,7 +8,7 @@ try:
     multiprocessing.set_start_method("spawn", force=True)
 except RuntimeError:
     pass
-from simulator.src.custom_types import LogMessage
+from custom_types import LogMessage
 
 class Logger:
     """
