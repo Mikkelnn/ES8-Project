@@ -7,20 +7,19 @@ from node.tranceiver.LoRaD2D import LoRaD2D
 from node.tranceiver.LoRaWan import LoRaWan
 from node.helpers.accumulated_state import AccumulatedState
 from node.tranceiver.base_tranceiver import BaseTranceiver
-from simulator.logger import Logger
-
-# log = Logger()
+from logger.ILogger import ILogger
 
 class TranceiverService(IModule):
-    def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, second_to_global_tick: float):
+    def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, second_to_global_tick: float, log: ILogger):
         self.node_id = node_id
         self.medium_service = medium_service
         self.local_event_queue = local_event_queue
+        self.log = log
         # self.second_to_global_tick = second_to_global_tick
 
         self.accumulated_state: AccumulatedState = AccumulatedState()
         self.tranceivers: List[BaseTranceiver] = [
-            LoRaD2D(node_id, medium_service, local_event_queue, second_to_global_tick),
+            LoRaD2D(node_id, medium_service, local_event_queue, second_to_global_tick, log),
             # LoRaWan(node_id, medium_service, local_event_queue, second_to_global_tick)
         ]
 
@@ -34,7 +33,7 @@ class TranceiverService(IModule):
             tranceiver_statuses[tranceiver.medium_type] = tranceiver.state
             
         self.local_event_queue.add_event_to_current_tick(type=LocalEventTypes.TRANCEIVER_STATUS, sub_type=None, data=tranceiver_statuses)
-        # self.__log_warnings(tranceiver_statuses)
+        self.__log_warnings(tranceiver_statuses)
 
         return self.accumulated_state.get_accumulated()
     
@@ -47,4 +46,4 @@ class TranceiverService(IModule):
         if MediumTypes.LORA_D2D in tranceiver_statuses and MediumTypes.LORA_WAN in tranceiver_statuses:
             if tranceiver_statuses[MediumTypes.LORA_D2D] != TranceiverState.IDLE and tranceiver_statuses[MediumTypes.LORA_WAN] != TranceiverState.IDLE:
                 message = f"Node {self.node_id} is transmitting/receiving on both LoRaD2D and LoRaWan at the same time, this should not happen!"
-                # log.add(Severity.WARNING, Area.TRANCEIVER, message)
+                self.log.add(Severity.WARNING, Area.TRANCEIVER, message)

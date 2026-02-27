@@ -8,16 +8,22 @@ from node.node import Node
 from simulator.global_event_queue import GlobalEventQueue
 from simulator.logger import Logger, LoggerClientSync
 from custom_types import LogMessage, Severity, Area
+from logger import ILogger
+from logger.simple_logger import SimpleLogger
+from logger.threaded_logger import ThreadedLogger
 
 
 class TestEngine():
     
     def initialize_nodes(self):
+
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
         num_nodes = 10_000
-        self.nodes: list[Node] = []
         node_neighbors = {}
         
+        self.nodes: list[Node] = []
+        self.log: ILogger = SimpleLogger(log_path='profile-results.log', buffer_size=100_000)
+
         self.event_queue = GlobalEventQueue()
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
         
@@ -29,13 +35,12 @@ class TestEngine():
                 neighbors.append(i - 1)
             node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
 
-        self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue)
+        self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
         
         for i in range(1, num_nodes + 1):
-            self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service))
+            self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 
     def run_for(self, stop_tick):
-        LOGGER = Logger("profile-result.log")
         stopwatch_start_time = time.time()
         propagation_time = 0
         node_tick_time = 0
@@ -61,21 +66,21 @@ class TestEngine():
             propagation_time += time.time() - propagation_start_time
             total_evaluated += 1
 
+            self.log.flush()
+
         elapsed_time = time.time() - stopwatch_start_time
 
-        print(f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
-
-        logger = LoggerClientSync()
-        for _ in range(1024*10):
-            logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes"))
-            logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total node tick time: {node_tick_time:.2f} seconds"))
-            logger.add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total propagation time: {propagation_time:.2f} seconds"))
+        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
+        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total node tick time: {node_tick_time:.2f} seconds")
+        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total propagation time: {propagation_time:.2f} seconds")
+        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total log time: {(elapsed_time - (propagation_time + node_tick_time)):.2f} seconds")
+        self.log.flush(force=True)
 
 
 if __name__ == "__main__":
     engine = TestEngine()
     engine.initialize_nodes()
-    engine.run_for(1_000)
+    engine.run_for(10_000)
 
     # with cProfile.Profile() as profile:
     

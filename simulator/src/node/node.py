@@ -8,6 +8,7 @@ from node.event_local_queue import LocalEventQueue
 from node.protocols.ping_pong import PingPongProtocol
 from node.tranceiver.tranceiver_service import TranceiverService
 from node.helpers.accumulated_state import AccumulatedState
+from logger import ILogger
 
 class State(Enum):
     DEAD = 1
@@ -15,15 +16,15 @@ class State(Enum):
     WAKE = 3
 
 class Node:
-    def __init__(self, node_id: int, second_to_global_tick: float, medium_service: MediumService):
+    def __init__(self, node_id: int, second_to_global_tick: float, medium_service: MediumService, log: ILogger):
         self.node_id = node_id
         self.local_event_queue = LocalEventQueue()
         self.accumelated_state = AccumulatedState()
 
         self.battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=10, second_to_global_tick=second_to_global_tick)
         self.clock = Clock(self.node_id, self.local_event_queue, second_to_global_tick)
-        self.tranceiver = TranceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick)
-        self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick) 
+        self.tranceiver = TranceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick, log)
+        self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log) 
         self.state = State.WAKE
 
     def tick(self, current_global_tick: int) -> int | None:

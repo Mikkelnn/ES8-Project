@@ -5,15 +5,16 @@ from custom_types import MediumTypes
 from medium.medium_service import MediumService
 from node.event_local_queue import LocalEventQueue
 from node.tranceiver.base_tranceiver import BaseTranceiver
+from logger.ILogger import ILogger
 
 
 class LoRaD2D(BaseTranceiver):
-    def __init__(self, node_id: int, medium_service: MediumService, local_event_bus: LocalEventQueue, second_to_global_tick: float):
+    def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, second_to_global_tick: float, log: ILogger):
         joules_per_second_consumption_transmit = 1
         joules_per_second_consumption_receive = 0.1
         joules_per_second_consumption_idle = 0.001
 
-        super().__init__(node_id, medium_service, local_event_bus, second_to_global_tick, MediumTypes.LORA_D2D, 
+        super().__init__(node_id, medium_service, local_event_queue, log, second_to_global_tick, MediumTypes.LORA_D2D, 
                          joules_per_second_consumption_transmit, joules_per_second_consumption_receive, joules_per_second_consumption_idle)
         
         __sf = 7 # Spreading factor
