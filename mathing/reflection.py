@@ -26,9 +26,7 @@ def inputImpedance(eta, Kminus):
 
 def EplusNext(KL, KminusL, Eplus):
     Etot1 = Eplus*(1+KL)
-    from simulator.src.simulator.logger import LoggerClientSync
-    from simulator.src.custom_types import LogMessage, Severity, Area
-    LoggerClientSync().add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Total E-field at boundary: {Etot1}"))
+    print(f"Total E-field at boundary: {Etot1}")
     return Etot1/(1+KminusL)
 
 def firstMediumLoss(gamma, Length):
@@ -45,29 +43,24 @@ def dryDirt():
     ff = []
     for i in range(len(lossAngles)):
         ff.append(complexImpedance(epsilon_r[i],lossAngles[i]))
-        from simulator.src.simulator.logger import LoggerClientSync
-        from simulator.src.custom_types import LogMessage, Severity, Area
-        LoggerClientSync().add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Loss angle: {np.arctan(lossAngles[i])}, intrinsic impedance angle: {np.angle(ff[i])*2}"))
+        print(f"Loss angle: {np.arctan(lossAngles[i])}, intrinsic impedance angle: {np.angle(ff[i])*2}")
     
     gammas = []
     for i in range(len(ff)):
         gammas.append(gammaCalc(ff[i]))
-        LoggerClientSync().add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Gamma_{i}= {gammas[i]}"))
+        print(f"Gamma_{i}= {gammas[i]}")
 
     eta = [eta_0*ff[0], eta_0*ff[1], eta_0]
     KL1 = refCoef(eta)
     KminusL = refCoefLen(KL1, gammas[1], lengths[1])
     eta2in = inputImpedance(eta[1], KminusL)
     KL2 = refCoef([eta[0],eta2in])
-    LoggerClientSync().add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"Reflection coeffecient at first boundary: {KL2}"))
+    print(f"Reflection coeffecient at first boundary: {KL2}")
 
     EPlus1 = firstMediumLoss(gammas[0], lengths[0])
     EPlus2 = EplusNext(KL2, KminusL, EPlus1)
     ETotAir = np.abs(EPlus2*(1+KL1))
-    LoggerClientSync().add(LogMessage(0, Severity.INFO, Area.SIMULATOR, f"E+ at first boundary: {EPlus1}, E+ at second boundary: {EPlus2}, total E-field in the air: {ETotAir}"))
-
-
-
+    print(f"E+ at first boundary: {EPlus1}, E+ at second boundary: {EPlus2}, total E-field in the air: {ETotAir}")
 
 def main():
     dryDirt()
