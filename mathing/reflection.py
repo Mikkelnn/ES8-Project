@@ -4,7 +4,7 @@ import matplotlib as plt
 
 eta_0=120*np.pi
 f = 800e6 #Define this
-E_0 = 60e-3 #Define this
+P_t = 10e-3 #Define this
 
 def refCoef(eta):
     return (eta[-1] - eta[-2])/(eta[-1] + eta[-2])
@@ -15,8 +15,9 @@ def lossAngle(sigma, epsilon):
 def complexImpedance (epsilon, lossAngle):
     return 1/(np.sqrt(epsilon*(1-1j*lossAngle)))
 
-def gammaCalc(ff):
-    return 1j*2*np.pi*f/(conts.c*ff)
+def gammaCalc(epsilon_r, lossAngle):
+    omega = 2*np.pi*f
+    return 1j*omega/conts.c * np.sqrt(epsilon_r*(1-1j*lossAngle))
 
 def refCoefLen(KL, gamma, length):
     return KL*np.exp(-2*gamma*length)
@@ -29,7 +30,7 @@ def EplusNext(KL, KminusL, Eplus):
     print(f"Total E-field at boundary: {Etot1}")
     return Etot1/(1+KminusL)
 
-def firstMediumLoss(gamma, Length):
+def firstMediumLoss(gamma, Length, E_0):
     return E_0*np.exp(-gamma*Length)
 
 def dryDirt():
@@ -47,20 +48,25 @@ def dryDirt():
     
     gammas = []
     for i in range(len(ff)):
-        gammas.append(gammaCalc(ff[i]))
+        gammas.append(gammaCalc(epsilon_r[i], lossAngles[i]))
         print(f"Gamma_{i}= {gammas[i]}")
 
     eta = [eta_0*ff[0], eta_0*ff[1], eta_0]
+    E_0 = np.sqrt(2*P_t*eta[0])
     KL1 = refCoef(eta)
     KminusL = refCoefLen(KL1, gammas[1], lengths[1])
     eta2in = inputImpedance(eta[1], KminusL)
     KL2 = refCoef([eta[0],eta2in])
     print(f"Reflection coeffecient at first boundary: {KL2}")
 
-    EPlus1 = firstMediumLoss(gammas[0], lengths[0])
+    EPlus1 = firstMediumLoss(gammas[0], lengths[0], E_0)
     EPlus2 = EplusNext(KL2, KminusL, EPlus1)
-    ETotAir = np.abs(EPlus2*(1+KL1))
-    print(f"E+ at first boundary: {EPlus1}, E+ at second boundary: {EPlus2}, total E-field in the air: {ETotAir}")
+    E_air = np.abs(EPlus2)
+    P_out = (E_air**2)/(2*eta_0)
+    print(f"E+ at first boundary: {EPlus1}, E+ at second boundary: {EPlus2}, total E-field in the air: {E_air}, power in air: {P_out}")
+
+def propAtAngle():
+    beep=2
 
 def main():
     dryDirt()
