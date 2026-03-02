@@ -19,10 +19,10 @@ test_log: install
 	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test/test_logger.py
 
 run: install
-	PYTHONPATH=$(PYTHONPATH) uv run python -m main.py
+	PYTHONPATH=$(PYTHONPATH) uv run python -m main
 
 benchmark:
-	PYTHONPATH=$(PYTHONPATH) uv run scalene run src/main.py
+	PYTHONPATH=$(PYTHONPATH) uv run scalene run main
 
 benchmark_view:
 	PYTHONPATH=$(PYTHONPATH) uv run scalene view
