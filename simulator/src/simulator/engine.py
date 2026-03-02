@@ -4,8 +4,7 @@ from medium.medium_service import MediumService
 from node.Imodule import IModule
 from node.node import Node
 from .logger import LoggerClientSync
-from simulator.src.custom_types import LogMessage, Severity, Area
-from custom_types import NodeMediumInfo, Severity, Area
+from custom_types import NodeMediumInfo, LogMessage, Severity, Area
 import threading
 from .global_time import time_global
 import random
