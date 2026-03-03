@@ -1,5 +1,4 @@
-from abc import ABC, abstractmethod
-from enum import Enum
+from abc import abstractmethod
 from typing import List
 from custom_types import Area, EventNet, EventNetTypes, LocalEventTypes, MediumTypes, Severity, TranceiverState
 from medium.medium_service import MediumService

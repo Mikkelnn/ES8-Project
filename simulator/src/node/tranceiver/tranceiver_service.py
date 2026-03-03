@@ -4,7 +4,6 @@ from medium.medium_service import MediumService
 from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
 from node.tranceiver.LoRaD2D import LoRaD2D
-from node.tranceiver.LoRaWan import LoRaWan
 from node.helpers.accumulated_state import AccumulatedState
 from node.tranceiver.base_tranceiver import BaseTranceiver
 from logger.ILogger import ILogger

@@ -1,24 +1,29 @@
-from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QTextEdit, QPushButton, QLineEdit, QComboBox, QSizePolicy, QDateTimeEdit, QCheckBox, QScrollArea, QGridLayout
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QTextEdit, QPushButton, QComboBox, QSizePolicy, QCheckBox, QScrollArea, QGridLayout, QSpinBox, QLabel
 from PySide6.QtGui import QPalette, QColor
-from PySide6.QtCore import Qt, QDateTime
-import sys
+from PySide6.QtCore import Qt
+from custom_types import Severity, Area
+from simulator.engine import Engine
+from simulator.global_time import GlobalTime
 import multiprocessing
-from src.custom_types import TimeScales, Severity, Area
-from src.simulator.engine import Engine
+import datetime
+import sys
+
 class GUI(QMainWindow):
 
     def collect_input_state(self):
         """Collect all input state for engine setup."""
-        # Time mode: True = until time, False = indefinite
+        # Time mode: True = until duration, False = indefinite
         until_time = self.left_bottom_cross_toggle.isChecked()
-        run_until = self.left_bottom_datetime_input.dateTime().toPython() if until_time else None
-        timescale = self.left_bottom_timescale_dropdown.currentData()
+        run_duration = None
+        if until_time:
+            hours = self.left_bottom_hours_input.value()
+            minutes = self.left_bottom_minutes_input.value()
+            run_duration = hours * 3600 + minutes * 60  # seconds
         severity = self.left_bottom_severity_dropdown.currentData()
         areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
         return {
             'until_time': until_time,
-            'run_until': run_until,
-            'timescale': timescale,
+            'run_duration': run_duration,
             'severity': severity,
             'areas': areas
         }
@@ -26,9 +31,9 @@ class GUI(QMainWindow):
     def lock_inputs(self, locked=True):
         """Lock or unlock all input widgets except control buttons, and shade them when locked."""
         widgets = [
-            self.left_bottom_datetime_input,
+            self.left_bottom_hours_input,
+            self.left_bottom_minutes_input,
             self.left_bottom_cross_toggle,
-            self.left_bottom_timescale_dropdown,
             self.left_bottom_severity_dropdown,
         ] + self.right_area_checkboxes
         for w in widgets:
@@ -48,7 +53,6 @@ class GUI(QMainWindow):
 
     def setup(self):
         """Create and configure the Engine instance."""
-        
         state = self.collect_input_state()
         self.engine = Engine()
 
@@ -58,8 +62,11 @@ class GUI(QMainWindow):
         state = self.collect_input_state()
         if not hasattr(self, 'engine') or self.engine is None:
             self.setup()
-        if state['until_time'] and state['run_until']:
-            self.engine.run_for(state['run_until'])
+        if state['until_time'] and state['run_duration']:
+            # Convert seconds to ticks using GlobalTime's tick_pr_time_unit
+            gt = GlobalTime()
+            ticks = int(state['run_duration'] / (gt.tick_pr_time_unit))
+            self.engine.run_for(ticks)
         else:
             self.engine.run()
 
@@ -125,31 +132,39 @@ class GUI(QMainWindow):
         controls_layout.setContentsMargins(0, 0, 0, 0)
         controls_layout.setSpacing(5)
         input_row = QHBoxLayout()
-        datetime_input = QDateTimeEdit()
-        datetime_input.setDisplayFormat("yyyy-MM-dd HH:mm:ss")
-        datetime_input.setDateTime(QDateTime.currentDateTime())
-        datetime_input.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        datetime_input.setMinimumHeight(28)
 
-        # Standard QCheckBox toggle for indefinite/timed run, placed left of datetime
-        toggle_checkbox = QCheckBox("Run until enable")
+        # Relative duration input (hours/minutes)
+        hours_input = QSpinBox()
+        hours_input.setRange(0, 999)
+        hours_input.setPrefix("Hours: ")
+        hours_input.setMinimumHeight(28)
+        minutes_input = QSpinBox()
+        minutes_input.setRange(0, 59)
+        minutes_input.setPrefix("Min: ")
+        minutes_input.setMinimumHeight(28)
+
+        # Standard QCheckBox toggle for indefinite/timed run, placed left of duration
+        toggle_checkbox = QCheckBox("Run for duration")
         toggle_checkbox.setChecked(False)
-        toggle_checkbox.setToolTip("Check to run until selected time, uncheck for indefinite run")
+        toggle_checkbox.setToolTip("Check to run for specified duration, uncheck for indefinite run")
         toggle_checkbox.setMinimumHeight(28)
 
-        input1 = QComboBox()
-        for ts in TimeScales:
-            input1.addItem(ts.name, ts.value)
+        # Severity dropdown
         dropdown = QComboBox()
         for sev in Severity:
             dropdown.addItem(sev.name, sev.value)
-        # Add toggle left of datetime, then rest
-        for w in (toggle_checkbox, datetime_input, input1, dropdown):
+
+        # Estimated real time label
+        est_time_label = QLabel("Est: 0000-00-00 00:00:00")
+        est_time_label.setMinimumHeight(28)
+
+        # Add toggle, duration inputs, severity, and est time label (no area checkboxes here)
+        for w in (toggle_checkbox, hours_input, minutes_input, dropdown, est_time_label):
             w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-            w.setMinimumHeight(28)
             input_row.addWidget(w)
         controls_layout.addLayout(input_row)
         button_row = QHBoxLayout()
+        button_row.setAlignment(Qt.AlignLeft)
         btn1 = QPushButton("START/CONTINUE")
         btn2 = QPushButton("PAUSE")
         btn3 = QPushButton("STOP")
@@ -158,6 +173,7 @@ class GUI(QMainWindow):
             b.setMinimumHeight(28)
             button_row.addWidget(b)
         controls_layout.addLayout(button_row)
+
         controls_widget.setMaximumWidth(350)
         controls_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         controls_widget.adjustSize()
@@ -168,12 +184,12 @@ class GUI(QMainWindow):
         area_checkbox_layout = QGridLayout(area_checkbox_widget)
         area_checkbox_layout.setContentsMargins(0, 0, 0, 0)
         area_checkbox_layout.setSpacing(8)
-        self.area_checkboxes = []
+        area_checkboxes = []
         max_columns = 4  # Adjust for how many checkboxes per row
         for idx, area in enumerate(Area):
             cb = QCheckBox(area.value)
             cb.setChecked(True)
-            self.area_checkboxes.append(cb)
+            area_checkboxes.append(cb)
             row = idx // max_columns
             col = idx % max_columns
             area_checkbox_layout.addWidget(cb, row, col)
@@ -203,18 +219,45 @@ class GUI(QMainWindow):
 
         # Expose controls for easy function connection
         self.left_bottom_buttons = [btn1, btn2, btn3]
-        self.left_bottom_inputs = [input1]
+        self.left_bottom_inputs = []
         self.left_bottom_dropdown = dropdown
-        self.right_area_checkboxes = self.area_checkboxes
-        self.left_bottom_datetime_input = datetime_input
+        self.right_area_checkboxes = area_checkboxes
+        self.left_bottom_hours_input = hours_input
+        self.left_bottom_minutes_input = minutes_input
         self.left_bottom_severity_dropdown = dropdown
-        self.left_bottom_timescale_dropdown = input1
         self.left_bottom_cross_toggle = toggle_checkbox  # Expose toggle for indefinite/timed run
+        self.est_time_label = est_time_label
 
         # Engine integration: connect buttons
         btn1.clicked.connect(self.start_engine)
         btn2.clicked.connect(self.pause_engine)
         btn3.clicked.connect(self.stop_engine)
+
+        # Update estimated real time when duration changes
+        def update_est_time():
+            gt = GlobalTime()
+            hours = hours_input.value()
+            minutes = minutes_input.value()
+            # Simulator time in seconds
+            sim_seconds = hours * 3600 + minutes * 60
+            # Convert simulator time to ticks (simulated ms)
+            ticks = int(sim_seconds / gt.tick_pr_time_unit)
+            # Update tps before using it
+            gt.tps_calc()
+            tps = gt.get_tps()
+            if tps > 0:
+                est_real_seconds = ticks / tps
+            else:
+                est_real_seconds = 0
+            now = datetime.datetime.now()
+            if est_real_seconds > 0:
+                est_end = now + datetime.timedelta(seconds=est_real_seconds)
+                est_time_label.setText(f"Est: {est_end.strftime('%Y-%m-%d %H:%M:%S')} ({int(est_real_seconds)}s)")
+            else:
+                est_time_label.setText("Est: --")
+        hours_input.valueChanged.connect(update_est_time)
+        minutes_input.valueChanged.connect(update_est_time)
+        update_est_time()
 
     @staticmethod
     def run():

@@ -4,6 +4,7 @@ from simulator.src.custom_types import Severity, Area, LogMessage
 import time
 import asyncio
 import pytest
+import threading
 try:
     from rich.table import Table
     from rich.console import Console
@@ -264,8 +265,6 @@ def test_logger_performance_benchmark(tmp_path):
         print("rich not installed, skipping table output.")
     assert logs_per_sec > 1000, "Sync Logger enqueue rate is too slow!"
     #assert log_write_time < 5, f"Sync Logger write delay is too high! (got {log_write_time:.3f}s)"
-
-import threading
 
 @pytest.mark.asyncio
 async def test_multiple_logger_clients_concurrent(tmp_path):

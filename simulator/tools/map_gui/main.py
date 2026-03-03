@@ -85,7 +85,7 @@ def build_map(roads: gpd.GeoDataFrame, output_html: str = "roads_map.html") -> N
 
     m.save(output_html)
     print(f"[INFO] Interactive map saved to '{output_html}'")
-    print(f"[INFO] Open it in a browser to explore the road network.")
+    print("[INFO] Open it in a browser to explore the road network.")
 
 
 # ── Entry point ────────────────────────────────────────────────────────────────

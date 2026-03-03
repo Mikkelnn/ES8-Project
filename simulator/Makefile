@@ -15,9 +15,6 @@ lint:
 test: install
 	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test
 
-test_log: install
-	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test/test_logger.py
-
 run: install
 	PYTHONPATH=$(PYTHONPATH) uv run python -m main
 

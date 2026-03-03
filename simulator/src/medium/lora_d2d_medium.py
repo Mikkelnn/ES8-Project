@@ -1,5 +1,4 @@
 
-from typing import List
 from custom_types import MediumTypes, NodeMediumInfo
 from medium.base_medium import BaseMedium
 from simulator.global_event_queue import GlobalEventQueue

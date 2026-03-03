@@ -1,16 +1,13 @@
 
-import cProfile
-import pstats
 import time
 from custom_types import NodeMediumInfo
 from medium.medium_service import MediumService
 from node.node import Node
 from simulator.global_event_queue import GlobalEventQueue
-from simulator.logger import Logger, LoggerClientSync
-from custom_types import LogMessage, Severity, Area
+from custom_types import Severity, Area
 from logger import ILogger
 from logger.simple_logger import SimpleLogger
-from logger.threaded_logger import ThreadedLogger
+from simulator.global_time import GlobalTime
 
 
 class TestEngine():
@@ -23,7 +20,7 @@ class TestEngine():
         
         self.nodes: list[Node] = []
         self.log: ILogger = SimpleLogger(log_path='profile-results.log', buffer_size=100_000)
-
+        self.global_time = GlobalTime()
         self.event_queue = GlobalEventQueue()
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
         
@@ -49,6 +46,7 @@ class TestEngine():
         total_evaluated = 0
         while len(self.event_queue.events):
             (current_time, node_ids) = self.event_queue.get_next_events()
+            self.global_time.set_time(current_time)
             if current_time > stop_tick:
                 current_time = stop_tick
                 break

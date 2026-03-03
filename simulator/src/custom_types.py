@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from pydantic import BaseModel, Field
+from pydantic import Field
 from typing import List, Any
 from enum import Enum
 

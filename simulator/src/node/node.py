@@ -1,7 +1,6 @@
 from enum import Enum
 
 from medium.medium_service import MediumService
-from node.Imodule import IModule
 from node.battery.battery import Battery
 from node.clock.clock import Clock
 from node.event_local_queue import LocalEventQueue

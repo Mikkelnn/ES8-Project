@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
-from custom_types import Area, LogMessage, Severity
+from custom_types import Area, Severity
 
 class ILogger(ABC):
     """Abstract base class describing the logger API.

@@ -4,8 +4,6 @@ from collections import defaultdict
 from typing import List
 from custom_types import EventNet, EventNetTypes, MediumTypes, Severity, Area
 from simulator.global_event_queue import GlobalEventQueue
-from simulator.logger import LoggerClientSync
-from custom_types import LogMessage, Severity, Area
 from logger.ILogger import ILogger
 
 class BaseMedium(ABC):

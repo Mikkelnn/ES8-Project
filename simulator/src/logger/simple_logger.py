@@ -1,4 +1,4 @@
-from custom_types import Area, LogMessage, Severity
+from custom_types import Area, Severity
 from logger.ILogger import ILogger
 from typing import Any, List
 

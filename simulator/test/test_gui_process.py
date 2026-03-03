@@ -1,6 +1,5 @@
 import time
 import multiprocessing
-import pytest
 from simulator.src.main import start_gui_process
 
 
