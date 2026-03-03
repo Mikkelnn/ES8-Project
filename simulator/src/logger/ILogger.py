@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, List
 from custom_types import Area, Severity
 
 class ILogger(ABC):
@@ -12,6 +12,10 @@ class ILogger(ABC):
     @abstractmethod
     def add(self, severity: Severity, area: Area, global_time: int, msg: str, data: Any = None) -> None:
         """Append a log message to the logger's buffer."""
+
+    @abstractmethod
+    def get(self) -> List[str]:
+        """Get log buffer"""
 
     @abstractmethod
     def flush(self, force: bool = False) -> bool:

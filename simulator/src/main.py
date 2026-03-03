@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QTextEdit, QPushButton, QComboBox, QSizePolicy, QCheckBox, QScrollArea, QGridLayout, QSpinBox, QLabel
 from PySide6.QtGui import QPalette, QColor
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from custom_types import Severity, Area
 from simulator.engine import Engine
 from simulator.global_time import GlobalTime
@@ -56,6 +56,32 @@ class GUI(QMainWindow):
         state = self.collect_input_state()
         self.engine = Engine()
 
+    def refresh_log_display(self):
+        if hasattr(self, 'engine') and self.engine is not None:
+            logs = self.engine.log.get()
+            # Filter logs by chosen severity and area
+            chosen_severity = self.left_bottom_severity_dropdown.currentData()
+            chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
+            filtered_logs = []
+            for log in logs:
+                # Assume log format: [SEVERITY] (AREA)
+                if log.startswith(f"[{chosen_severity}]"):
+                    # Extract area from log string
+                    start = log.find('(')
+                    end = log.find(')')
+                    if start != -1 and end != -1:
+                        area = log[start+1:end]
+                        if area in chosen_areas:
+                            filtered_logs.append(log)
+            # Show only the latest 100 log entries
+            filtered_logs = filtered_logs[-100:]
+            # Save current scrollbar position
+            scrollbar = self.left_top.verticalScrollBar()
+            value = scrollbar.value()
+            self.left_top.setPlainText(''.join(filtered_logs))
+            # Restore scrollbar position
+            scrollbar.setValue(value)
+
     def start_engine(self):
         """Start or continue the engine based on toggle state."""
         self.lock_inputs(True)
@@ -69,16 +95,19 @@ class GUI(QMainWindow):
             self.engine.run_for(ticks)
         else:
             self.engine.run()
+        self.refresh_log_display()
 
     def pause_engine(self):
         if hasattr(self, 'engine') and self.engine is not None:
             self.engine.pause()
         self.unlock_inputs()
+        self.refresh_log_display()
 
     def stop_engine(self):
         if hasattr(self, 'engine') and self.engine is not None:
             self.engine.stop()
         self.unlock_inputs()
+        self.refresh_log_display()
 
     def __init__(self):
         super().__init__()
@@ -114,10 +143,10 @@ class GUI(QMainWindow):
 
         # Top: two split panes (left and right)
         top_splitter = QSplitter(Qt.Horizontal)
-        left_top = QTextEdit()
-        right_top = QTextEdit()
-        top_splitter.addWidget(left_top)
-        top_splitter.addWidget(right_top)
+        self.left_top = QTextEdit()
+        self.right_top = QTextEdit()
+        top_splitter.addWidget(self.left_top)
+        top_splitter.addWidget(self.right_top)
         top_splitter.setSizes([600, 400])
 
         # Bottom: controls and area checkboxes in one pane
@@ -258,6 +287,11 @@ class GUI(QMainWindow):
         hours_input.valueChanged.connect(update_est_time)
         minutes_input.valueChanged.connect(update_est_time)
         update_est_time()
+
+        # Timer to refresh log display every 2 seconds
+        self.log_refresh_timer = QTimer(self)
+        self.log_refresh_timer.timeout.connect(self.refresh_log_display)
+        self.log_refresh_timer.start(1000)
 
     @staticmethod
     def run():

@@ -31,6 +31,12 @@ class SimpleLogger(ILogger):
         formatted = f"[{severity.value}] ({area.value}) @ {global_time}: {info}, {data if data else ''}"
         self._buffer.append(formatted + '\n')
 
+    def get(self) -> List[str]:
+        """Get log buffer"""
+        tmp_buffer = self._buffer
+
+        return tmp_buffer
+
     def flush(self, force: bool = False) -> bool:
         """Write buffered messages to the log file.
 
