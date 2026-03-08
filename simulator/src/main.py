@@ -57,107 +57,144 @@ class GUI(QMainWindow):
         self.engine = Engine()
 
     def refresh_log_display(self):
-        if hasattr(self, 'engine') and self.engine is not None:
-            # Flush logger before getting logs
-            try:
-                self.engine.log.flush(force=True)
-            except Exception:
-                pass
-            logs = self.engine.get_log(lines=100)
-            chosen_severity = self.left_bottom_severity_dropdown.currentData()
-            chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
-            filtered_logs = []
-            for log in logs:
-                if log.startswith(f"[{chosen_severity}]"):
+        logs = self.engine.get_log(lines=100)
+        chosen_severity = self.left_bottom_severity_dropdown.currentData()
+        chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
+        filtered_logs = []
+        latest_tick = None
+        for log in logs:
+            if log.startswith(f"[{chosen_severity}]"):
+                start = log.find('(')
+                end = log.find(')')
+                if start != -1 and end != -1:
+                    area = log[start+1:end]
+                    if area in chosen_areas:
+                        filtered_logs.append(log)
+                        # Extract tick after '@'
+                        at_idx = log.find('@')
+                        colon_idx = log.find(':', at_idx)
+                        if at_idx != -1 and colon_idx != -1:
+                            tick_str = log[at_idx+1:colon_idx].strip()
+                            try:
+                                tick_val = int(tick_str)
+                                latest_tick = tick_val
+                            except ValueError:
+                                pass
+        # Rolling window: always show last 100 filtered logs, never empty
+        if len(filtered_logs) < 100:
+            # Fill up with older logs if available
+            all_logs = self.engine.get_log(lines=1000)
+            extra = []
+            for log in reversed(all_logs):
+                if log not in filtered_logs and log.startswith(f"[{chosen_severity}]"):
                     start = log.find('(')
                     end = log.find(')')
                     if start != -1 and end != -1:
                         area = log[start+1:end]
                         if area in chosen_areas:
-                            filtered_logs.append(log)
-            # Rolling window: always show last 100 filtered logs, never empty
-            if len(filtered_logs) < 100:
-                # Fill up with older logs if available
-                all_logs = self.engine.get_log(lines=1000)
-                extra = []
-                for log in reversed(all_logs):
-                    if log not in filtered_logs and log.startswith(f"[{chosen_severity}]"):
-                        start = log.find('(')
-                        end = log.find(')')
-                        if start != -1 and end != -1:
-                            area = log[start+1:end]
-                            if area in chosen_areas:
-                                extra.append(log)
-                    if len(filtered_logs) + len(extra) >= 100:
-                        break
-                filtered_logs = extra[::-1] + filtered_logs
-            filtered_logs = filtered_logs[-100:]
-            # If still empty, show last 100 logs regardless of filter
-            if not filtered_logs:
-                logs = self.engine.get_log(lines=100)
-                self.left_top.setPlainText(''.join(logs))
-            else:
-                self.left_top.setPlainText(''.join(filtered_logs))
-        # Est is recalculated every second by timer
+                            extra.append(log)
+                            # Extract tick after '@'
+                            at_idx = log.find('@')
+                            colon_idx = log.find(':', at_idx)
+                            if at_idx != -1 and colon_idx != -1:
+                                tick_str = log[at_idx+1:colon_idx].strip()
+                                try:
+                                    tick_val = int(tick_str)
+                                    latest_tick = tick_val
+                                except ValueError:
+                                    pass
+                if len(filtered_logs) + len(extra) >= 100:
+                    break
+            filtered_logs = extra[::-1] + filtered_logs
+        filtered_logs = filtered_logs[-100:]
+        # Store latest tick for estimate and pause logic
+        self._latest_tick = latest_tick
+        # If still empty, show last 100 logs regardless of filter
+        if not filtered_logs:
+            logs = self.engine.get_log(lines=100)
+            self.left_top.setPlainText(''.join(logs))
+        else:
+            self.left_top.setPlainText(''.join(filtered_logs))
+
+        self.engine.log.flush(force=True)
 
 
     def update_est_time_label(self):
         # Show only TPS if 'run until' is not set, else show estimated real time
         if not hasattr(self, '_est_real_seconds_history'):
             self._est_real_seconds_history = []
-        if hasattr(self, 'engine') and self.engine is not None:
-            until_time = self.left_bottom_cross_toggle.isChecked()
-            tps = self.engine.get_tps()
-            if until_time:
-                hours = self.left_bottom_hours_input.value()
-                minutes = self.left_bottom_minutes_input.value()
-                sim_seconds = hours * 3600 + minutes * 60
-                gt = GlobalTime()
-                ticks = int(sim_seconds / gt.tick_pr_time_unit)
-                if tps > 0:
-                    est_real_seconds = ticks / tps
-                else:
-                    est_real_seconds = 0
-                # Median filter for last 10 values
-                self._est_real_seconds_history.append(est_real_seconds)
-                if len(self._est_real_seconds_history) > 10:
-                    self._est_real_seconds_history.pop(0)
-                filtered_est = est_real_seconds
-                if len(self._est_real_seconds_history) >= 3:
-                    filtered_est = sorted(self._est_real_seconds_history)[len(self._est_real_seconds_history)//2]
-                now = datetime.datetime.now()
-                if filtered_est > 0:
-                    est_end = now + datetime.timedelta(seconds=filtered_est)
-                    self.est_time_label.setText(f"Est: {est_end.strftime('%Y-%m-%d %H:%M:%S')} ({int(filtered_est)}s, TPS: {tps})")
-                else:
-                    self.est_time_label.setText(f"Est: -- (TPS: {tps})")
+
+        until_time = self.left_bottom_cross_toggle.isChecked()
+        tps = self.engine.get_tps()
+        latest_tick = getattr(self, '_latest_tick', None)
+        if until_time:
+            hours = self.left_bottom_hours_input.value()
+            minutes = self.left_bottom_minutes_input.value()
+            sim_seconds = hours * 3600 + minutes * 60
+            gt = GlobalTime()
+            total_ticks = int(sim_seconds / gt.tick_pr_time_unit)
+            ticks_done = latest_tick if latest_tick is not None else 0
+            ticks_remaining = max(total_ticks - ticks_done, 0)
+            if tps > 0:
+                est_real_seconds = ticks_remaining / tps
             else:
-                self.est_time_label.setText(f"TPS: {tps}")
+                est_real_seconds = 0
+            # Median filter for last 10 values
+            self._est_real_seconds_history.append(est_real_seconds)
+            if len(self._est_real_seconds_history) > 10:
+                self._est_real_seconds_history.pop(0)
+            filtered_est = est_real_seconds
+            if len(self._est_real_seconds_history) >= 3:
+                filtered_est = sorted(self._est_real_seconds_history)[len(self._est_real_seconds_history)//2]
+            now = datetime.datetime.now()
+            if filtered_est > 0:
+                est_end = now + datetime.timedelta(seconds=filtered_est)
+                self.est_time_label.setText(
+                    f"Est: {est_end.strftime('%Y-%m-%d %H:%M:%S')} ({int(filtered_est)}s, TPS: {tps}, Progress: {ticks_done}/{total_ticks} ticks)"
+                )
+            else:
+                self.est_time_label.setText(f"Est: -- (TPS: {tps}, Progress: {ticks_done}/{total_ticks} ticks)")
         else:
-            self.est_time_label.setText("Est: -- (TPS: 0)")
+            self.est_time_label.setText(f"TPS: {tps}")
 
     def start_engine(self):
         """Start or continue the engine based on toggle state."""
         self.lock_inputs(True)
         state = self.collect_input_state()
-        if not hasattr(self, 'engine') or self.engine is None:
-            self.setup()
-        self.engine.start_continue()
+        self.setup()
+        # If running until a duration, calculate ticks and start from current tick
+        if state['until_time']:
+            gt = GlobalTime()
+            total_ticks = int(state['run_duration'] / gt.tick_pr_time_unit) if state['run_duration'] else 0
+            latest_tick = getattr(self, '_latest_tick', None)
+            ticks_remaining = max(total_ticks - (latest_tick if latest_tick else 0), 0)
+            # If ticks_remaining is 0, ask user to continue indefinitely or for another interval
+            if ticks_remaining <= 0:
+                # Unlock inputs and prompt user
+                self.unlock_inputs()
+                self.est_time_label.setText("Interval complete. Choose to continue indefinitely or set another interval.")
+                return
+            self.engine.start_continue(run_ticks=(latest_tick if latest_tick else 0) + ticks_remaining)
+        else:
+            self.engine.start_continue()
         self.refresh_log_display()
 
     def pause_engine(self):
-        if hasattr(self, 'engine') and self.engine is not None:
-            self.engine.pause()
+        self.engine.pause()
         self.unlock_inputs()
         self.refresh_log_display()
 
     def stop_engine(self):
-        if hasattr(self, 'engine') and self.engine is not None:
-            self.engine.stop()
+        self.engine.stop()
         self.unlock_inputs()
         self.refresh_log_display()
 
     def __init__(self):
+        # Ensure QApplication is constructed before any QWidget
+        if QApplication.instance() is None:
+            self._app = QApplication(sys.argv)
+        else:
+            self._app = QApplication.instance()
         super().__init__()
         self.setWindowTitle("Simulator")
         self.setGeometry(100, 100, 800, 600)
@@ -182,6 +219,8 @@ class GUI(QMainWindow):
         QApplication.setPalette(dark_palette)
 
     def init_ui(self):
+        # Initialize engine before any UI updates
+        self.engine = Engine()
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QHBoxLayout(central_widget)
@@ -323,6 +362,7 @@ class GUI(QMainWindow):
 
     @staticmethod
     def run():
+        # Ensure QApplication is constructed before any QWidget
         app = QApplication.instance() or QApplication(sys.argv)
         window = GUI()
         window.show()
@@ -335,4 +375,5 @@ def start_gui_process():
     return p
 
 if __name__ == "__main__":
-    start_gui_process()
+    gui = GUI()
+    gui.run()

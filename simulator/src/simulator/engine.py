@@ -1,4 +1,3 @@
-from typing import List
 from medium.medium_service import MediumService
 from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
@@ -7,9 +6,10 @@ from custom_types import NodeMediumInfo, Severity, Area
 from .global_time import GlobalTime
 from .global_event_queue import GlobalEventQueue
 import time
-from multiprocessing import Value, Lock, Pool, Process, Queue
+from multiprocessing import Value, Lock, Process, Queue
 from enum import Enum
 from ctypes import c_int
+import threading
 
 global_time = GlobalTime()
 
@@ -125,7 +125,6 @@ class Engine:
         self.log: ILogger = SimpleLogger(log_path='profile-results.log', buffer_size=100_000)
         self.status = Value(c_int, SimulationState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
-        from multiprocessing import Queue
         self.log_queue = Queue()
         self.lock = Lock()
         self.amount_of_processes = 1
@@ -146,17 +145,14 @@ class Engine:
     def get_log(self, lines=None):
         logs = []
         n_lines = lines if lines is not None else self.log_lines
-        try:
-            while not self.log_queue.empty():
-                logs = self.log_queue.get()
-        except Exception:
-            pass
+        while not self.log_queue.empty():
+            logs = self.log_queue.get()
         return logs[-n_lines:] if logs else []
 
     def start_continue(self, run_ticks=None):
         with self.lock:
             self.status.value = SimulationState.RUNNING.value
-        self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine started, will run indefinitely", data=None)
+        self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine started", data=None)
         self._run_ticks = run_ticks
         if self.sim_process is None or not self.sim_process.is_alive():
             self.sim_process = Process(target=self._simulation_entry, args=(self.log, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self._run_ticks))
@@ -176,7 +172,6 @@ class Engine:
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine stopped", data=None)
         # Non-blocking: poll for process exit
         if self.sim_process is not None:
-            import threading
             def poll_exit():
                 self.sim_process.join()
                 self.sim_process = None
