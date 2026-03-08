@@ -84,28 +84,41 @@ class GUI(QMainWindow):
         chosen_severity = self.left_bottom_severity_dropdown.currentData()
         chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
 
+        # Severity levels in order (for threshold filtering)
+        severity_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        min_severity_index = severity_levels.index(chosen_severity)
+
         filtered_logs = []
         for log in reversed(self._log_cache):  # Start from most recent
-            if log.startswith(f"[{chosen_severity}]"):
-                start = log.find('(')
-                end = log.find(')')
-                if start != -1 and end != -1:
-                    area = log[start+1:end]
-                    if area in chosen_areas:
-                        filtered_logs.append(log)
-                        if len(filtered_logs) >= GUI_LOG_DISPLAY_LINES:
-                            break
+            # Extract severity from log
+            if log.startswith('['):
+                sev_end = log.find(']')
+                if sev_end != -1:
+                    log_severity = log[1:sev_end]
+                    # Check if log severity meets threshold
+                    if log_severity in severity_levels:
+                        log_severity_index = severity_levels.index(log_severity)
+                        if log_severity_index >= min_severity_index:
+                            # Extract area
+                            start = log.find('(')
+                            end = log.find(')')
+                            if start != -1 and end != -1:
+                                area = log[start+1:end].strip()
+                                if area in chosen_areas:
+                                    filtered_logs.append(log)
+                                    if len(filtered_logs) >= GUI_LOG_DISPLAY_LINES:
+                                        break
 
         # Reverse to show oldest first, newest last
         filtered_logs.reverse()
 
-        # Always show something (never blank)
+        # Display filtered logs or show message if nothing matches
         if filtered_logs:
             self.left_top.setPlainText(''.join(filtered_logs))
-        elif self._log_cache:
-            # If filter excludes everything, show last N unfiltered
-            self.left_top.setPlainText(''.join(self._log_cache[-GUI_LOG_DISPLAY_LINES:]))
-        # else: keep previous display (don't clear)
+        elif chosen_areas:  # If areas selected but no matches
+            self.left_top.setPlainText(f"No logs matching [{chosen_severity}+] with areas: {', '.join(chosen_areas)}\n")
+        else:  # No areas selected at all
+            self.left_top.setPlainText("No areas selected for filtering\n")
 
         self.engine.log.flush(force=True)
 
@@ -131,8 +144,8 @@ class GUI(QMainWindow):
         tps = self.engine.get_tps()
         latest_tick = getattr(self, '_latest_tick', None)
 
-        # EWMA smoothing (alpha=0.3 gives weight to current and history)
-        alpha = 0.3
+        # EWMA smoothing
+        alpha = 0.2
         if self._ewma_tps is None or self._ewma_tps == 0:
             # Initialize with current TPS
             self._ewma_tps = tps if tps > 0 else 0.0
@@ -399,6 +412,11 @@ class GUI(QMainWindow):
         minutes_input.valueChanged.connect(self.update_est_time_label)
         seconds_input.valueChanged.connect(self.update_est_time_label)
         self.update_est_time_label()
+
+        # Connect filter changes to refresh display immediately
+        dropdown.currentIndexChanged.connect(self.refresh_log_display)
+        for cb in area_checkboxes:
+            cb.stateChanged.connect(self.refresh_log_display)
 
         self.log_refresh_timer = QTimer(self)
         self.log_refresh_timer.timeout.connect(self.refresh_log_display)

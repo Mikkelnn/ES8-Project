@@ -21,7 +21,7 @@ class Simulation:
     def __init__(self, log: SimpleLogger, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
         self.log = log
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
-        num_nodes = 5
+        num_nodes = 10_000
         node_neighbors = {}
 
         self.nodes: list[Node] = []
@@ -56,9 +56,18 @@ class Simulation:
         total_evaluated = 0
         last_tps_calc = time.time()
         while len(self.event_queue.events):
-            # Check status frequently for pause/stop
-            for _ in range(10):
-                # Read status live
+            # Check status on EVERY tick for immediate pause response
+            if self.status is not None and self.lock is not None:
+                with self.lock:
+                    sim_state = self.status.value
+            else:
+                sim_state = SimState.RUNNING.value
+
+            if sim_state == SimState.STOPPED.value:
+                return
+
+            while sim_state == SimState.PAUSED.value:
+                time.sleep(0.05)
                 if self.status is not None and self.lock is not None:
                     with self.lock:
                         sim_state = self.status.value
@@ -66,25 +75,21 @@ class Simulation:
                     sim_state = SimState.RUNNING.value
                 if sim_state == SimState.STOPPED.value:
                     return
-                while sim_state == SimState.PAUSED.value:
-                    time.sleep(0.05)
-                    if self.status is not None and self.lock is not None:
-                        with self.lock:
-                            sim_state = self.status.value
-                    else:
-                        sim_state = SimState.RUNNING.value
-                    if sim_state == SimState.STOPPED.value:
-                        return
+
             (current_time, node_ids) = self.event_queue.get_next_events()
+
+            # Check if we've exceeded stop_tick BEFORE processing
+            if current_time > stop_tick:
+                # Update shared tick to exactly stop_tick (not beyond)
+                if self.current_tick_value is not None:
+                    self.current_tick_value.value = int(stop_tick)
+                break
+
             self.global_time.set_time(current_time)
 
             # Update shared current tick value
             if self.current_tick_value is not None:
                 self.current_tick_value.value = int(current_time)
-
-            if current_time > stop_tick:
-                current_time = stop_tick
-                break
 
             # Tick all nodes, do this in parallel if needed
             node_start_time = time.time()
@@ -166,6 +171,14 @@ class Engine:
         n_lines = lines if lines is not None else self.log_lines
         return list(self._log_buffer)[-n_lines:] if self._log_buffer else []
 
+    def _clear_log_queue(self):
+        """Clear any pending logs from the queue to make pause/stop feel instant."""
+        while not self.log_queue.empty():
+            try:
+                self.log_queue.get_nowait()
+            except Exception:
+                break
+
     def start_continue(self, run_ticks=None):
         with self.lock:
             self.status.value = SimState.RUNNING.value
@@ -181,11 +194,13 @@ class Engine:
     def pause(self):
         with self.lock:
             self.status.value = SimState.PAUSED.value
+        self._clear_log_queue()  # Clear pending logs to make pause feel instant
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine paused", data=None)
 
     def stop(self):
         with self.lock:
             self.status.value = SimState.STOPPED.value
+        self._clear_log_queue()  # Clear pending logs to make stop feel instant
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine stopped", data=None)
         # Non-blocking: poll for process exit
         if self.sim_process is not None:
