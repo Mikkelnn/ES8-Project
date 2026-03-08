@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QSplitter, QTextEdit, QPushButton, QComboBox, QSizePolicy, QCheckBox, QScrollArea, QGridLayout, QSpinBox, QLabel
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt, QTimer
-from custom_types import Severity, Area
+from custom_types import Severity, Area, SimState
 from simulator.engine import Engine
 from simulator.global_time import GlobalTime
 import multiprocessing
@@ -12,13 +12,14 @@ class GUI(QMainWindow):
 
     def collect_input_state(self):
         """Collect all input state for engine setup."""
-        # Time mode: True = until duration, False = indefinite
-        until_time = self.left_bottom_cross_toggle.isChecked()
+        # Check if any time field is > 0
+        hours = self.left_bottom_hours_input.value()
+        minutes = self.left_bottom_minutes_input.value()
+        seconds = self.left_bottom_seconds_input.value()
+        until_time = hours > 0 or minutes > 0 or seconds > 0
         run_duration = None
         if until_time:
-            hours = self.left_bottom_hours_input.value()
-            minutes = self.left_bottom_minutes_input.value()
-            run_duration = hours * 3600 + minutes * 60  # seconds
+            run_duration = hours * 3600 + minutes * 60 + seconds  # seconds
         severity = self.left_bottom_severity_dropdown.currentData()
         areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
         return {
@@ -33,7 +34,7 @@ class GUI(QMainWindow):
         widgets = [
             self.left_bottom_hours_input,
             self.left_bottom_minutes_input,
-            self.left_bottom_cross_toggle,
+            self.left_bottom_seconds_input,
             self.left_bottom_severity_dropdown,
         ] + self.right_area_checkboxes
         for w in widgets:
@@ -51,17 +52,23 @@ class GUI(QMainWindow):
     def unlock_inputs(self):
         self.lock_inputs(False)
 
-    def setup(self):
-        """Create and configure the Engine instance."""
-        state = self.collect_input_state()
+    def create_new_engine(self):
+        """Create a NEW engine for a fresh simulation."""
         self.engine = Engine()
+        self._sim_state = SimState.STOPPED
+        self._latest_tick = 0
+        self._target_tick = None
 
     def refresh_log_display(self):
         logs = self.engine.get_log(lines=100)
         chosen_severity = self.left_bottom_severity_dropdown.currentData()
         chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
+
+        # Get current tick directly from engine (no log parsing needed)
+        self._latest_tick = self.engine.get_current_tick()
+
+        # Filter logs for display
         filtered_logs = []
-        latest_tick = None
         for log in logs:
             if log.startswith(f"[{chosen_severity}]"):
                 start = log.find('(')
@@ -70,16 +77,6 @@ class GUI(QMainWindow):
                     area = log[start+1:end]
                     if area in chosen_areas:
                         filtered_logs.append(log)
-                        # Extract tick after '@'
-                        at_idx = log.find('@')
-                        colon_idx = log.find(':', at_idx)
-                        if at_idx != -1 and colon_idx != -1:
-                            tick_str = log[at_idx+1:colon_idx].strip()
-                            try:
-                                tick_val = int(tick_str)
-                                latest_tick = tick_val
-                            except ValueError:
-                                pass
         # Rolling window: always show last 100 filtered logs, never empty
         if len(filtered_logs) < 100:
             # Fill up with older logs if available
@@ -93,22 +90,10 @@ class GUI(QMainWindow):
                         area = log[start+1:end]
                         if area in chosen_areas:
                             extra.append(log)
-                            # Extract tick after '@'
-                            at_idx = log.find('@')
-                            colon_idx = log.find(':', at_idx)
-                            if at_idx != -1 and colon_idx != -1:
-                                tick_str = log[at_idx+1:colon_idx].strip()
-                                try:
-                                    tick_val = int(tick_str)
-                                    latest_tick = tick_val
-                                except ValueError:
-                                    pass
                 if len(filtered_logs) + len(extra) >= 100:
                     break
             filtered_logs = extra[::-1] + filtered_logs
         filtered_logs = filtered_logs[-100:]
-        # Store latest tick for estimate and pause logic
-        self._latest_tick = latest_tick
         # If still empty, show last 100 logs regardless of filter
         if not filtered_logs:
             logs = self.engine.get_log(lines=100)
@@ -118,76 +103,126 @@ class GUI(QMainWindow):
 
         self.engine.log.flush(force=True)
 
+        # Auto-pause when target tick is reached
+        if (self._sim_state == SimState.RUNNING and
+            self._target_tick is not None and
+            self._latest_tick >= self._target_tick):
+            self.pause_engine()
+            self.est_time_label.setText(f"Target reached at {self._latest_tick} ticks. Paused. Press START/CONTINUE to continue or STOP to reset.")
+
 
     def update_est_time_label(self):
-        # Show only TPS if 'run until' is not set, else show estimated real time
-        if not hasattr(self, '_est_real_seconds_history'):
-            self._est_real_seconds_history = []
+        # Initialize EWMA state and history
+        if not hasattr(self, '_ewma_tps'):
+            self._ewma_tps = None
 
-        until_time = self.left_bottom_cross_toggle.isChecked()
+        # Check if any time field is > 0
+        hours = self.left_bottom_hours_input.value()
+        minutes = self.left_bottom_minutes_input.value()
+        seconds = self.left_bottom_seconds_input.value()
+        until_time = hours > 0 or minutes > 0 or seconds > 0
+
         tps = self.engine.get_tps()
         latest_tick = getattr(self, '_latest_tick', None)
-        if until_time:
-            hours = self.left_bottom_hours_input.value()
-            minutes = self.left_bottom_minutes_input.value()
-            sim_seconds = hours * 3600 + minutes * 60
-            gt = GlobalTime()
-            total_ticks = int(sim_seconds / gt.tick_pr_time_unit)
-            ticks_done = latest_tick if latest_tick is not None else 0
-            ticks_remaining = max(total_ticks - ticks_done, 0)
-            if tps > 0:
-                est_real_seconds = ticks_remaining / tps
-            else:
-                est_real_seconds = 0
-            # Median filter for last 10 values
-            self._est_real_seconds_history.append(est_real_seconds)
-            if len(self._est_real_seconds_history) > 10:
-                self._est_real_seconds_history.pop(0)
-            filtered_est = est_real_seconds
-            if len(self._est_real_seconds_history) >= 3:
-                filtered_est = sorted(self._est_real_seconds_history)[len(self._est_real_seconds_history)//2]
-            now = datetime.datetime.now()
-            if filtered_est > 0:
-                est_end = now + datetime.timedelta(seconds=filtered_est)
-                self.est_time_label.setText(
-                    f"Est: {est_end.strftime('%Y-%m-%d %H:%M:%S')} ({int(filtered_est)}s, TPS: {tps}, Progress: {ticks_done}/{total_ticks} ticks)"
-                )
-            else:
-                self.est_time_label.setText(f"Est: -- (TPS: {tps}, Progress: {ticks_done}/{total_ticks} ticks)")
+
+        # EWMA smoothing (alpha=0.3 gives weight to current and history)
+        alpha = 0.3
+        if self._ewma_tps is None or self._ewma_tps == 0:
+            # Initialize with current TPS
+            self._ewma_tps = tps if tps > 0 else 0.0
         else:
-            self.est_time_label.setText(f"TPS: {tps}")
+            # Apply EWMA only if tps is valid
+            if tps > 0:
+                self._ewma_tps = alpha * tps + (1 - alpha) * self._ewma_tps
+
+        if until_time and hasattr(self, '_target_tick') and self._target_tick is not None:
+            # Calculate progress based on delta from start_tick to target_tick
+            start_tick = getattr(self, '_start_tick', 0)
+            current_tick = latest_tick if latest_tick is not None else start_tick
+            total_delta = self._target_tick - start_tick
+            progress_delta = current_tick - start_tick
+
+            progress_pct = min(100, int((progress_delta / total_delta * 100))) if total_delta > 0 else 0
+            progress_bar = "█" * (progress_pct // 5) + "░" * (20 - progress_pct // 5)
+
+            # Only update ETA when running (not paused)
+            if self._sim_state == SimState.RUNNING:
+                # Estimate completion time based on EWMA TPS
+                remaining_ticks = max(0, self._target_tick - current_tick)
+                remaining_seconds = remaining_ticks / self._ewma_tps if self._ewma_tps > 0 else 0
+                est_completion = datetime.datetime.now() + datetime.timedelta(seconds=remaining_seconds)
+                self._frozen_eta = est_completion.strftime('%Y-%m-%d %H:%M:%S')
+
+            # Display frozen ETA if paused, otherwise current calculation
+            eta_str = getattr(self, '_frozen_eta', '----')
+            self.est_time_label.setText(
+                f"ETA: {eta_str} (TPS: {self._ewma_tps:.1f}) [{progress_bar}] {progress_pct}%"
+            )
+        else:
+            self.est_time_label.setText(f"TPS: {self._ewma_tps:.1f}")
 
     def start_engine(self):
-        """Start or continue the engine based on toggle state."""
-        self.lock_inputs(True)
+        """Start new simulation or continue paused one."""
         state = self.collect_input_state()
-        self.setup()
-        # If running until a duration, calculate ticks and start from current tick
-        if state['until_time']:
-            gt = GlobalTime()
-            total_ticks = int(state['run_duration'] / gt.tick_pr_time_unit) if state['run_duration'] else 0
-            latest_tick = getattr(self, '_latest_tick', None)
-            ticks_remaining = max(total_ticks - (latest_tick if latest_tick else 0), 0)
-            # If ticks_remaining is 0, ask user to continue indefinitely or for another interval
-            if ticks_remaining <= 0:
-                # Unlock inputs and prompt user
-                self.unlock_inputs()
-                self.est_time_label.setText("Interval complete. Choose to continue indefinitely or set another interval.")
-                return
-            self.engine.start_continue(run_ticks=(latest_tick if latest_tick else 0) + ticks_remaining)
-        else:
+
+        # Determine if we should start fresh or continue
+        if self._sim_state == SimState.PAUSED:
+            # CONTINUE from pause
+            self.lock_inputs(True)
+            self._sim_state = SimState.RUNNING
+
+            # Calculate target tick if "run until" is set (add delta to current tick)
+            if state['until_time']:
+                gt = GlobalTime()
+                delta_ticks = int(state['run_duration'] / gt.tick_pr_time_unit) if state['run_duration'] else 0
+                current_tick = self.engine.get_current_tick()
+                self._start_tick = current_tick
+                self._target_tick = current_tick + delta_ticks
+            else:
+                self._target_tick = None
+                self._start_tick = None
+
+            # Resume the existing simulation
             self.engine.start_continue()
+        else:
+            # START NEW simulation
+            self.lock_inputs(True)
+            self.create_new_engine()
+            self._sim_state = SimState.RUNNING
+            self._latest_tick = 0
+
+            # Calculate target tick if "run until" is set (add delta from tick 0)
+            if state['until_time']:
+                gt = GlobalTime()
+                delta_ticks = int(state['run_duration'] / gt.tick_pr_time_unit) if state['run_duration'] else 0
+                self._start_tick = 0
+                self._target_tick = delta_ticks
+            else:
+                self._target_tick = None
+                self._start_tick = None
+
+            # Always start without run_ticks limit - let GUI handle pausing at target
+            self.engine.start_continue()
+
         self.refresh_log_display()
 
     def pause_engine(self):
-        self.engine.pause()
-        self.unlock_inputs()
-        self.refresh_log_display()
+        """Pause current simulation - can be continued later."""
+        if self._sim_state == SimState.RUNNING:
+            self.engine.pause()
+            self._sim_state = SimState.PAUSED
+            self.unlock_inputs()
+            self.refresh_log_display()
 
     def stop_engine(self):
-        self.engine.stop()
-        self.unlock_inputs()
-        self.refresh_log_display()
+        """Stop current simulation - next start will be a NEW simulation."""
+        if self._sim_state in (SimState.RUNNING, SimState.PAUSED):
+            self.engine.stop()
+            self._sim_state = SimState.STOPPED
+            self._latest_tick = 0
+            self._target_tick = None
+            self.unlock_inputs()
+            self.refresh_log_display()
 
     def __init__(self):
         # Ensure QApplication is constructed before any QWidget
@@ -219,8 +254,11 @@ class GUI(QMainWindow):
         QApplication.setPalette(dark_palette)
 
     def init_ui(self):
-        # Initialize engine before any UI updates
+        # Initialize engine and state before any UI updates
         self.engine = Engine()
+        self._sim_state = SimState.STOPPED
+        self._latest_tick = 0
+        self._target_tick = None
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QHBoxLayout(central_widget)
@@ -249,7 +287,7 @@ class GUI(QMainWindow):
         controls_layout.setSpacing(5)
         input_row = QHBoxLayout()
 
-        # Relative duration input (hours/minutes)
+        # Relative duration input (hours/minutes/seconds)
         hours_input = QSpinBox()
         hours_input.setRange(0, 999)
         hours_input.setPrefix("Hours: ")
@@ -258,12 +296,10 @@ class GUI(QMainWindow):
         minutes_input.setRange(0, 59)
         minutes_input.setPrefix("Min: ")
         minutes_input.setMinimumHeight(28)
-
-        # Standard QCheckBox toggle for indefinite/timed run, placed left of duration
-        toggle_checkbox = QCheckBox("Run for duration")
-        toggle_checkbox.setChecked(False)
-        toggle_checkbox.setToolTip("Check to run for specified duration, uncheck for indefinite run")
-        toggle_checkbox.setMinimumHeight(28)
+        seconds_input = QSpinBox()
+        seconds_input.setRange(0, 59)
+        seconds_input.setPrefix("Sec: ")
+        seconds_input.setMinimumHeight(28)
 
         # Severity dropdown
         dropdown = QComboBox()
@@ -274,8 +310,8 @@ class GUI(QMainWindow):
         est_time_label = QLabel("Est: 0000-00-00 00:00:00")
         est_time_label.setMinimumHeight(28)
 
-        # Add toggle, duration inputs, severity, and est time label (no area checkboxes here)
-        for w in (toggle_checkbox, hours_input, minutes_input, dropdown, est_time_label):
+        # Add duration inputs, severity, and est time label (no area checkboxes here)
+        for w in (hours_input, minutes_input, seconds_input, dropdown, est_time_label):
             w.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
             input_row.addWidget(w)
         controls_layout.addLayout(input_row)
@@ -340,8 +376,8 @@ class GUI(QMainWindow):
         self.right_area_checkboxes = area_checkboxes
         self.left_bottom_hours_input = hours_input
         self.left_bottom_minutes_input = minutes_input
+        self.left_bottom_seconds_input = seconds_input
         self.left_bottom_severity_dropdown = dropdown
-        self.left_bottom_cross_toggle = toggle_checkbox  # Expose toggle for indefinite/timed run
         self.est_time_label = est_time_label
 
         # Engine integration: connect buttons
@@ -352,6 +388,7 @@ class GUI(QMainWindow):
         # Update estimated real time when duration changes
         hours_input.valueChanged.connect(self.update_est_time_label)
         minutes_input.valueChanged.connect(self.update_est_time_label)
+        seconds_input.valueChanged.connect(self.update_est_time_label)
         self.update_est_time_label()
 
         # Timer to refresh log display and est every second

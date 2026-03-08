@@ -88,7 +88,6 @@ async def test_loggerclientasync_performance_benchmark(tmp_path):
     await client.start()
     num_logs = 1000
     send_times = []
-    write_times = []
     start = time.perf_counter_ns()
     for i in range(num_logs):
         msg = LogMessage(time_global().get_time(), Severity.INFO, Area.SIMULATOR, f"Async bench log {i}", data=None)
@@ -181,8 +180,6 @@ def test_logger_performance_benchmark(tmp_path):
         write_times.append(w1 - w0)
     mid = time.perf_counter_ns()
     logger.stop()
-    end = time.perf_counter_ns()
-    log_write_time = end - mid
     log_enqueue_time = mid - start
     logs_per_sec = num_logs / (log_enqueue_time / 1e9)
     logs_per_ns = num_logs / log_enqueue_time if log_enqueue_time > 0 else 0

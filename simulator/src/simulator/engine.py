@@ -2,25 +2,19 @@ from medium.medium_service import MediumService
 from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
 from node.node import Node
-from custom_types import NodeMediumInfo, Severity, Area
+from custom_types import NodeMediumInfo, Severity, Area, SimState
 from .global_time import GlobalTime
 from .global_event_queue import GlobalEventQueue
 import time
 from multiprocessing import Value, Lock, Process, Queue
-from enum import Enum
 from ctypes import c_int
 import threading
 
 global_time = GlobalTime()
 
-class SimulationState(Enum):
-    STOPPED = 0
-    RUNNING = 1
-    PAUSED = 2
-
 class Simulation:
-    
-    def __init__(self, log: SimpleLogger, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100):
+
+    def __init__(self, log: SimpleLogger, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
         self.log = log
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
         num_nodes = 10_000
@@ -30,7 +24,7 @@ class Simulation:
         self.global_time = GlobalTime()
         self.event_queue = GlobalEventQueue()
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
-        
+
         for i in range(1, num_nodes + 1):
             neighbors = []
             if i % 2 == 1 and i < num_nodes:  # Odd node, add next node as neighbor
@@ -40,7 +34,7 @@ class Simulation:
             node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
 
         self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
-        
+
         for i in range(1, num_nodes + 1):
             self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
         self.status = status
@@ -48,6 +42,7 @@ class Simulation:
         self.tps_value = tps_value
         self.log_queue = log_queue
         self.log_lines = log_lines
+        self.current_tick_value = current_tick_value
 
     def run_for(self, stop_tick):
         stopwatch_start_time = time.time()
@@ -64,20 +59,25 @@ class Simulation:
                     with self.lock:
                         sim_state = self.status.value
                 else:
-                    sim_state = SimulationState.RUNNING.value
-                if sim_state == SimulationState.STOPPED.value:
+                    sim_state = SimState.RUNNING.value
+                if sim_state == SimState.STOPPED.value:
                     return
-                while sim_state == SimulationState.PAUSED.value:
+                while sim_state == SimState.PAUSED.value:
                     time.sleep(0.05)
                     if self.status is not None and self.lock is not None:
                         with self.lock:
                             sim_state = self.status.value
                     else:
-                        sim_state = SimulationState.RUNNING.value
-                    if sim_state == SimulationState.STOPPED.value:
+                        sim_state = SimState.RUNNING.value
+                    if sim_state == SimState.STOPPED.value:
                         return
             (current_time, node_ids) = self.event_queue.get_next_events()
             self.global_time.set_time(current_time)
+            
+            # Update shared current tick value
+            if self.current_tick_value is not None:
+                self.current_tick_value.value = int(current_time)
+            
             if current_time > stop_tick:
                 current_time = stop_tick
                 break
@@ -123,8 +123,9 @@ class Simulation:
 class Engine:
     def __init__(self, log_lines=100):
         self.log: ILogger = SimpleLogger(log_path='profile-results.log', buffer_size=100_000)
-        self.status = Value(c_int, SimulationState.PAUSED.value)
+        self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
+        self.current_tick = Value(c_int, 0)
         self.log_queue = Queue()
         self.lock = Lock()
         self.amount_of_processes = 1
@@ -132,8 +133,8 @@ class Engine:
         self.log_lines = log_lines
         self._run_ticks = None
 
-    def _simulation_entry(self, log, status, lock, tps_value, log_queue, log_lines, run_ticks=None):
-        sim = Simulation(log, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines)
+    def _simulation_entry(self, log, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None):
+        sim = Simulation(log, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value)
         if run_ticks is not None:
             sim.run_for(run_ticks)
         else:
@@ -141,6 +142,9 @@ class Engine:
 
     def get_tps(self):
         return self.tps_from_sim.value
+
+    def get_current_tick(self):
+        return self.current_tick.value
 
     def get_log(self, lines=None):
         logs = []
@@ -151,11 +155,11 @@ class Engine:
 
     def start_continue(self, run_ticks=None):
         with self.lock:
-            self.status.value = SimulationState.RUNNING.value
+            self.status.value = SimState.RUNNING.value
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine started", data=None)
         self._run_ticks = run_ticks
         if self.sim_process is None or not self.sim_process.is_alive():
-            self.sim_process = Process(target=self._simulation_entry, args=(self.log, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self._run_ticks))
+            self.sim_process = Process(target=self._simulation_entry, args=(self.log, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks))
             self.sim_process.start()
 
     def run_for(self, ticks):
@@ -163,12 +167,12 @@ class Engine:
 
     def pause(self):
         with self.lock:
-            self.status.value = SimulationState.PAUSED.value
+            self.status.value = SimState.PAUSED.value
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine paused", data=None)
 
     def stop(self):
         with self.lock:
-            self.status.value = SimulationState.STOPPED.value
+            self.status.value = SimState.STOPPED.value
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine stopped", data=None)
         # Non-blocking: poll for process exit
         if self.sim_process is not None:

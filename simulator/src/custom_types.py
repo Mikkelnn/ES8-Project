@@ -23,6 +23,12 @@ class Area(str, Enum):
     TRANCEIVER = "TRANCEIVER"
     OTHER = "OTHER"
 
+class SimState(Enum):
+    """Simulation state tracking"""
+    STOPPED = 0
+    RUNNING = 1
+    PAUSED = 2
+
 class EventNetTypes(str, Enum):
     CANCELED = "CANCELED"
     TRANSMIT = "TRANSMIT"
