@@ -2,12 +2,14 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QHBoxLayout, Q
 from PySide6.QtGui import QPalette, QColor
 from PySide6.QtCore import Qt, QTimer
 from custom_types import Severity, Area, SimState
-from simulator.engine import Engine
+from simulator.engine import Engine, GUI_LOG_DISPLAY_LINES
 from simulator.global_time import GlobalTime
 import multiprocessing
 import datetime
 import sys
 import os
+
+REFRESH_RATE_MS = 200
 
 class GUI(QMainWindow):
 
@@ -70,11 +72,11 @@ class GUI(QMainWindow):
         self._target_tick = None
 
     def refresh_log_display(self):
-        # Get current tick directly from engine (no log parsing needed)
+        # Get current tick directly from engine
         self._latest_tick = self.engine.get_current_tick()
 
         # Get new logs and update cache
-        new_logs = self.engine.get_log(lines=200)
+        new_logs = self.engine.get_log(lines=GUI_LOG_DISPLAY_LINES)
         if new_logs:
             self._log_cache = new_logs  # Replace cache with latest logs
 
@@ -82,7 +84,6 @@ class GUI(QMainWindow):
         chosen_severity = self.left_bottom_severity_dropdown.currentData()
         chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
 
-        # Simple filtering: show last 50 logs that match filter
         filtered_logs = []
         for log in reversed(self._log_cache):  # Start from most recent
             if log.startswith(f"[{chosen_severity}]"):
@@ -92,7 +93,7 @@ class GUI(QMainWindow):
                     area = log[start+1:end]
                     if area in chosen_areas:
                         filtered_logs.append(log)
-                        if len(filtered_logs) >= 50:
+                        if len(filtered_logs) >= GUI_LOG_DISPLAY_LINES:
                             break
 
         # Reverse to show oldest first, newest last
@@ -102,8 +103,8 @@ class GUI(QMainWindow):
         if filtered_logs:
             self.left_top.setPlainText(''.join(filtered_logs))
         elif self._log_cache:
-            # If filter excludes everything, show last 50 unfiltered
-            self.left_top.setPlainText(''.join(self._log_cache[-50:]))
+            # If filter excludes everything, show last N unfiltered
+            self.left_top.setPlainText(''.join(self._log_cache[-GUI_LOG_DISPLAY_LINES:]))
         # else: keep previous display (don't clear)
 
         self.engine.log.flush(force=True)
@@ -398,8 +399,6 @@ class GUI(QMainWindow):
         minutes_input.valueChanged.connect(self.update_est_time_label)
         seconds_input.valueChanged.connect(self.update_est_time_label)
         self.update_est_time_label()
-
-        REFRESH_RATE_MS = 1/60
 
         self.log_refresh_timer = QTimer(self)
         self.log_refresh_timer.timeout.connect(self.refresh_log_display)

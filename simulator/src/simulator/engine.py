@@ -13,12 +13,15 @@ from collections import deque
 
 global_time = GlobalTime()
 
+# Constant for number of log lines to display in GUI
+GUI_LOG_DISPLAY_LINES = 75
+
 class Simulation:
 
     def __init__(self, log: SimpleLogger, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
         self.log = log
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
-        num_nodes = 10_000
+        num_nodes = 5
         node_neighbors = {}
 
         self.nodes: list[Node] = []
@@ -94,13 +97,12 @@ class Simulation:
             self.medium_service.propagate_mediums(current_time)
             propagation_time += time.time() - propagation_start_time
             total_evaluated += 1
-            # Send only last 50 log lines to queue (small batches for performance)
-            # IMPORTANT: Get logs BEFORE flush, because flush clears the buffer
+
             if self.log_queue is not None:
                 try:
                     lines = self.log.get()
                     if lines:  # Only send if we have logs
-                        self.log_queue.put(lines[-50:])
+                        self.log_queue.put(lines[-GUI_LOG_DISPLAY_LINES:])
                 except Exception:
                     pass
             self.log.flush()
@@ -135,8 +137,8 @@ class Engine:
         self.sim_process = None
         self.log_lines = log_lines
         self._run_ticks = None
-        # Circular buffer to keep last 500 logs in memory
-        self._log_buffer = deque(maxlen=500)
+        # Circular buffer to keep last N logs in memory (3x display for safety)
+        self._log_buffer = deque(maxlen=GUI_LOG_DISPLAY_LINES * 3)
 
     def _simulation_entry(self, log, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None):
         sim = Simulation(log, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value)
