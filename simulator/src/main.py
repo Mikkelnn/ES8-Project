@@ -7,6 +7,7 @@ from simulator.global_time import GlobalTime
 import multiprocessing
 import datetime
 import sys
+import os
 
 class GUI(QMainWindow):
 
@@ -54,7 +55,16 @@ class GUI(QMainWindow):
 
     def create_new_engine(self):
         """Create a NEW engine for a fresh simulation."""
-        self.engine = Engine()
+        # Create timestamped folder for this run
+        timestamp = datetime.datetime.now().strftime("%d_%m_%Y_%H_%M")
+        results_dir = "results"
+        run_folder = os.path.join(results_dir, timestamp)
+        os.makedirs(run_folder, exist_ok=True)
+
+        # Create log file path inside the run folder
+        log_path = os.path.join(run_folder, "simulation.log")
+
+        self.engine = Engine(log_path=log_path)
         self._sim_state = SimState.STOPPED
         self._latest_tick = 0
         self._target_tick = None

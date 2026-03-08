@@ -124,8 +124,8 @@ class Simulation:
     # Pause, resume, stop now controlled by Engine
 
 class Engine:
-    def __init__(self, log_lines=100):
-        self.log: ILogger = SimpleLogger(log_path='profile-results.log', buffer_size=100_000)
+    def __init__(self, log_lines=100, log_path='profile-results.log'):
+        self.log: ILogger = SimpleLogger(log_path=log_path, buffer_size=100_000)
         self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
         self.current_tick = Value(c_int, 0)
