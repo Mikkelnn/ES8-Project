@@ -9,6 +9,7 @@ import time
 from multiprocessing import Value, Lock, Process, Queue
 from ctypes import c_int
 import threading
+from collections import deque
 
 global_time = GlobalTime()
 
@@ -73,11 +74,11 @@ class Simulation:
                         return
             (current_time, node_ids) = self.event_queue.get_next_events()
             self.global_time.set_time(current_time)
-            
+
             # Update shared current tick value
             if self.current_tick_value is not None:
                 self.current_tick_value.value = int(current_time)
-            
+
             if current_time > stop_tick:
                 current_time = stop_tick
                 break
@@ -93,14 +94,16 @@ class Simulation:
             self.medium_service.propagate_mediums(current_time)
             propagation_time += time.time() - propagation_start_time
             total_evaluated += 1
-            self.log.flush()
-            # Send log lines to queue
+            # Send only last 50 log lines to queue (small batches for performance)
+            # IMPORTANT: Get logs BEFORE flush, because flush clears the buffer
             if self.log_queue is not None:
                 try:
                     lines = self.log.get()
-                    self.log_queue.put(lines[-self.log_lines:])
+                    if lines:  # Only send if we have logs
+                        self.log_queue.put(lines[-50:])
                 except Exception:
                     pass
+            self.log.flush()
             # TPS calculation every second
             now = time.time()
             if self.tps_value is not None and now - last_tps_calc > 1.0:
@@ -132,6 +135,8 @@ class Engine:
         self.sim_process = None
         self.log_lines = log_lines
         self._run_ticks = None
+        # Circular buffer to keep last 500 logs in memory
+        self._log_buffer = deque(maxlen=500)
 
     def _simulation_entry(self, log, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None):
         sim = Simulation(log, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value)
@@ -147,11 +152,17 @@ class Engine:
         return self.current_tick.value
 
     def get_log(self, lines=None):
-        logs = []
-        n_lines = lines if lines is not None else self.log_lines
+        # Drain queue and add to circular buffer
         while not self.log_queue.empty():
-            logs = self.log_queue.get()
-        return logs[-n_lines:] if logs else []
+            try:
+                new_logs = self.log_queue.get_nowait()
+                self._log_buffer.extend(new_logs)
+            except Exception:
+                break
+
+        # Return last N lines from buffer
+        n_lines = lines if lines is not None else self.log_lines
+        return list(self._log_buffer)[-n_lines:] if self._log_buffer else []
 
     def start_continue(self, run_ticks=None):
         with self.lock:

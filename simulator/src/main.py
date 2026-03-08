@@ -60,16 +60,21 @@ class GUI(QMainWindow):
         self._target_tick = None
 
     def refresh_log_display(self):
-        logs = self.engine.get_log(lines=100)
-        chosen_severity = self.left_bottom_severity_dropdown.currentData()
-        chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
-
         # Get current tick directly from engine (no log parsing needed)
         self._latest_tick = self.engine.get_current_tick()
 
-        # Filter logs for display
+        # Get new logs and update cache
+        new_logs = self.engine.get_log(lines=200)
+        if new_logs:
+            self._log_cache = new_logs  # Replace cache with latest logs
+
+        # Get current filter state
+        chosen_severity = self.left_bottom_severity_dropdown.currentData()
+        chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
+
+        # Simple filtering: show last 50 logs that match filter
         filtered_logs = []
-        for log in logs:
+        for log in reversed(self._log_cache):  # Start from most recent
             if log.startswith(f"[{chosen_severity}]"):
                 start = log.find('(')
                 end = log.find(')')
@@ -77,29 +82,19 @@ class GUI(QMainWindow):
                     area = log[start+1:end]
                     if area in chosen_areas:
                         filtered_logs.append(log)
-        # Rolling window: always show last 100 filtered logs, never empty
-        if len(filtered_logs) < 100:
-            # Fill up with older logs if available
-            all_logs = self.engine.get_log(lines=1000)
-            extra = []
-            for log in reversed(all_logs):
-                if log not in filtered_logs and log.startswith(f"[{chosen_severity}]"):
-                    start = log.find('(')
-                    end = log.find(')')
-                    if start != -1 and end != -1:
-                        area = log[start+1:end]
-                        if area in chosen_areas:
-                            extra.append(log)
-                if len(filtered_logs) + len(extra) >= 100:
-                    break
-            filtered_logs = extra[::-1] + filtered_logs
-        filtered_logs = filtered_logs[-100:]
-        # If still empty, show last 100 logs regardless of filter
-        if not filtered_logs:
-            logs = self.engine.get_log(lines=100)
-            self.left_top.setPlainText(''.join(logs))
-        else:
+                        if len(filtered_logs) >= 50:
+                            break
+
+        # Reverse to show oldest first, newest last
+        filtered_logs.reverse()
+
+        # Always show something (never blank)
+        if filtered_logs:
             self.left_top.setPlainText(''.join(filtered_logs))
+        elif self._log_cache:
+            # If filter excludes everything, show last 50 unfiltered
+            self.left_top.setPlainText(''.join(self._log_cache[-50:]))
+        # else: keep previous display (don't clear)
 
         self.engine.log.flush(force=True)
 
@@ -234,6 +229,9 @@ class GUI(QMainWindow):
         self.setWindowTitle("Simulator")
         self.setGeometry(100, 100, 800, 600)
         self.set_dark_theme()
+        # Initialize log cache
+        self._log_cache = []
+        self._last_filter_state = None
         self.init_ui()
 
     def set_dark_theme(self):
@@ -391,11 +389,12 @@ class GUI(QMainWindow):
         seconds_input.valueChanged.connect(self.update_est_time_label)
         self.update_est_time_label()
 
-        # Timer to refresh log display and est every second
+        REFRESH_RATE_MS = 1/60
+
         self.log_refresh_timer = QTimer(self)
         self.log_refresh_timer.timeout.connect(self.refresh_log_display)
         self.log_refresh_timer.timeout.connect(self.update_est_time_label)
-        self.log_refresh_timer.start(1000)
+        self.log_refresh_timer.start(REFRESH_RATE_MS)
 
     @staticmethod
     def run():
