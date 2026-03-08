@@ -7,6 +7,10 @@ src/WDST.egg-info/requires.txt
 src/WDST.egg-info/top_level.txt
 src/gateway/__init__.py
 src/gateway/gateway.py
+src/logger/ILogger.py
+src/logger/__init__.py
+src/logger/simple_logger.py
+src/logger/threaded_logger.py
 src/medium/__init__.py
 src/medium/base_medium.py
 src/medium/lora_d2d_medium.py

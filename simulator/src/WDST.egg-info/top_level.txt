@@ -1,4 +1,5 @@
 gateway
+logger
 medium
 node
 simulator

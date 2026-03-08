@@ -58,29 +58,83 @@ class GUI(QMainWindow):
 
     def refresh_log_display(self):
         if hasattr(self, 'engine') and self.engine is not None:
-            logs = self.engine.log.get()
-            # Filter logs by chosen severity and area
+            # Flush logger before getting logs
+            try:
+                self.engine.log.flush(force=True)
+            except Exception:
+                pass
+            logs = self.engine.get_log(lines=100)
             chosen_severity = self.left_bottom_severity_dropdown.currentData()
             chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
             filtered_logs = []
             for log in logs:
-                # Assume log format: [SEVERITY] (AREA)
                 if log.startswith(f"[{chosen_severity}]"):
-                    # Extract area from log string
                     start = log.find('(')
                     end = log.find(')')
                     if start != -1 and end != -1:
                         area = log[start+1:end]
                         if area in chosen_areas:
                             filtered_logs.append(log)
-            # Show only the latest 100 log entries
+            # Rolling window: always show last 100 filtered logs, never empty
+            if len(filtered_logs) < 100:
+                # Fill up with older logs if available
+                all_logs = self.engine.get_log(lines=1000)
+                extra = []
+                for log in reversed(all_logs):
+                    if log not in filtered_logs and log.startswith(f"[{chosen_severity}]"):
+                        start = log.find('(')
+                        end = log.find(')')
+                        if start != -1 and end != -1:
+                            area = log[start+1:end]
+                            if area in chosen_areas:
+                                extra.append(log)
+                    if len(filtered_logs) + len(extra) >= 100:
+                        break
+                filtered_logs = extra[::-1] + filtered_logs
             filtered_logs = filtered_logs[-100:]
-            # Save current scrollbar position
-            scrollbar = self.left_top.verticalScrollBar()
-            value = scrollbar.value()
-            self.left_top.setPlainText(''.join(filtered_logs))
-            # Restore scrollbar position
-            scrollbar.setValue(value)
+            # If still empty, show last 100 logs regardless of filter
+            if not filtered_logs:
+                logs = self.engine.get_log(lines=100)
+                self.left_top.setPlainText(''.join(logs))
+            else:
+                self.left_top.setPlainText(''.join(filtered_logs))
+        # Est is recalculated every second by timer
+
+
+    def update_est_time_label(self):
+        # Show only TPS if 'run until' is not set, else show estimated real time
+        if not hasattr(self, '_est_real_seconds_history'):
+            self._est_real_seconds_history = []
+        if hasattr(self, 'engine') and self.engine is not None:
+            until_time = self.left_bottom_cross_toggle.isChecked()
+            tps = self.engine.get_tps()
+            if until_time:
+                hours = self.left_bottom_hours_input.value()
+                minutes = self.left_bottom_minutes_input.value()
+                sim_seconds = hours * 3600 + minutes * 60
+                gt = GlobalTime()
+                ticks = int(sim_seconds / gt.tick_pr_time_unit)
+                if tps > 0:
+                    est_real_seconds = ticks / tps
+                else:
+                    est_real_seconds = 0
+                # Median filter for last 10 values
+                self._est_real_seconds_history.append(est_real_seconds)
+                if len(self._est_real_seconds_history) > 10:
+                    self._est_real_seconds_history.pop(0)
+                filtered_est = est_real_seconds
+                if len(self._est_real_seconds_history) >= 3:
+                    filtered_est = sorted(self._est_real_seconds_history)[len(self._est_real_seconds_history)//2]
+                now = datetime.datetime.now()
+                if filtered_est > 0:
+                    est_end = now + datetime.timedelta(seconds=filtered_est)
+                    self.est_time_label.setText(f"Est: {est_end.strftime('%Y-%m-%d %H:%M:%S')} ({int(filtered_est)}s, TPS: {tps})")
+                else:
+                    self.est_time_label.setText(f"Est: -- (TPS: {tps})")
+            else:
+                self.est_time_label.setText(f"TPS: {tps}")
+        else:
+            self.est_time_label.setText("Est: -- (TPS: 0)")
 
     def start_engine(self):
         """Start or continue the engine based on toggle state."""
@@ -88,13 +142,7 @@ class GUI(QMainWindow):
         state = self.collect_input_state()
         if not hasattr(self, 'engine') or self.engine is None:
             self.setup()
-        if state['until_time'] and state['run_duration']:
-            # Convert seconds to ticks using GlobalTime's tick_pr_time_unit
-            gt = GlobalTime()
-            ticks = int(state['run_duration'] / (gt.tick_pr_time_unit))
-            self.engine.run_for(ticks)
-        else:
-            self.engine.run()
+        self.engine.start_continue()
         self.refresh_log_display()
 
     def pause_engine(self):
@@ -263,34 +311,14 @@ class GUI(QMainWindow):
         btn3.clicked.connect(self.stop_engine)
 
         # Update estimated real time when duration changes
-        def update_est_time():
-            gt = GlobalTime()
-            hours = hours_input.value()
-            minutes = minutes_input.value()
-            # Simulator time in seconds
-            sim_seconds = hours * 3600 + minutes * 60
-            # Convert simulator time to ticks (simulated ms)
-            ticks = int(sim_seconds / gt.tick_pr_time_unit)
-            # Update tps before using it
-            gt.tps_calc()
-            tps = gt.get_tps()
-            if tps > 0:
-                est_real_seconds = ticks / tps
-            else:
-                est_real_seconds = 0
-            now = datetime.datetime.now()
-            if est_real_seconds > 0:
-                est_end = now + datetime.timedelta(seconds=est_real_seconds)
-                est_time_label.setText(f"Est: {est_end.strftime('%Y-%m-%d %H:%M:%S')} ({int(est_real_seconds)}s)")
-            else:
-                est_time_label.setText("Est: --")
-        hours_input.valueChanged.connect(update_est_time)
-        minutes_input.valueChanged.connect(update_est_time)
-        update_est_time()
+        hours_input.valueChanged.connect(self.update_est_time_label)
+        minutes_input.valueChanged.connect(self.update_est_time_label)
+        self.update_est_time_label()
 
-        # Timer to refresh log display every 2 seconds
+        # Timer to refresh log display and est every second
         self.log_refresh_timer = QTimer(self)
         self.log_refresh_timer.timeout.connect(self.refresh_log_display)
+        self.log_refresh_timer.timeout.connect(self.update_est_time_label)
         self.log_refresh_timer.start(1000)
 
     @staticmethod
