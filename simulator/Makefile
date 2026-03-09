@@ -13,7 +13,7 @@ lint:
 	PYTHONPATH=$(PYTHONPATH) uv run ty check . -- --fix
 
 test: install
-	PYTHONPATH=$(PYTHONPATH) uv run pytest -s ./test
+	PYTHONPATH=$(PYTHONPATH) uv run pytest ./test
 
 run: install
 	PYTHONPATH=$(PYTHONPATH) uv run python -m main

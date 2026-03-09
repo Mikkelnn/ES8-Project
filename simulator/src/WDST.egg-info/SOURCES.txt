@@ -32,9 +32,5 @@ src/simulator/engine.py
 src/simulator/global_event_queue.py
 src/simulator/global_time.py
 src/simulator/logger.py
-test/test_engine.py
-test/test_engine_run.py
 test/test_event_net_queue.py
 test/test_global_time.py
-test/test_gui_process.py
-test/test_logger.py

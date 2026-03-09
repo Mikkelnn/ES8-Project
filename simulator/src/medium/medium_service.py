@@ -1,10 +1,8 @@
-
 from typing import List
 from custom_types import EventNet, EventNetTypes, MediumTypes, NodeMediumInfo
 from simulator.global_event_queue import GlobalEventQueue
 from logger import ILogger
 from .lora_d2d_medium import LoraD2DMedium
-
 
 class MediumService:
     def __init__(self, node_neighbors: dict[int, NodeMediumInfo], event_queue: GlobalEventQueue, log: ILogger):

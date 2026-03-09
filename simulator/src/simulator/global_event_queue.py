@@ -1,4 +1,4 @@
-from sortedcontainers import SortedDict    
+from sortedcontainers import SortedDict
 
 class GlobalEventQueue():
     def __init__(self):
