@@ -1,0 +1,36 @@
+@startuml Node_Component_Diagram
+!theme plain
+title Node Component Architecture
+
+package "IoT Node" {
+    component [Battery Module] as battery
+    component [Clock Module] as clock
+    component [Transceiver Service] as tranceiver
+    component [Protocol Handler] as protocol
+    component [Local Event Queue] as eventqueue
+    component [Accumulated State] as state
+}
+
+package "External Systems" {
+    component [Medium Service] as medium
+    component [Logger] as logger
+}
+
+' Component relationships
+battery --|> eventqueue : accumulates\npower usage
+clock --|> eventqueue : publishes events
+tranceiver --|> eventqueue : publishes RX/TX events
+protocol --|> eventqueue : publishes protocol events
+
+tranceiver --> medium : send/receive\nmessages
+protocol --> tranceiver : request TX/RX
+
+battery --|> state : updates power\nand tick info
+clock --|> state : updates power\nand tick info
+tranceiver --|> state : updates power\nand tick info
+protocol --|> state : updates power\nand tick info
+
+tranceiver --> logger : log events
+protocol --> logger : log events
+
+@enduml

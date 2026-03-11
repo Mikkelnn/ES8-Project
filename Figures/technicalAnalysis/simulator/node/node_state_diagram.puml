@@ -1,0 +1,46 @@
+@startuml Node_State_Diagram
+!theme plain
+title Node State Transitions and Lifecycle
+
+state "WAKE" as wake {
+    state "Active" : Clock, Tranceiver\nand Protocol ticking
+}
+
+state "SLEEP" as sleep {
+    state "Idle" : Only Clock ticking\nLow power mode
+}
+
+state "DEAD" as dead {
+    state "Inactive" : Battery depleted\nNo operations
+}
+
+[*] --> wake : Node initialized
+
+wake --> sleep : Transition to\nsleep mode
+sleep --> wake : Transition to\nwake mode
+
+wake --> dead : Battery depleted\n(is_dead() = True)
+sleep --> dead : Battery depleted\n(is_dead() = True)
+
+dead --> wake : Battery\nrecharged\n(is_dead() = False)
+
+note right of wake
+  Power consumption from:
+  - Clock
+  - Transceiver
+  - Protocol
+end note
+
+note right of sleep
+  Reduced power consumption:
+  - Only Clock
+  - Tranceiver and Protocol\n  in standby
+end note
+
+note right of dead
+  Zero power consumption:
+  - All modules reset
+  - Await recharge
+end note
+
+@enduml

@@ -1,0 +1,145 @@
+@startuml Node_Class_Diagram
+!theme plain
+title Node Class Diagram and Dependencies
+
+package "Node Components" {
+    class Node {
+        - node_id: int
+        - state: State
+        - local_event_queue: LocalEventQueue
+        - accumulated_state: AccumulatedState
+        - battery: Battery
+        - clock: Clock
+        - tranceiver: TranceiverService
+        - protocol: Protocol
+        --
+        + __init__(node_id, second_to_global_tick, medium_service, log)
+        + tick(current_global_tick): int | None
+    }
+
+    class Battery {
+        - capacity: float
+        - current_charge: float
+        - recharge_rate: float
+        - prev_net_change_joule: float
+        --
+        + tick(current_global_tick, current_consumption): tuple[float, int | None]
+        + reset(current_global_tick): None
+        + is_dead(): bool
+    }
+
+    class Clock {
+        - node_id: int
+        - consumption_per_tick: float
+        - local_time_increment_per_second: int
+        - global_ticks_per_local_time_increment: int
+        --
+        + tick(current_global_tick): float | None
+        + reset(current_global_tick): None
+    }
+
+    class TranceiverService {
+        - node_id: int
+        - accumulated_state: AccumulatedState
+        - tranceivers: List[BaseTranceiver]
+        --
+        + tick(current_global_tick): float
+        + reset(current_global_tick): None
+    }
+
+    class BaseTranceiver {
+        - state: TranceiverState
+        - medium_type: MediumTypes
+        - node_id: int
+        - medium_service: MediumService
+        - local_event_queue: LocalEventQueue
+        --
+        + tick(current_global_tick): tuple[float, int | None]
+        + reset(current_global_tick): None
+    }
+
+    class LoRaD2D {
+        - effective_data_rate_tick: float
+        - preamble_time_ticks: float
+        --
+        + _calculate_transmission_duration_ticks(data): int
+    }
+
+    class Protocol {
+        - node_id: int
+        --
+        + tick(current_global_tick): tuple
+        + reset(current_global_tick): None
+    }
+
+    class LocalEventQueue {
+        --
+        + have_events(): bool
+        + clear_events(): None
+        + reset(current_global_tick): None
+    }
+
+    class AccumulatedState {
+        - power: float
+        - earliest_global_tick: int | None
+        --
+        + reset(): None
+        + update(energy_consumption): None
+    }
+
+    enum State {
+        DEAD
+        SLEEP
+        WAKE
+    }
+}
+
+package "External Dependencies" {
+    interface IModule {
+        + tick(current_global_tick): tuple
+        + reset(current_global_tick): None
+    }
+
+    class MediumService {
+        + transmit(node_id, message): None
+        + receive(node_id): Message
+    }
+
+    interface ILogger {
+        + log(severity, message): None
+    }
+}
+
+' Relationships
+Node --> Battery
+Node --> Clock
+Node --> TranceiverService
+Node --> Protocol
+Node --> LocalEventQueue
+Node --> AccumulatedState
+Node --> State
+Node --> MediumService
+Node --> ILogger
+
+Battery --|> IModule
+Clock --|> IModule
+TranceiverService --|> IModule
+BaseTranceiver --|> IModule
+Protocol --|> IModule
+
+LoRaD2D --|> BaseTranceiver
+
+TranceiverService --> BaseTranceiver
+LoRaD2D --> MediumService
+BaseTranceiver --> MediumService
+BaseTranceiver --> LocalEventQueue
+BaseTranceiver --> ILogger
+
+TranceiverService --> LocalEventQueue
+Clock --> LocalEventQueue
+Protocol --> LocalEventQueue
+
+TranceiverService --> MediumService
+TranceiverService --> ILogger
+
+@enduml

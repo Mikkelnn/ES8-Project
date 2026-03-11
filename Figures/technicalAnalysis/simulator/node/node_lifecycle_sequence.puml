@@ -1,0 +1,64 @@
+@startuml Node_Lifecycle_Sequence
+!theme plain
+title Node Tick Lifecycle - Main Execution Flow
+
+participant "Node" as node
+participant "AccumulatedState" as accstate
+participant "Clock" as clock
+participant "Transceiver" as tranceiver
+participant "Protocol" as protocol
+participant "Battery" as battery
+participant "LocalEventQueue" as eventqueue
+
+alt Node State: DEAD
+    node --> node: No action
+else Node State: SLEEP
+    node -> accstate: update((0, None))\nBase usage
+    node -> clock: tick(current_global_tick)
+    clock --> node: (power, next_event_tick)
+    node -> accstate: update(clock result)
+else Node State: WAKE
+    node -> accstate: update((0, None))\nBase usage
+    node -> clock: tick(current_global_tick)
+    clock --> node: (power, next_event_tick)
+    node -> accstate: update(clock result)
+    
+    node -> tranceiver: tick(current_global_tick)
+    tranceiver --> node: power_consumption
+    node -> accstate: update(tranceiver result)
+    
+    node -> protocol: tick(current_global_tick)
+    protocol --> node: power_consumption
+    node -> accstate: update(protocol result)
+end
+
+node -> battery: tick(current_global_tick, total_power)
+battery --> node: (power_output, next_event)
+node -> accstate: update(battery result)
+
+par State Check
+    node -> battery: is_dead()
+    battery --> node: boolean
+    
+    alt Battery Dead & Not in DEAD state
+        node -> clock: reset(current_global_tick)
+        node -> tranceiver: reset(current_global_tick)
+        node -> protocol: reset(current_global_tick)
+        node -> eventqueue: reset(current_global_tick)
+        node --> node: state = DEAD
+    end
+    
+    alt Was DEAD & Not dead anymore
+        node --> node: state = WAKE
+    end
+end
+
+node -> eventqueue: clear_events()
+eventqueue --> node: ✓
+
+node -> accstate: check earliest_global_tick\nand have_events()
+accstate --> node: next_tick_to_schedule
+
+node --> node: return next_tick_value
+
+@enduml

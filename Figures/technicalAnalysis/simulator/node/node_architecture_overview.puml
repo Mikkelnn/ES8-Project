@@ -1,0 +1,125 @@
+@startuml Node_Architecture_Overview
+!theme plain
+title Node Architecture - System Overview
+
+package "Simulation Engine" {
+    class Simulation {
+        - nodes: List[Node]
+        - event_queue: GlobalEventQueue
+        - global_time: GlobalTime
+        - medium_service: MediumService
+        - log: SimpleLogger
+        --
+        + run_for(stop_tick): void
+    }
+
+    class GlobalEventQueue {
+        - events: SortedDict[int, Set[int]]
+        --
+        + init_tick(start_tick, node_ids): void
+        + add_event(node_id, tick): void
+        + get_next_events(): tuple[int, List[int]]
+    }
+
+    class GlobalTime {
+        - tick: int
+        - tps: int
+        --
+        + get_time(): int
+        + set_time(value): void
+        + increment_time(): void
+        + tps_calc(): void
+        + get_tps(): int
+    }
+
+    Simulation --> GlobalEventQueue
+    Simulation --> GlobalTime
+}
+
+package "Node Instance" {
+    package "Power Management" {
+        class Battery {
+            + current_charge: float
+            + capacity: float
+            + is_dead(): bool
+        }
+    }
+
+    package "Timing & Synchronization" {
+        class Clock {
+            + local_time: int
+            + global_ticks_per_increment: int
+        }
+    }
+
+    package "Wireless Communication" {
+        class TranceiverService {
+            - tranceivers: List[BaseTranceiver]
+        }
+        
+        class LoRaD2D {
+            + transmit(data): void
+            + receive(): void
+        }
+        
+        TranceiverService --> LoRaD2D
+    }
+
+    package "Application Layer" {
+        class PingPongProtocol {
+            + tick(): void
+        }
+    }
+
+    package "Internal Bus" {
+        class LocalEventQueue {
+            - events: List[Event]
+        }
+        
+        class AccumulatedState {
+            - power: float
+            - earliest_global_tick: int
+        }
+    }
+
+    class Node {
+        - node_id: int
+        - state: State
+        + tick(current_global_tick): int
+    }
+
+    Node *-- Battery
+    Node *-- Clock
+    Node *-- TranceiverService
+    Node *-- PingPongProtocol
+    Node *-- LocalEventQueue
+    Node *-- AccumulatedState
+}
+
+package "External Services" {
+    class MediumService {
+        - node_neighbors: Dict[int, NodeMediumInfo]
+        - event_queue: GlobalEventQueue
+        --
+        + transmit(node_id, msg): void
+        + receive(node_id, medium_type): List[EventNet]
+    }
+    
+    class SimpleLogger {
+        + log(severity, message, area): void
+    }
+    
+    interface ILogger {
+        + log(severity, msg): void
+    }
+    
+    SimpleLogger --|> ILogger
+}
+
+Simulation --> Node: manages
+Simulation --> MediumService
+Node --> GlobalEventQueue: returns next_tick
+TranceiverService --> MediumService
+Node --> ILogger
+
+@enduml
