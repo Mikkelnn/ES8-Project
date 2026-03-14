@@ -1,0 +1,95 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" version="29.6.1">
+  <diagram name="Page-1" id="NVPaXTkgS9caAJb1UDhp">
+    <mxGraphModel dx="1426" dy="751" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="25uSpC24GMSdneeUaWHp-1" parent="1" style="html=1;align=center;verticalAlign=top;rounded=1;absoluteArcSize=1;arcSize=10;dashed=0;whiteSpace=wrap;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="&lt;b&gt;WAKE&lt;/b&gt;&lt;div&gt;Clock, Tranceiver, Protocol, Battery&lt;/div&gt;" vertex="1">
+          <mxGeometry height="60" width="140" x="140" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-2" parent="1" style="html=1;align=center;verticalAlign=top;rounded=1;absoluteArcSize=1;arcSize=10;dashed=0;whiteSpace=wrap;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="&lt;b&gt;SLEEP&lt;br&gt;&lt;/b&gt;Clock, Battery" vertex="1">
+          <mxGeometry height="60" width="140" x="344" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-3" parent="1" style="html=1;align=center;verticalAlign=top;rounded=1;absoluteArcSize=1;arcSize=10;dashed=0;whiteSpace=wrap;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="&lt;b&gt;DEAD&lt;br&gt;&lt;/b&gt;Battery" vertex="1">
+          <mxGeometry height="60" width="140" x="550" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-4" parent="1" style="ellipse;html=1;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="" vertex="1">
+          <mxGeometry height="30" width="30" x="70" y="165" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-5" edge="1" parent="1" source="25uSpC24GMSdneeUaWHp-4" style="endArrow=open;html=1;rounded=0;align=center;verticalAlign=top;endFill=0;labelBackgroundColor=none;endSize=6;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="140" y="180" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-6" edge="1" parent="1" source="25uSpC24GMSdneeUaWHp-1" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;curved=1;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" target="25uSpC24GMSdneeUaWHp-2" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="130" />
+              <mxPoint x="414" y="130" />
+            </Array>
+            <mxPoint x="240" y="380" as="sourcePoint" />
+            <mxPoint x="290" y="330" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-7" edge="1" parent="1" source="25uSpC24GMSdneeUaWHp-1" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;curved=1;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" target="25uSpC24GMSdneeUaWHp-3" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="210" y="120" />
+              <mxPoint x="620" y="120" />
+            </Array>
+            <mxPoint x="320" y="280" as="sourcePoint" />
+            <mxPoint x="524" y="280" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-8" edge="1" parent="1" source="25uSpC24GMSdneeUaWHp-2" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;curved=1;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" target="25uSpC24GMSdneeUaWHp-3" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="414" y="130" />
+              <mxPoint x="620" y="130" />
+            </Array>
+            <mxPoint x="480" y="320" as="sourcePoint" />
+            <mxPoint x="890" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-9" edge="1" parent="1" source="25uSpC24GMSdneeUaWHp-3" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;curved=1;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" target="25uSpC24GMSdneeUaWHp-1" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="620" y="260" />
+              <mxPoint x="210" y="260" />
+            </Array>
+            <mxPoint x="480" y="360" as="sourcePoint" />
+            <mxPoint x="890" y="360" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-10" edge="1" parent="1" source="25uSpC24GMSdneeUaWHp-2" style="endArrow=classic;html=1;rounded=0;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;edgeStyle=orthogonalEdgeStyle;curved=1;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" target="25uSpC24GMSdneeUaWHp-1" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="414" y="250" />
+              <mxPoint x="210" y="250" />
+            </Array>
+            <mxPoint x="430" y="330" as="sourcePoint" />
+            <mxPoint x="840" y="330" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-11" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="Transition to sleep" vertex="1">
+          <mxGeometry height="40" width="70" x="280" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-12" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="Transition to wake" vertex="1">
+          <mxGeometry height="40" width="70" x="280" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-13" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="Battery rechaged" vertex="1">
+          <mxGeometry height="40" width="60" x="384" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-14" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="Battery depleeted" vertex="1">
+          <mxGeometry height="40" width="60" x="384" y="80" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-15" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="Battery depleeted" vertex="1">
+          <mxGeometry height="40" width="70" x="480" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="25uSpC24GMSdneeUaWHp-16" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=LaTex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT5WEuZGuo3uQ7rimEBXJ9KMJ0Q8-5wu28H95kAKUt3lUuGrPs6OhiQh5GxBjOpI0-ktUD_Y48bLHLEDVmCMICMOj1nMUkwi7kByh2wd8aliMqJLdBoROrQIvq_gKZaS4SCv7RLN_bpVnWxUsIqR9A;fontSize=14;" value="Initialized" vertex="1">
+          <mxGeometry height="35" width="60" x="60" y="130" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
