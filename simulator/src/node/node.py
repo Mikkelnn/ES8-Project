@@ -8,13 +8,14 @@ from node.protocols.ping_pong import PingPongProtocol
 from node.tranceiver.tranceiver_service import TranceiverService
 from node.helpers.accumulated_state import AccumulatedState
 from logger import ILogger
+from IDevice import IDevice
 
 class State(Enum):
     DEAD = 1
     SLEEP = 2
     WAKE = 3
 
-class Node:
+class Node(IDevice):
     def __init__(self, node_id: int, second_to_global_tick: float, medium_service: MediumService, log: ILogger):
         self.node_id = node_id
         self.local_event_queue = LocalEventQueue()

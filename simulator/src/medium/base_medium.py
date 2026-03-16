@@ -3,11 +3,11 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from typing import List
 from custom_types import EventNet, EventNetTypes, MediumTypes, Severity, Area
-from simulator.global_event_queue import GlobalEventQueue
+from simulator.device_event_queue import DeviceEventQueue
 from logger.ILogger import ILogger
 
 class BaseMedium(ABC):
-    def __init__(self, type: MediumTypes, event_queue: GlobalEventQueue, log: ILogger):
+    def __init__(self, type: MediumTypes, event_queue: DeviceEventQueue, log: ILogger):
         self.type = type
         self.event_queue = event_queue
         self.log = log

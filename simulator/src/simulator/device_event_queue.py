@@ -1,6 +1,6 @@
 from sortedcontainers import SortedDict
 
-class GlobalEventQueue():
+class DeviceEventQueue():
     def __init__(self):
        self.events: SortedDict = SortedDict()
     

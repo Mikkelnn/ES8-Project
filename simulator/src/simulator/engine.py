@@ -3,8 +3,9 @@ from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
 from node.node import Node
 from custom_types import NodeMediumInfo, Severity, Area, SimState
+from IDevice import IDevice
 from .global_time import GlobalTime
-from .global_event_queue import GlobalEventQueue
+from .device_event_queue import DeviceEventQueue
 import time
 from multiprocessing import Value, Lock, Process, Queue
 from ctypes import c_int
@@ -24,9 +25,9 @@ class Simulation:
         num_nodes = 10_000
         node_neighbors = {}
 
-        self.nodes: list[Node] = []
+        self.nodes: list[IDevice] = []
         self.global_time = GlobalTime()
-        self.event_queue = GlobalEventQueue()
+        self.event_queue = DeviceEventQueue()
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
 
         for i in range(1, num_nodes + 1):

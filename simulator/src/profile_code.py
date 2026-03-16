@@ -3,7 +3,7 @@ import time
 from custom_types import NodeMediumInfo
 from medium.medium_service import MediumService
 from node.node import Node
-from simulator.global_event_queue import GlobalEventQueue
+from simulator.device_event_queue import DeviceEventQueue
 from custom_types import Severity, Area
 from logger import ILogger
 from logger.simple_logger import SimpleLogger
@@ -21,7 +21,7 @@ class TestEngine():
         self.nodes: list[Node] = []
         self.log: ILogger = SimpleLogger(log_path='profile-results.log', buffer_size=100_000)
         self.global_time = GlobalTime()
-        self.event_queue = GlobalEventQueue()
+        self.event_queue = DeviceEventQueue()
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
         
         for i in range(1, num_nodes + 1):
