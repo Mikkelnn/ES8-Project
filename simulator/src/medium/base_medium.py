@@ -23,14 +23,14 @@ class BaseMedium(ABC):
 
         self.transmit_event_queue.clear() # Clear the transmit event queue after processing all events
         self.__housekeep_ongoing_transmissions(current_global_tick)
-    
+
     def __propagate_canceled_transmission(self, event: EventNet):
         if event.type != EventNetTypes.CANCELED:
             return
-                
+
         if event.node_id not in self.ongoing_transmissions:
             return
-        
+
         cancelled_transmission = self.ongoing_transmissions[event.node_id]
         del self.ongoing_transmissions[event.node_id] # Remove the ongoing transmission for this node
         for to_node_id in cancelled_transmission[1]: # For each node that was supposed to receive this transmission, we need to remove the corresponding reception event from their reception queue
@@ -52,7 +52,7 @@ class BaseMedium(ABC):
         for from_node_id, (globaltick_end_transmission, received_node_ids) in list(self.ongoing_transmissions.items()):
             if globaltick_end_transmission <= current_global_tick:
                 del self.ongoing_transmissions[from_node_id]
-                    
+
     def __add_reception_event_for_node(self, to_node_id: int, event: EventNet):
         self.node_receptions[to_node_id].append(event)
 
@@ -66,7 +66,7 @@ class BaseMedium(ABC):
 
     def add_transmission_event(self, event: EventNet):
         self.transmit_event_queue.append(event)
-    
+
     def pop_received_event_for_node(self, to_node_id: int) -> List[EventNet]:
         events = []
         if to_node_id in self.node_receptions:
