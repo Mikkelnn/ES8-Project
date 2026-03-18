@@ -53,8 +53,8 @@ package "Node Instance" {
     }
 
     package "Wireless Communication" {
-        class TranceiverService {
-            - tranceivers: List[BaseTranceiver]
+        class TransceiverService {
+            - transceivers: List[BaseTransceiver]
         }
         
         class LoRaD2D {
@@ -62,7 +62,7 @@ package "Node Instance" {
             + receive(): void
         }
         
-        TranceiverService --> LoRaD2D
+        TransceiverService --> LoRaD2D
     }
 
     package "Application Layer" {
@@ -90,7 +90,7 @@ package "Node Instance" {
 
     Node *-- Battery
     Node *-- Clock
-    Node *-- TranceiverService
+    Node *-- TransceiverService
     Node *-- PingPongProtocol
     Node *-- LocalEventQueue
     Node *-- AccumulatedState
@@ -119,7 +119,7 @@ package "External Services" {
 Simulation --> Node: manages
 Simulation --> MediumService
 Node --> GlobalEventQueue: returns next_tick
-TranceiverService --> MediumService
+TransceiverService --> MediumService
 Node --> ILogger
 
 @enduml

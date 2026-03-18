@@ -33,7 +33,7 @@
         <mxCell id="f5tzs2ybf8qieV5wpACP-53" edge="1" parent="1" source="f5tzs2ybf8qieV5wpACP-29" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;endArrow=none;endFill=0;" target="f5tzs2ybf8qieV5wpACP-51" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="f5tzs2ybf8qieV5wpACP-29" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="TranceiverService" vertex="1">
+        <mxCell id="f5tzs2ybf8qieV5wpACP-29" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="TransceiverService" vertex="1">
           <mxGeometry height="60" width="120" x="440" y="220" as="geometry" />
         </mxCell>
         <mxCell id="f5tzs2ybf8qieV5wpACP-32" edge="1" parent="1" source="f5tzs2ybf8qieV5wpACP-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=none;endFill=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;entryPerimeter=0;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" target="f5tzs2ybf8qieV5wpACP-57" value="">

@@ -4,10 +4,10 @@ from typing import List
 from custom_types import MediumTypes
 from medium.medium_service import MediumService
 from node.event_local_queue import LocalEventQueue
-from node.tranceiver.base_tranceiver import BaseTranceiver
+from node.transceiver.base_transceiver import BaseTransceiver
 
 
-class LoRaWan(BaseTranceiver):
+class LoRaWan(BaseTransceiver):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_bus: LocalEventQueue, second_to_global_tick: float):
         joules_per_second_consumption_transmit = 1
         joules_per_second_consumption_receive = 0.1

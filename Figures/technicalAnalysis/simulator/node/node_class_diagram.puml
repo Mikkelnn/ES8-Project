@@ -10,7 +10,7 @@ package "Node Components" {
         - accumulated_state: AccumulatedState
         - battery: Battery
         - clock: Clock
-        - tranceiver: TranceiverService
+        - transceiver: TransceiverService
         - protocol: Protocol
         --
         + __init__(node_id, second_to_global_tick, medium_service, log)
@@ -38,17 +38,17 @@ package "Node Components" {
         + reset(current_global_tick): None
     }
 
-    class TranceiverService {
+    class TransceiverService {
         - node_id: int
         - accumulated_state: AccumulatedState
-        - tranceivers: List[BaseTranceiver]
+        - transceivers: List[BaseTransceiver]
         --
         + tick(current_global_tick): float
         + reset(current_global_tick): None
     }
 
-    class BaseTranceiver {
-        - state: TranceiverState
+    class BaseTransceiver {
+        - state: TransceiverState
         - medium_type: MediumTypes
         - node_id: int
         - medium_service: MediumService
@@ -113,7 +113,7 @@ package "External Dependencies" {
 ' Relationships
 Node --> Battery
 Node --> Clock
-Node --> TranceiverService
+Node --> TransceiverService
 Node --> Protocol
 Node --> LocalEventQueue
 Node --> AccumulatedState
@@ -123,23 +123,23 @@ Node --> ILogger
 
 Battery --|> IModule
 Clock --|> IModule
-TranceiverService --|> IModule
-BaseTranceiver --|> IModule
+TransceiverService --|> IModule
+BaseTransceiver --|> IModule
 Protocol --|> IModule
 
-LoRaD2D --|> BaseTranceiver
+LoRaD2D --|> BaseTransceiver
 
-TranceiverService --> BaseTranceiver
+TransceiverService --> BaseTransceiver
 LoRaD2D --> MediumService
-BaseTranceiver --> MediumService
-BaseTranceiver --> LocalEventQueue
-BaseTranceiver --> ILogger
+BaseTransceiver --> MediumService
+BaseTransceiver --> LocalEventQueue
+BaseTransceiver --> ILogger
 
-TranceiverService --> LocalEventQueue
+TransceiverService --> LocalEventQueue
 Clock --> LocalEventQueue
 Protocol --> LocalEventQueue
 
-TranceiverService --> MediumService
-TranceiverService --> ILogger
+TransceiverService --> MediumService
+TransceiverService --> ILogger
 
 @enduml

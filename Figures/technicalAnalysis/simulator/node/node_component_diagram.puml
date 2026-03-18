@@ -5,7 +5,7 @@ title Node Component Architecture
 package "IoT Node" {
     component [Battery Module] as battery
     component [Clock Module] as clock
-    component [Transceiver Service] as tranceiver
+    component [Transceiver Service] as transceiver
     component [Protocol Handler] as protocol
     component [Local Event Queue] as eventqueue
     component [Accumulated State] as state
@@ -19,18 +19,18 @@ package "External Systems" {
 ' Component relationships
 battery --|> eventqueue : accumulates\npower usage
 clock --|> eventqueue : publishes events
-tranceiver --|> eventqueue : publishes RX/TX events
+transceiver --|> eventqueue : publishes RX/TX events
 protocol --|> eventqueue : publishes protocol events
 
-tranceiver --> medium : send/receive\nmessages
-protocol --> tranceiver : request TX/RX
+transceiver --> medium : send/receive\nmessages
+protocol --> transceiver : request TX/RX
 
 battery --|> state : updates power\nand tick info
 clock --|> state : updates power\nand tick info
-tranceiver --|> state : updates power\nand tick info
+transceiver --|> state : updates power\nand tick info
 protocol --|> state : updates power\nand tick info
 
-tranceiver --> logger : log events
+transceiver --> logger : log events
 protocol --> logger : log events
 
 @enduml

@@ -3,7 +3,7 @@
 title Node State Transitions and Lifecycle
 
 state "WAKE" as wake {
-    state "Active" : Clock, Tranceiver\nand Protocol ticking
+    state "Active" : Clock, Transceiver\nand Protocol ticking
 }
 
 state "SLEEP" as sleep {
@@ -34,7 +34,7 @@ end note
 note right of sleep
   Reduced power consumption:
   - Only Clock
-  - Tranceiver and Protocol\n  in standby
+  - Transceiver and Protocol\n  in standby
 end note
 
 note right of dead

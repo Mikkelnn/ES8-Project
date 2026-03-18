@@ -59,7 +59,7 @@ class LocalEventTypes(Enum):
     TRANCEIVER_TRANSMIT_DATA = "TRANCEIVER_TRANSMIT_DATA"
     TRANCEIVER_SET_STATE = "TRANCEIVER_SET_STATE"
 
-class TranceiverState(Enum):
+class TransceiverState(Enum):
     IDLE = 0
     TRANSMITTING = 1
     RECEIVING = 2
@@ -70,7 +70,7 @@ class LocalEventSubTypes(str, Enum):
 @dataclass
 class LocalEventNet:
     type: LocalEventTypes
-    data: int | dict[MediumTypes, TranceiverState] |TranceiverState | List[Any]
+    data: int | dict[MediumTypes, TransceiverState] |TransceiverState | List[Any]
     sub_type: MediumTypes | LocalEventSubTypes | None = None
 
 @dataclass

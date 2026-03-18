@@ -5,7 +5,7 @@ title Node Tick Lifecycle - Main Execution Flow
 participant "Node" as node
 participant "AccumulatedState" as accstate
 participant "Clock" as clock
-participant "Transceiver" as tranceiver
+participant "Transceiver" as transceiver
 participant "Protocol" as protocol
 participant "Battery" as battery
 participant "LocalEventQueue" as eventqueue
@@ -23,9 +23,9 @@ else Node State: WAKE
     clock --> node: (power, next_event_tick)
     node -> accstate: update(clock result)
     
-    node -> tranceiver: tick(current_global_tick)
-    tranceiver --> node: power_consumption
-    node -> accstate: update(tranceiver result)
+    node -> transceiver: tick(current_global_tick)
+    transceiver --> node: power_consumption
+    node -> accstate: update(transceiver result)
     
     node -> protocol: tick(current_global_tick)
     protocol --> node: power_consumption
@@ -42,7 +42,7 @@ par State Check
     
     alt Battery Dead & Not in DEAD state
         node -> clock: reset(current_global_tick)
-        node -> tranceiver: reset(current_global_tick)
+        node -> transceiver: reset(current_global_tick)
         node -> protocol: reset(current_global_tick)
         node -> eventqueue: reset(current_global_tick)
         node --> node: state = DEAD
