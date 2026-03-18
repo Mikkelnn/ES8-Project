@@ -69,7 +69,7 @@
           <mxGeometry height="30" width="90" x="415" y="10" as="geometry" />
         </mxCell>
         <mxCell id="OUlPfM8LZj6bG5nf9ns4-16" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=14;fontFamily=Latex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT7IP1lEEyxLEB1KIPioAe_TLKdBf8xRapTacrZvLS-VMmMViuZHGC10Zdo98MFB_csPFyebQa-1VuPFD_5GBoz1WM62oYTNZglW-6KLq3nmDeDbAT0Mo7kfpUFHFRI;" value="Transmit finished&lt;br&gt;Transmit cancelled&lt;br&gt;Reset" vertex="1">
-          <mxGeometry height="60" width="115" x="415" y="200" as="geometry" />
+          <mxGeometry height="60" width="115" x="402.5" y="200" as="geometry" />
         </mxCell>
         <mxCell id="OUlPfM8LZj6bG5nf9ns4-17" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontSize=14;fontFamily=Latex;fontSource=https%3A%2F%2Fl.messenger.com%2Fl.php%3Fu%3Dhttps%253A%252F%252Fsourceforge.net%252Fprojects%252Fcm-unicode%252F%253Futm_id%253D97758_v0_s00_e0_tv0%2526fbclid%253DIwY2xjawQgySRleHRuA2FlbQIxMQBzcnRjBmFwcF9pZAEwAAEesw3PqB5totuJpd6eh1LaaKkuRE-Z_K1hziWoEV0fncl-qOL8ht-ayZM58K8_aem_JxLrLg0ROYKOzrblPzPiZg%26h%3DAT7IP1lEEyxLEB1KIPioAe_TLKdBf8xRapTacrZvLS-VMmMViuZHGC10Zdo98MFB_csPFyebQa-1VuPFD_5GBoz1WM62oYTNZglW-6KLq3nmDeDbAT0Mo7kfpUFHFRI;" value="Receive event" vertex="1">
           <mxGeometry height="30" width="90" x="320" y="50" as="geometry" />
