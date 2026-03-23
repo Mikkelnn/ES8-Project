@@ -13,7 +13,7 @@ class PingPongProtocol(IModule):
 
     def tick(self, current_global_tick: int) -> float:    
         current_transceiver_states = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data # Always populated by transceiver service before this protocol is ticked, so we can be sure to have it.
-        curretnt_receptions = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA)
+        current_receptions = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA)
 
         if self.node_id % 2 == 1 and current_global_tick == 1:
             # We want to start the protocol by sending a ping from node 1 to node 2 at the first global tick, we can be sure that all nodes have been ticked at least once and have set their transceiver status in the local event queue.
@@ -26,7 +26,7 @@ class PingPongProtocol(IModule):
                 # set transceiver to receiving as we have finished sending in the last tick and we want to be able to receive the pong
                 self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.RECEIVING)
             case TransceiverState.RECEIVING:
-                if curretnt_receptions:
+                if current_receptions:
                     # We have received a message, we want to send a response back
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE) # Set state to idle before transmitting, so we can receive the next message in the next tick
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=[1]) # The content of the message does not matter in this protocol, so we just send a list with one element.
