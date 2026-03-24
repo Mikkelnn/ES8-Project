@@ -42,7 +42,7 @@
           <mxGeometry height="60" width="120" x="930" y="340" as="geometry" />
         </mxCell>
         <mxCell id="HJLxzxlkMSQUPy_3VL4K-13" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="$$C_1$$" vertex="1">
-          <mxGeometry height="30" width="60" x="675" y="411" as="geometry" />
+          <mxGeometry height="30" width="60" x="679" y="416" as="geometry" />
         </mxCell>
         <mxCell id="5uTbERhlqjRDBnyzt4Zg-1" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="$$\eta_{EH}=60\%$$" vertex="1">
           <mxGeometry height="30" width="116" x="532" y="410" as="geometry" />
@@ -50,19 +50,16 @@
         <mxCell id="5uTbERhlqjRDBnyzt4Zg-3" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="$$\eta_{DC}=90\%$$" vertex="1">
           <mxGeometry height="30" width="120" x="730" y="410" as="geometry" />
         </mxCell>
-        <mxCell id="5uTbERhlqjRDBnyzt4Zg-4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="7.9 J" vertex="1">
-          <mxGeometry height="30" width="60" x="660" y="300" as="geometry" />
+        <mxCell id="5uTbERhlqjRDBnyzt4Zg-4" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="$$E_{C_1}=7.9 \text{J}$$" vertex="1">
+          <mxGeometry height="30" width="60" x="660" y="470" as="geometry" />
         </mxCell>
-        <mxCell id="5uTbERhlqjRDBnyzt4Zg-6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="9.0 mW" vertex="1">
+        <mxCell id="5uTbERhlqjRDBnyzt4Zg-6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="$$P_{TEG}=9.0 \text{mW}$$" vertex="1">
           <mxGeometry height="30" width="90" x="355" y="300" as="geometry" />
         </mxCell>
-        <mxCell id="5uTbERhlqjRDBnyzt4Zg-7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="5.4 mW" vertex="1">
+        <mxCell id="5uTbERhlqjRDBnyzt4Zg-7" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="$$P_{EH}=5.4 \text{mW}$$" vertex="1">
           <mxGeometry height="30" width="85" x="547.5" y="300" as="geometry" />
         </mxCell>
-        <mxCell id="5uTbERhlqjRDBnyzt4Zg-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="3.3 V" vertex="1">
-          <mxGeometry height="30" width="60" x="860" y="300" as="geometry" />
-        </mxCell>
-        <mxCell id="5uTbERhlqjRDBnyzt4Zg-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="&amp;lt; 396 mW" vertex="1">
+        <mxCell id="5uTbERhlqjRDBnyzt4Zg-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;fontSize=20;" value="$$P_D\leq 396 \text{mW}$$" vertex="1">
           <mxGeometry height="30" width="100" x="940" y="300" as="geometry" />
         </mxCell>
       </root>
