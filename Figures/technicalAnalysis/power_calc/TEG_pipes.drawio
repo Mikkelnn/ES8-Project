@@ -1,0 +1,61 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="Side-1" id="ENFYHChPUjhQS8OqqOln">
+    <mxGraphModel dx="1042" dy="722" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="" vertex="1">
+          <mxGeometry height="120" width="120" x="350" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-2" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="" vertex="1">
+          <mxGeometry height="120" width="120" x="550" y="290" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-3" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="" vertex="1">
+          <mxGeometry height="110" width="110" x="555" y="295" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-4" parent="1" style="ellipse;whiteSpace=wrap;html=1;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="" vertex="1">
+          <mxGeometry height="110" width="110" x="355" y="295" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-5" edge="1" parent="1" source="TAIwBp6v9_vIrxkESTZ9-1" style="endArrow=none;html=1;rounded=0;entryX=0;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=0;exitDx=0;exitDy=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" target="TAIwBp6v9_vIrxkESTZ9-2" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="490" y="270" as="sourcePoint" />
+            <mxPoint x="480" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-6" edge="1" parent="1" style="endArrow=none;html=1;rounded=0;entryX=0;entryY=0;entryDx=0;entryDy=0;exitX=1;exitY=0;exitDx=0;exitDy=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="452" y="393" as="sourcePoint" />
+            <mxPoint x="568" y="393" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-7" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="" vertex="1">
+          <mxGeometry height="85" width="4" x="508" y="308" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="Return" vertex="1">
+          <mxGeometry height="30" width="60" x="380" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-9" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="Forward" vertex="1">
+          <mxGeometry height="30" width="60" x="580" y="335" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-10" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <Array as="points">
+              <mxPoint x="510" y="280" />
+            </Array>
+            <mxPoint x="510" y="290" as="sourcePoint" />
+            <mxPoint x="510" y="300" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-11" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="TEG" vertex="1">
+          <mxGeometry height="10" width="60" x="480" y="270" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-12" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="Metal" vertex="1">
+          <mxGeometry height="10" width="60" x="500" y="345" as="geometry" />
+        </mxCell>
+        <mxCell id="TAIwBp6v9_vIrxkESTZ9-13" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=Computer Modern unicode;fontSource=https%3A%2F%2Ffonts.googleapis.com%2Fcss%3Ffamily%3DComputer%2BModern%2Bunicode;" value="Metal" vertex="1">
+          <mxGeometry height="10" width="60" x="460" y="345" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

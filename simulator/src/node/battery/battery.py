@@ -9,7 +9,7 @@ class Battery(IModule):
 
         self.recharge_rate = recharge_rate_joule_per_second * second_to_global_tick # jules charged per global tick
         self.prev_net_change_joule: float = 0 # the consumption during warp
-        self.last_global_tick_evealuated = None
+        self.last_global_tick_evaluated = None
 
     def tick(self, current_global_tick: int, current_consumption_joule: float) -> tuple[float, int | None]:
         warped_ticks = self.__ticks_pased_since_last(current_global_tick)
@@ -48,8 +48,8 @@ class Battery(IModule):
     # returns tics passed excluding current tick
     def __ticks_pased_since_last(self, current_global_tick: int) -> int:
         ticks_passed = 0
-        if self.last_global_tick_evealuated is not None:
-            ticks_passed = current_global_tick - self.last_global_tick_evealuated - 1
+        if self.last_global_tick_evaluated is not None:
+            ticks_passed = current_global_tick - self.last_global_tick_evaluated - 1
 
-        self.last_global_tick_evealuated = current_global_tick
+        self.last_global_tick_evaluated = current_global_tick
         return ticks_passed
