@@ -9,11 +9,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 t0 = 900
-c = np.array([0.927050015, 0.4163, 0.07483, -0.387, -0.03118]) #AR-model constants from page 32
+c = np.array([0.92705, 0.4163, 0.07483, -0.387, -0.03118]) #AR-model constants from page 32
 init = np.array([0, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5]) #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
 init = np.transpose(init)
 noiseVar = 3.915e-15
-simLength = 365 #days
+simLength = 365  #days
 
 
 def plotData(data):
@@ -79,15 +79,65 @@ def ARModelSimple():
         X = A @ X + w
         data.append(X[:2])
     # print(data)
-    plotData(data)
-    
+    return data
 
-        
+
+def get_model_state_at_time(time_x, data, time_step_seconds=t0):
+    """
+    Query the AR model state at a specific time.
+    
+    Args:
+        time_x: The time in seconds to query
+        data: The simulation data (list of [theta, alpha] pairs)
+        time_step_seconds: Duration of each time step in seconds (default: 900 = 15 minutes)
+    
+    Returns:
+        tuple: (clock_drift, clock_skew) at time_x, or None if out of bounds
+    
+    Raises:
+        ValueError: If time_x is negative or data is empty
+    """
+    if not data:
+        raise ValueError("Data is empty")
+    if time_x < 0:
+        raise ValueError("Time cannot be negative")
+    
+    # Convert time in seconds to array index
+    time_step_index = int(round(time_x / time_step_seconds))
+    
+    # Check bounds
+    if time_step_index >= len(data):
+        print(f"Warning: Requested time {time_x}s is beyond simulation length. "
+              f"Max available time: {(len(data)-1) * time_step_seconds}s")
+        return None
+    
+    # Retrieve state at the time step
+    state = data[time_step_index]
+    clock_drift = state[0]
+    clock_skew = state[1]
+    
+    return clock_drift, clock_skew    
         
     
 
 def main ():
-    ARModelSimple()
+    # Run the AR model simulation
+    data = ARModelSimple()
+    
+    # Plot the simulation results
+    plotData(data)
+    
+    # Example: Query the model state at specific times
+    test_times = [0, 900, 7200, 86400, 2592000 ]  # 0s, 15min, 2hr, 1day, 30days
+    print("\n--- Model State Queries ---")
+    for test_time in test_times:
+        result = get_model_state_at_time(test_time, data)
+        if result:
+            drift, skew = result
+            print(f"Time {test_time}s: Drift={drift:.6e}, Skew={skew:.6e}")
+        else:
+            print(f"Time {test_time}s: Out of bounds")
+    
 
 if __name__=="__main__":
     main()
