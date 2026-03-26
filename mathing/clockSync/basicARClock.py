@@ -9,25 +9,25 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 t0 = 900
-c = np.array([0.92705001, 0.4163, 0.07483, -0.387, -0.03118]) #AR-model constants from page 32
+c = np.array([0.927050015, 0.4163, 0.07483, -0.387, -0.03118]) #AR-model constants from page 32
 init = np.array([0, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5]) #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
 init = np.transpose(init)
 noiseVar = 3.915e-15
-simLength = 4000 #days
+simLength = 365 #days
 
 
 def plotData(data):
     # Extract theta and alpha values
     theta_values = [point[0] for point in data]
     alpha_values = [point[1] for point in data]
-    time_steps = np.arange(len(data))
+    time_steps = np.arange(len(data)) / 96  # Convert samples to days (96 samples per day)
     
     # Create figure with two subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
     
     # Plot theta (clock drift)
     ax1.plot(time_steps, theta_values, 'b-', linewidth=1.5, label='Clock Drift (θ)')
-    ax1.set_xlabel('Time Step (15 min intervals)')
+    ax1.set_xlabel('Time (days)')
     ax1.set_ylabel('Clock Drift (seconds)')
     ax1.set_title('Clock Drift (Theta) over Time')
     ax1.grid(True, alpha=0.3)
@@ -35,7 +35,7 @@ def plotData(data):
     
     # Plot alpha (clock skew)
     ax2.plot(time_steps, alpha_values, 'r-', linewidth=1.5, label='Clock Skew (α)')
-    ax2.set_xlabel('Time Step (15 min intervals)')
+    ax2.set_xlabel('Time (days)')
     ax2.set_ylabel('Clock Skew (s/s)')
     ax2.set_title('Clock Skew (Alpha) over Time')
     ax2.grid(True, alpha=0.3)
