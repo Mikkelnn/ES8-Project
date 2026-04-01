@@ -31,7 +31,7 @@
             <mxPoint x="550" y="280" as="targetPoint" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="Z3M855j35XSn3P3Gixgz-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="Isolation" vertex="1">
+        <mxCell id="Z3M855j35XSn3P3Gixgz-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="Insulation" vertex="1">
           <mxGeometry height="30" width="60" x="600" y="310" as="geometry" />
         </mxCell>
         <mxCell id="Z3M855j35XSn3P3Gixgz-9" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
