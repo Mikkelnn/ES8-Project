@@ -18,16 +18,21 @@ class LoRaD2D(BaseTransceiver):
         super().__init__(node_id, medium_service, local_event_queue, log, second_to_global_tick, MediumTypes.LORA_D2D, 
                          joules_per_second_consumption_transmit, joules_per_second_consumption_receive, joules_per_second_consumption_idle)
         
-        __sf = 7 # Spreading factor
-        __bandwidth = 125000 # Bandwidth in Hz
-        __coding_rate = 1 # Coding rate (1 means 4/5, 2 means 4/6, etc.)
-        __preamble_length = 8 # Preamble length in symbols
+        self.__sf = 7 # Spreading factor
+        self.__bandwidth = 125000 # Bandwidth in Hz
+        self.__coding_rate = 4 / 5 # Coding rate (4/5, 4/6, etc.)
+        self.__preamble_length = 8 # Preamble length in symbols
         
-        # Calculate the effective data rate based on SF, bandwidth, and coding rate
-        self.__effective_data_rate_tick = (__bandwidth / (2 ** __sf)) * (4 / (4 + __coding_rate)) * self._second_to_global_tick
+        self.__ts = (2 ** self.__sf) / self.__bandwidth # Symbol duration in seconds
+        
         # Calculate the preamble time in seconds
-        self.__preamble_time_ticks = ((__preamble_length + 4.25) * (2 ** __sf) / __bandwidth) / self._second_to_global_tick
+        self.__preamble_time_ticks = (self.__preamble_length + 4.25) * ts * self._second_to_global_tick
 
     def _calculate_transmission_duration_ticks(self, data: List[int]) -> int:
+        # Calculate the number of symbols needed to transmit the data based on the spreading factor, coding rate, and data size
+        N_symbols = math.ceil((len(data) * 8 * self.__coding_rate) / self.__sf)
+        # Calculate the total transmission time in ticks ceil to ensure we account for any partial symbol time
+        symbol_time_ticks = math.ceil(N_symbols * self.__ts * self._second_to_global_tick)
+
         # Calculate the transmission time in global ticks based on the size of the data
-        return int(math.ceil((len(data) * 8 / self.__effective_data_rate_tick) + self.__preamble_time_ticks))
+        return int(symbol_time_ticks + self.__preamble_time_ticks)

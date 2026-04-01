@@ -18,16 +18,19 @@ class LoRaWan(BaseTransceiver):
         
         self.__sf = 7 # Spreading factor
         self.__bandwidth = 125000 # Bandwidth in Hz
-        self.__coding_rate = 1 # Coding rate (1 means 4/5, 2 means 4/6, etc.)
+        self.__coding_rate = 4 / 5 # Coding rate (4/5, 4/6, etc.)
         self.__preamble_length = 8 # Preamble length in symbols
+        
+        self.__ts = (2 ** self.__sf) / self.__bandwidth # Symbol duration in seconds
+        
+        # Calculate the preamble time in seconds
+        self.__preamble_time_ticks = (self.__preamble_length + 4.25) * ts * self._second_to_global_tick
 
     def _calculate_transmission_duration_ticks(self, data: List[int]) -> int:
-        # Calculate the effective data rate based on SF, bandwidth, and coding rate
-        effective_data_rate = (self.__bandwidth / (2 ** self.__sf)) * (4 / (4 + self.__coding_rate))
-        # Calculate the preamble time in seconds
-        preamble_time_seconds = (self.__preamble_length + 4.25) * (2 ** self.__sf) / self.__bandwidth
-        # Calculate the transmission time in seconds based on the size of the data
-        transmission_time_seconds = (len(data) * 8 / effective_data_rate) + preamble_time_seconds
-        # Convert the transmission time to global ticks and apply ceiling
-        transmission_time_global_ticks = int(math.ceil(transmission_time_seconds / self._second_to_global_tick))
-        return transmission_time_global_ticks
+        # Calculate the number of symbols needed to transmit the data based on the spreading factor, coding rate, and data size
+        N_symbols = math.ceil((len(data) * 8 * self.__coding_rate) / self.__sf)
+        # Calculate the total transmission time in ticks ceil to ensure we account for any partial symbol time
+        symbol_time_ticks = math.ceil(N_symbols * self.__ts * self._second_to_global_tick)
+
+        # Calculate the transmission time in global ticks based on the size of the data
+        return int(symbol_time_ticks + self.__preamble_time_ticks)
