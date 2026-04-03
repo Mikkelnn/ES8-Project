@@ -48,7 +48,7 @@ M_PER_SVG_Y  = 111_320.0 / _SCALE
 # ── Configurable ─────────────────────────────────────────────────────────────
 INTERVAL_M     = 12.5
 MERGE_RADIUS_M = 12.5   # set 0 to disable
-STITCH_TOL     = 0.02   # SVG units — sub-path endpoint join tolerance
+STITCH_TOL     = 0.05   # SVG units — sub-path endpoint join tolerance
 SNAP_TOL       = 0.05   # SVG units — max intersection-to-chain snap distance
 
 # All I/O files are resolved against the directory this script lives in.
@@ -161,7 +161,7 @@ def deduplicate_chain(chain):
 
 # ── Parallel chain deduplication ─────────────────────────────────────────────
 
-def remove_parallel_chains(chains, parallel_tol_m=5.0):
+def remove_parallel_chains(chains, parallel_tol_m=2.0): #was 5.0
     """
     Within a single road, discard chains that are parallel duplicates of a
     longer chain. These arise because the SVG renders the same road geometry
@@ -389,6 +389,23 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
 
     road_data = raw_data.get("Road_ID", {})
     int_data  = raw_data.get("intersection_ID", {})
+    raw_gateways = raw_data.get("gateway_points", [])
+
+    gateways = {}
+    if isinstance(raw_gateways, list):
+        for item in raw_gateways:
+            gid = item.get("id") if isinstance(item, dict) else None
+            point = item.get("point") if isinstance(item, dict) else None
+            if gid is None or not isinstance(point, list) or len(point) < 2:
+                continue
+            try:
+                x = round(float(point[0]), 6)
+                y = round(float(point[1]), 6)
+            except (TypeError, ValueError):
+                continue
+            gateways[str(gid)] = {
+                "point": [x, y]
+            }
 
     # Step 0: merge nearby intersections
     raw_int_pts = {iid: v["point"] for iid, v in int_data.items()}
@@ -622,6 +639,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
             },
         },
         "nodes": out_nodes,
+        "gateways": gateways,
     }
 
     # Resolve output path relative to the script directory, not process CWD

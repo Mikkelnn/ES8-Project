@@ -79,6 +79,7 @@ def generate_svg(
         data = json.load(fh)
 
     nodes    = data["nodes"]
+    gateways = data.get("gateways", {})
     meta     = data.get("metadata", {})
     merge_r  = meta.get("merge_radius_m", "?")
     interval = meta.get("target_interval_m", 12.5)
@@ -97,6 +98,19 @@ def generate_svg(
 
     road_ids  = sorted({n["road_id"] for n in nodes.values() if n["road_id"]})
     int_nodes = {nid: n for nid, n in nodes.items() if n["intersection_id"]}
+
+    gateway_points = []
+    if isinstance(gateways, dict):
+        for gid, g in gateways.items():
+            point = g.get("point") if isinstance(g, dict) else None
+            if not isinstance(point, list) or len(point) < 2:
+                continue
+            try:
+                x = float(point[0])
+                y = float(point[1])
+            except (TypeError, ValueError):
+                continue
+            gateway_points.append((str(gid), x, y))
 
     # ── Build SVG ─────────────────────────────────────────────────────────────
     L = []
@@ -126,6 +140,12 @@ def generate_svg(
     L.append(
         '  <filter id="mglow" x="-150%" y="-150%" width="400%" height="400%">'
         '<feGaussianBlur stdDeviation="0.10" result="b"/>'
+        '<feMerge><feMergeNode in="b"/>'
+        '<feMergeNode in="SourceGraphic"/></feMerge></filter>'
+    )
+    L.append(
+        '  <filter id="gglow" x="-150%" y="-150%" width="400%" height="400%">'
+        '<feGaussianBlur stdDeviation="0.07" result="b"/>'
         '<feMerge><feMergeNode in="b"/>'
         '<feMergeNode in="SourceGraphic"/></feMerge></filter>'
     )
@@ -201,14 +221,27 @@ def generate_svg(
         L.append(f'  <circle cx="{x}" cy="{y}" r="{R_INT_C}" fill="{rc}"/>')
         L.append("</g>")
 
-    # Layer 5 — legend
+    # Layer 5 - gateway nodes
+    if gateway_points:
+        gw_color = "#22d3ee"
+        for _, x, y in gateway_points:
+            L.append('<g filter="url(#gglow)">')
+            L.append(f'  <circle cx="{x}" cy="{y}" r="{R_INT*2.0}" fill="{gw_color}0d"/>')
+            L.append(
+                f'  <circle cx="{x}" cy="{y}" r="{R_INT}" fill="none" '
+                f'stroke="{gw_color}" stroke-width="0.032"/>'
+            )
+            L.append(f'  <circle cx="{x}" cy="{y}" r="{R_INT_C}" fill="{gw_color}"/>')
+            L.append("</g>")
+
+    # Layer 6 — legend
     lx    = vbx + 0.15
     ly    = vby + 0.22
     ts    = 0.17
     dr    = 0.07
     rh    = 0.28
     bw    = 3.8
-    box_h = (len(road_ids) + 4) * rh + 0.25
+    box_h = (len(road_ids) + 5) * rh + 0.25
 
     L.append('<g id="legend">')
     L.append(
@@ -255,6 +288,16 @@ def generate_svg(
         f'<text x="{lx+dr*2.8:.3f}" y="{ly:.3f}" font-size="{ts*0.82}" '
         f'fill="#fbbf24" font-family="monospace">merged intersection</text>'
     )
+    ly += rh
+    L.append(
+        f'<circle cx="{lx+dr:.3f}" cy="{ly-dr*0.6:.3f}" r="{dr*1.35}" '
+        f'fill="#22d3ee0d" stroke="#22d3ee" stroke-width="0.022"/>'
+    )
+    L.append(f'<circle cx="{lx+dr:.3f}" cy="{ly-dr*0.6:.3f}" r="{dr*0.55}" fill="#22d3ee"/>')
+    L.append(
+        f'<text x="{lx+dr*2.8:.3f}" y="{ly:.3f}" font-size="{ts*0.82}" '
+        f'fill="#22d3ee" font-family="monospace">gateway point</text>'
+    )
     L.append("</g>")
     L.append("</svg>")
 
@@ -276,11 +319,12 @@ def generate_svg(
         1 for n in int_nodes.values()
         if len(n.get("source_intersection_ids") or []) > 1
     )
+    n_gateways = len(gateway_points)
     print(
         f"SVG written -> {out}  "
         f"({len(svg)//1024} KB, {SVG_W}x{SVG_H}px)  "
         f"{len(nodes)} nodes  |  {n_int} intersection nodes  "
-        f"({n_merged} merged)"
+        f"({n_merged} merged)  |  {n_gateways} gateways"
     )
 
 
