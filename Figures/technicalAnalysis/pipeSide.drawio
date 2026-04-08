@@ -1,9 +1,12 @@
-<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36" version="29.6.1">
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36">
   <diagram name="Page-1" id="3dueDiPTCVgQwrOnSmP2">
-    <mxGraphModel dx="579" dy="319" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+    <mxGraphModel dx="802" dy="442" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-3" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=none;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="" vertex="1">
+          <mxGeometry height="160" width="160" x="670" y="190" as="geometry" />
+        </mxCell>
         <mxCell id="Z3M855j35XSn3P3Gixgz-1" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="" vertex="1">
           <mxGeometry height="80" width="80" x="450" y="230" as="geometry" />
         </mxCell>
@@ -18,12 +21,12 @@
         </mxCell>
         <mxCell id="Z3M855j35XSn3P3Gixgz-5" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
           <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="390" y="330" as="sourcePoint" />
+            <mxPoint x="380" y="210" as="sourcePoint" />
             <mxPoint x="480" y="270" as="targetPoint" />
           </mxGeometry>
         </mxCell>
         <mxCell id="Z3M855j35XSn3P3Gixgz-6" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="Central steel pipe" vertex="1">
-          <mxGeometry height="30" width="60" x="340" y="320" as="geometry" />
+          <mxGeometry height="30" width="60" x="340" y="170" as="geometry" />
         </mxCell>
         <mxCell id="Z3M855j35XSn3P3Gixgz-7" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
           <mxGeometry height="50" relative="1" width="50" as="geometry">
@@ -48,6 +51,54 @@
         </mxCell>
         <mxCell id="Z3M855j35XSn3P3Gixgz-11" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="Wires" vertex="1">
           <mxGeometry height="30" width="60" x="461" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-2" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="" vertex="1">
+          <mxGeometry height="50" width="50" x="725" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-4" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="720" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-5" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="" vertex="1">
+          <mxGeometry height="10" width="10" x="771" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-6" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="751" y="180" as="sourcePoint" />
+            <mxPoint x="771" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-7" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="750" y="180" as="sourcePoint" />
+            <mxPoint x="730" y="210" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-8" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="Wires" vertex="1">
+          <mxGeometry height="30" width="60" x="721" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-16" parent="1" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="" vertex="1">
+          <mxGeometry height="50" width="50" x="725" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-17" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="650" y="320" as="sourcePoint" />
+            <mxPoint x="710" y="290" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-18" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="860" y="270" as="sourcePoint" />
+            <mxPoint x="750" y="240" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-19" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="">
+          <mxGeometry height="50" relative="1" width="50" as="geometry">
+            <mxPoint x="860" y="280" as="sourcePoint" />
+            <mxPoint x="750" y="320" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="R_BYTCO6HFVrseo4Tqzf-20" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;" value="Central steel pipes" vertex="1">
+          <mxGeometry height="30" width="60" x="860" y="255" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
