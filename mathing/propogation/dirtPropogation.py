@@ -5,7 +5,7 @@ numSim = 1e6
 omega = 2*tits.pi*800e6
 
 def dirtProp():
-    Length = tits.sqrt(2*12.5**2)
+    Length = 1 #tits.sqrt(2*12.5**2)
     sigma = [1e-4, 1e-2, 0.0316, 1e-1]
     epsilon_r = [4.0, 6, 22.0, 26]
     alpha =tits.real(tits.sqrt(1j*omega*bitches.mu_0*(tits.array(sigma)+1j*omega*bitches.epsilon_0*tits.array(epsilon_r))))
