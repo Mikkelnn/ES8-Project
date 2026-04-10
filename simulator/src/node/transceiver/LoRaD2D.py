@@ -20,13 +20,13 @@ class LoRaD2D(BaseTransceiver):
         
         self.__sf = 7 # Spreading factor
         self.__bandwidth = 125000 # Bandwidth in Hz
-        self.__coding_rate = 4 / 5 # Coding rate (4/5, 4/6, etc.)
+        self.__coding_rate = 1 / (4 / 5) # Coding rate (4/5, 4/6, etc.)
         self.__preamble_length = 8 # Preamble length in symbols
         
         self.__ts = (2 ** self.__sf) / self.__bandwidth # Symbol duration in seconds
         
         # Calculate the preamble time in seconds
-        self.__preamble_time_ticks = (self.__preamble_length + 4.25) * ts * self._second_to_global_tick
+        self.__preamble_time_ticks = (self.__preamble_length + 4.25) * self.__ts * self._second_to_global_tick
 
     def _calculate_transmission_duration_ticks(self, data: List[int]) -> int:
         # Calculate the number of symbols needed to transmit the data based on the spreading factor, coding rate, and data size
