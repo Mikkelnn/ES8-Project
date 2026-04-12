@@ -7,7 +7,7 @@ from node.event_local_queue import LocalEventQueue
 from node.transceiver.transceiver_service import TransceiverService
 from node.helpers.accumulated_state import AccumulatedState
 from logger import ILogger
-from IDevice import IDevice
+from Interfaces import IDevice
 from custom_types import Area, LocalEventTypes, MediumTypes, Severity, TransceiverState
 from loraWanFrameHelper import LoRaWanPHYPayload, make_downlink_ack
 
@@ -28,7 +28,7 @@ class Gateway(IDevice):
         self.accumelated_state.update(self.transceiver.tick(current_global_tick))
         
         tranceiver_statuses = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data
-        if tranceiver_statuses[MediumTypes.LORA_WAN] == State.IDLE:
+        if tranceiver_statuses[MediumTypes.LORA_WAN] == TransceiverState.IDLE:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.RECEIVING)
         
         if self.rx_to_node is not None and current_global_tick >= self.rx_to_node[0]:            

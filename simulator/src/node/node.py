@@ -8,7 +8,8 @@ from node.protocols.ping_pong import PingPongProtocol
 from node.transceiver.transceiver_service import TransceiverService
 from node.helpers.accumulated_state import AccumulatedState
 from logger import ILogger
-from IDevice import IDevice
+from Interfaces import IDevice
+from custom_types import Area, LocalEventTypes, Severity
 
 class State(Enum):
     DEAD = 1
@@ -26,6 +27,7 @@ class Node(IDevice):
         self.transceiver = TransceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick, log)
         self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log) 
         self.state = State.WAKE
+        self.log = log
 
     def tick(self, current_global_tick: int) -> int | None:
         self.accumelated_state.reset()
@@ -46,7 +48,17 @@ class Node(IDevice):
         # battery is always evaluated and done last
         self.accumelated_state.update(self.battery.tick(current_global_tick, self.accumelated_state.power))
 
-        # deterimine if we died during the current tick        
+        node_sleep_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP)
+        if len(node_sleep_events) > 0 and self.state == State.WAKE:
+            self.state = State.SLEEP
+            self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} is going to sleep...")
+        
+        node_wake_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_WAKE_UP)
+        if len(node_wake_events) > 0 and self.state == State.SLEEP:
+            self.state = State.WAKE
+            self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} woke up...")
+
+        # deterimine if we died during the current tick
         if self.battery.is_dead() and self.state != State.DEAD:
             # Tell all modules we just died -> they need to reset and maybe do some cleanup
             self.clock.reset(current_global_tick)

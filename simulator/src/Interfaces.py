@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-
 class IDevice(ABC):
     """Interface for device implementations."""
 
@@ -16,3 +15,8 @@ class IDevice(ABC):
             int | None: None if no event scheduled, otherwise the next global tick to evaluate
         """
         ...
+
+class ILength(ABC):
+    @property
+    def length(self) -> int:
+        raise NotImplementedError()

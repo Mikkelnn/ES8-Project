@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
 from typing import Optional
+from Interfaces import ILength
 
 
 # =========================================================
@@ -126,7 +127,7 @@ class JoinAcceptPayload:
 # =========================================================
 
 @dataclass
-class LoRaWanPHYPayload:
+class LoRaWanPHYPayload(ILength):
     mhdr: int
 
     # One of:
@@ -153,11 +154,6 @@ class LoRaWanPHYPayload:
         # MHDR (1) + payload + MIC (4)
         return 1 + self.payload_length + 4
 
-    # alias (as requested)
-    @property
-    def phy_payload_length(self) -> int:
-        return self.length
-
     # ---- Helpers ----
 
     def is_uplink(self) -> bool:
@@ -175,7 +171,7 @@ class LoRaWanPHYPayload:
     def is_ack(self) -> bool:
         if not self.mac_payload:
             return False
-        return bool(self.mac_payload.fctrl_flags & (1 << 5))
+        return bool(self.mac_payload.fctrl_flags & FCtrlDownlink.ACK)
 
 
 # =========================================================
@@ -183,11 +179,7 @@ class LoRaWanPHYPayload:
 # =========================================================
 
 def make_uplink(dev_addr: int, frame_count: int, payload: bytes, confirmed: bool) -> LoRaWanPHYPayload:
-    mtype = (
-        MType.CONFIRMED_DATA_UP
-        if confirmed else
-        MType.UNCONFIRMED_DATA_UP
-    )
+    mtype = (MType.CONFIRMED_DATA_UP if confirmed else MType.UNCONFIRMED_DATA_UP)
 
     mac = MACPayload(
         dev_addr=dev_addr,

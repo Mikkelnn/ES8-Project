@@ -3,7 +3,7 @@ from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
 from node.node import Node
 from custom_types import NodeMediumInfo, Severity, Area, SimState
-from IDevice import IDevice
+from Interfaces import IDevice
 from .global_time import GlobalTime
 from .device_event_queue import DeviceEventQueue
 import time
