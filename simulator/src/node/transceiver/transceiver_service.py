@@ -4,6 +4,7 @@ from medium.medium_service import MediumService
 from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
 from node.transceiver.LoRaD2D import LoRaD2D
+from node.transceiver.LoRaWan import LoRaWan
 from node.helpers.accumulated_state import AccumulatedState
 from node.transceiver.base_transceiver import BaseTransceiver
 from logger.ILogger import ILogger
@@ -19,7 +20,7 @@ class TransceiverService(IModule):
         self.accumulated_state: AccumulatedState = AccumulatedState()
         self.transceivers: List[BaseTransceiver] = [
             LoRaD2D(node_id, medium_service, local_event_queue, second_to_global_tick, log),
-            # LoRaWan(node_id, medium_service, local_event_queue, second_to_global_tick)
+            LoRaWan(node_id, medium_service, local_event_queue, second_to_global_tick, log)
         ]
 
         

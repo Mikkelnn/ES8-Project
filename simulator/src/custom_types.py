@@ -3,6 +3,8 @@ from pydantic import Field
 from typing import List, Any
 from enum import Enum
 
+from loraWanFrameHelper import LoRaWanPHYPayload
+
 # Define allowed severities
 class Severity(str, Enum):
     DEBUG = "DEBUG"
@@ -70,7 +72,7 @@ class LocalEventSubTypes(str, Enum):
 @dataclass
 class LocalEventNet:
     type: LocalEventTypes
-    data: int | dict[MediumTypes, TransceiverState] |TransceiverState | List[Any]
+    data: int | dict[MediumTypes, TransceiverState] |TransceiverState | List[Any] | LoRaWanPHYPayload
     sub_type: MediumTypes | LocalEventSubTypes | None = None
 
 @dataclass
@@ -85,3 +87,4 @@ class LogMessage:
     area: Area
     info: str
     data: Any | None = None
+
