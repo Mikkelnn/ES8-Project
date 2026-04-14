@@ -3,13 +3,14 @@ from custom_types import EventNet, EventNetTypes, MediumTypes, NodeMediumInfo
 from simulator.device_event_queue import DeviceEventQueue
 from logger import ILogger
 from .lora_d2d_medium import LoraD2DMedium
+from .lora_wan_medium import LoraWanMedium
 
 class MediumService:
     def __init__(self, node_neighbors: dict[int, NodeMediumInfo], event_queue: DeviceEventQueue, log: ILogger):
         # Add medums to the service
         self.mediums = [
-            LoraD2DMedium(node_neighbors, event_queue, log)
-            # LoRaWanMedium()
+            LoraD2DMedium(node_neighbors, event_queue, log),
+            LoraWanMedium(node_neighbors, event_queue, log)
         ]
 
     def propagate_mediums(self, current_global_tick: int):

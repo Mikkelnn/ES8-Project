@@ -33,7 +33,7 @@ class SimpleLogger(ILogger):
 
     def get(self) -> List[str]:
         """Get log buffer"""
-        tmp_buffer = self._buffer
+        tmp_buffer = self._buffer.copy()
 
         return tmp_buffer
 

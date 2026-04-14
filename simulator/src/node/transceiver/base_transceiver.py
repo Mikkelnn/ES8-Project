@@ -5,6 +5,7 @@ from medium.medium_service import MediumService
 from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
 from logger.ILogger import ILogger
+from Interfaces import ILength
 
 class BaseTransceiver(IModule):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, log: ILogger,
@@ -86,7 +87,7 @@ class BaseTransceiver(IModule):
         self.__cancel_reception(current_global_tick) # Cancel any ongoing reception
     
     @abstractmethod
-    def _calculate_transmission_duration_ticks(self, data) -> int:
+    def _calculate_transmission_duration_ticks(self, data: ILength) -> int:
         pass
 
     def __cancel_transmission(self, current_global_tick):

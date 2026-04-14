@@ -4,13 +4,14 @@ from medium.base_medium import BaseMedium
 from simulator.device_event_queue import DeviceEventQueue
 from logger.ILogger import ILogger
 
-class LoraD2DMedium(BaseMedium):
+class LoraWanMedium(BaseMedium):
     def __init__(self, node_neighbors: dict[int, NodeMediumInfo], event_queue: DeviceEventQueue, log: ILogger):
-        super().__init__(type=MediumTypes.LORA_D2D, event_queue=event_queue, log=log)
-        self.node_neighbors = node_neighbors # key: node_id, value: List[node_id]
+        super().__init__(type=MediumTypes.LORA_WAN, event_queue=event_queue, log=log)
+        self.node_neighbors = node_neighbors
 
     def _get_reception_node_ids(self, event):
         if event.node_id in self.node_neighbors:
-            return self.node_neighbors[event.node_id].neighbors # TODO implement correctly currently only direct neighbors
+            node_medium_info = self.node_neighbors[event.node_id]
+            return node_medium_info.neighbors if node_medium_info.is_gateway else node_medium_info.gateways_in_range
         else:
             return []

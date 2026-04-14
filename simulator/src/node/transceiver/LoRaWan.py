@@ -6,6 +6,7 @@ from medium.medium_service import MediumService
 from node.event_local_queue import LocalEventQueue
 from node.transceiver.base_transceiver import BaseTransceiver
 from logger.ILogger import ILogger
+from Interfaces import ILength
 
 
 class LoRaWan(BaseTransceiver):
@@ -26,13 +27,12 @@ class LoRaWan(BaseTransceiver):
         self.__ts = (2 ** self.__sf) / self.__bandwidth # Symbol duration in seconds
         
         # Calculate the preamble time in seconds
-        self.__preamble_time_ticks = (self.__preamble_length + 4.25) * self.__ts * self._second_to_global_tick
+        self.__preamble_time_ticks = (self.__preamble_length + 4.25) * self.__ts * (1 / self._second_to_global_tick)
 
-    def _calculate_transmission_duration_ticks(self, data: List[int]) -> int:
+    def _calculate_transmission_duration_ticks(self, data: ILength) -> int:
         # Calculate the number of symbols needed to transmit the data based on the spreading factor, coding rate, and data size
-        N_symbols = math.ceil((len(data) * 8 * self.__coding_rate) / self.__sf)
+        N_symbols = math.ceil((data.length * 8 * self.__coding_rate) / self.__sf)
         # Calculate the total transmission time in ticks ceil to ensure we account for any partial symbol time
-        symbol_time_ticks = math.ceil(N_symbols * self.__ts * self._second_to_global_tick)
-
+        symbol_time_ticks = math.ceil(N_symbols * self.__ts * (1 / self._second_to_global_tick))
         # Calculate the transmission time in global ticks based on the size of the data
         return int(symbol_time_ticks + self.__preamble_time_ticks)

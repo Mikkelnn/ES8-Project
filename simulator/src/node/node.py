@@ -10,6 +10,7 @@ from node.helpers.accumulated_state import AccumulatedState
 from logger import ILogger
 from Interfaces import IDevice
 from custom_types import Area, LocalEventTypes, Severity
+from node.protocols.V01 import V01
 
 class State(Enum):
     DEAD = 1
@@ -20,33 +21,34 @@ class Node(IDevice):
     def __init__(self, node_id: int, second_to_global_tick: float, medium_service: MediumService, log: ILogger):
         self.node_id = node_id
         self.local_event_queue = LocalEventQueue()
-        self.accumelated_state = AccumulatedState()
+        self.accumulated_state = AccumulatedState()
 
         self.battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=10, second_to_global_tick=second_to_global_tick)
         self.clock = Clock(self.node_id, self.local_event_queue, second_to_global_tick)
         self.transceiver = TransceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick, log)
-        self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log) 
+        # self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log) 
+        self.protocol = V01(self.node_id, self.local_event_queue, second_to_global_tick, log) 
         self.state = State.WAKE
         self.log = log
 
     def tick(self, current_global_tick: int) -> int | None:
-        self.accumelated_state.reset()
+        self.accumulated_state.reset()
 
         match self.state:
             case State.DEAD:
                 pass
             case State.SLEEP:
-                self.accumelated_state.update((0, None)) # Base system usage
-                self.accumelated_state.update(self.clock.tick(current_global_tick))
+                self.accumulated_state.update((0, None)) # Base system usage
+                self.accumulated_state.update(self.clock.tick(current_global_tick))
             case State.WAKE:
-                self.accumelated_state.update((0, None)) # Base system usage
-                self.accumelated_state.update(self.clock.tick(current_global_tick))
+                self.accumulated_state.update((0, None)) # Base system usage
+                self.accumulated_state.update(self.clock.tick(current_global_tick))
                 # TODO: Sensor
-                self.accumelated_state.update(self.transceiver.tick(current_global_tick))
-                self.accumelated_state.update(self.protocol.tick(current_global_tick))
+                self.accumulated_state.update(self.transceiver.tick(current_global_tick))
+                self.accumulated_state.update(self.protocol.tick(current_global_tick))
 
         # battery is always evaluated and done last
-        self.accumelated_state.update(self.battery.tick(current_global_tick, self.accumelated_state.power))
+        self.accumulated_state.update(self.battery.tick(current_global_tick, self.accumulated_state.power))
 
         node_sleep_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP)
         if len(node_sleep_events) > 0 and self.state == State.WAKE:
@@ -57,6 +59,7 @@ class Node(IDevice):
         if len(node_wake_events) > 0 and self.state == State.SLEEP:
             self.state = State.WAKE
             self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} woke up...")
+            self.accumulated_state.update((0, current_global_tick + 1)) # tick next
 
         # deterimine if we died during the current tick
         if self.battery.is_dead() and self.state != State.DEAD:
@@ -70,10 +73,11 @@ class Node(IDevice):
         # deterrmine if we just came alive in this tick
         if self.state == State.DEAD and not self.battery.is_dead():
             self.state = State.WAKE # We can decide to start in sleep mode instead if we want to test that
+            self.accumulated_state.update((0, current_global_tick + 1)) # tick next 
 
         # Clear local event bus
         self.local_event_queue.clear_events()
 
         # determine earliest next tick among modules
         # if there are internal events scheduled for next tick, this is the earliest
-        return self.accumelated_state.earliest_global_tick if not self.local_event_queue.have_events() else current_global_tick + 1
+        return self.accumulated_state.earliest_global_tick if not self.local_event_queue.have_events() else current_global_tick + 1
