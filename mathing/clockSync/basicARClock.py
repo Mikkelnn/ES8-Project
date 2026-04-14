@@ -14,6 +14,7 @@ init = np.array([0, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5]) #initial condi
 init = np.transpose(init)
 noiseVar = 3.915e-15
 simLength = 365  #days
+np.random.seed(42069)
 
 
 def plotData(data):
@@ -57,6 +58,40 @@ def plotData(data):
     print(f"  Mean: {np.mean(alpha_values):.6e}")
     print(f"  Std Dev: {np.std(alpha_values):.6e}")
         
+
+
+def plot_multiple_realizations(num_realizations=10):
+    """
+    Simulate and plot multiple realizations of the AR model on the same plot.
+    
+    Args:
+        num_realizations: Number of realizations to generate and plot
+    """
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+    
+    for i in range(num_realizations):
+        data = ARModelSimple()
+        theta_values = [point[0] for point in data]
+        alpha_values = [point[1] for point in data]
+        time_steps = np.arange(len(data)) / 96  # Convert samples to days
+        
+        ax1.plot(time_steps, theta_values, alpha=0.7, linewidth=1)
+        ax2.plot(time_steps, alpha_values, alpha=0.7, linewidth=1)
+    
+    # Configure theta subplot
+    ax1.set_xlabel('Time (days)')
+    ax1.set_ylabel('Clock Drift (seconds)')
+    ax1.set_title(f'{num_realizations} Clock Drift Realizations')
+    ax1.grid(True, alpha=0.3)
+    
+    # Configure alpha subplot
+    ax2.set_xlabel('Time (days)')
+    ax2.set_ylabel('Clock Skew (s/s)')
+    ax2.set_title(f'{num_realizations} Clock Skew Realizations')
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
 
 
 def ARModelSimple():
@@ -121,22 +156,12 @@ def get_model_state_at_time(time_x, data, time_step_seconds=t0):
     
 
 def main ():
-    # Run the AR model simulation
-    data = ARModelSimple()
+    # Uncomment the following line to plot a single realization with detailed stats
+    # data = ARModelSimple()
+    # plotData(data)
     
-    # Plot the simulation results
-    plotData(data)
-    
-    # Example: Query the model state at specific times
-    test_times = [0, 900, 7200, 86400, 2592000 ]  # 0s, 15min, 2hr, 1day, 30days
-    print("\n--- Model State Queries ---")
-    for test_time in test_times:
-        result = get_model_state_at_time(test_time, data)
-        if result:
-            drift, skew = result
-            print(f"Time {test_time}s: Drift={drift:.6e}, Skew={skew:.6e}")
-        else:
-            print(f"Time {test_time}s: Out of bounds")
+    # Plot 10 realizations on the same plot
+    plot_multiple_realizations(num_realizations=10)
     
 
 if __name__=="__main__":
