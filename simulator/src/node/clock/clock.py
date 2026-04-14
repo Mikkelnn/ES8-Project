@@ -68,14 +68,14 @@ class Clock(IModule):
     
         # determine next global_tick for times if present
         if self.timer_1_end_local_time is not None:
-            global_tick_for_timer_1 = self.timer_1_end_local_time * self.global_ticks_per_local_time_increment # TODO: chyange from ideal linear
+            global_tick_for_timer_1 = self.timer_1_end_local_time * self.global_ticks_per_local_time_increment # TODO: change from ideal linear
             if local_time >= self.timer_1_end_local_time:
                 self.timer_1_end_local_time = None
             else:
                 self.accumulated_state.update((0, global_tick_for_timer_1))
 
         if self.timer_2_end_local_time is not None:
-            global_tick_for_timer_2 = self.timer_2_end_local_time * self.global_ticks_per_local_time_increment # TODO: chyange from ideal linear
+            global_tick_for_timer_2 = self.timer_2_end_local_time * self.global_ticks_per_local_time_increment # TODO: change from ideal linear
             if local_time >= self.timer_2_end_local_time:
                 self.timer_2_end_local_time = None
             else:
@@ -84,6 +84,5 @@ class Clock(IModule):
         return self.accumulated_state.get_accumulated() # Power consumption for this tick
     
     def reset(self, current_global_tick: int) -> None:
-        # self.local_time = 0
-        # self.local_tick = 0
-        pass
+        self.timer_1_end_local_time = None
+        self.timer_2_end_local_time = None

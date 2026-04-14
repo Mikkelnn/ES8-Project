@@ -93,7 +93,7 @@ class LogMessage:
 
 class LoRaD2DFrameType(Enum):
     DATA_TO_GW = 0 
-    HOP_COUNT_UPDATED = 1 # sent as nodes hopcount changes and as idle packets to maintain updated hop count information in the network
+    CURRENT_HOP_COUNT = 1 # sent as nodes hopcount changes and as idle packets to maintain updated hop count information in the network
     CHANGE_HOP_COUNT = 2 # used by junction nodes to instruct other nodes to change thair hop count to the gateway, used when if multiple nodes have same hop count, they will be assigend a new uniuqe hop count ensuring no collisions.
 
 @dataclass
@@ -101,8 +101,8 @@ class LoRaD2DFrame(ILength):
     source_node_id: int # uint32
     destination_node_id: int # uint32
     type: LoRaD2DFrameType # uint8    
-    payload: List[Any]
-    crc: int # uint16
+    payload: bytes
+    crc: int = b'0\x000\x00' # uint16
     # frame_count?
     # timestamp?
     # TTL?
