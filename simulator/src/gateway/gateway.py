@@ -16,16 +16,16 @@ class Gateway(IDevice):
         self.gateway_id = gateway_id
         self.log = log
         self.local_event_queue = LocalEventQueue()
-        self.accumelated_state = AccumulatedState()
+        self.accumulated_state = AccumulatedState()
 
         self.transceiver = TransceiverService(self.gateway_id, medium_service, self.local_event_queue, second_to_global_tick, log)
         self.second_to_global_tick = second_to_global_tick
         self.rx_to_node: tuple[int, int] | None = None
 
     def tick(self, current_global_tick: int) -> int | None:
-        self.accumelated_state.reset()
+        self.accumulated_state.reset()
 
-        self.accumelated_state.update(self.transceiver.tick(current_global_tick))
+        self.accumulated_state.update(self.transceiver.tick(current_global_tick))
         
         tranceiver_statuses = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data
         if tranceiver_statuses[MediumTypes.LORA_WAN] == TransceiverState.IDLE:
@@ -49,11 +49,11 @@ class Gateway(IDevice):
             self.rx_to_node = (rx1_tick, data.mac_payload.dev_addr)        
 
         if self.rx_to_node is not None:
-            self.accumelated_state.update((0, self.rx_to_node[0]))
+            self.accumulated_state.update((0, self.rx_to_node[0]))
 
         # Clear local event bus
         self.local_event_queue.clear_events()
 
         # determine earliest next tick among modules
         # if there are internal events scheduled for next tick, this is the earliest
-        return self.accumelated_state.earliest_global_tick if not self.local_event_queue.have_events() else current_global_tick + 1
+        return self.accumulated_state.earliest_global_tick if not self.local_event_queue.have_events() else current_global_tick + 1

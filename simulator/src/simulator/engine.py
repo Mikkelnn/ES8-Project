@@ -4,6 +4,7 @@ from logger.simple_logger import SimpleLogger
 from node.node import Node
 from custom_types import NodeMediumInfo, Severity, Area, SimState
 from Interfaces import IDevice
+from gateway.gateway import Gateway
 from .global_time import GlobalTime
 from .device_event_queue import DeviceEventQueue
 import time
@@ -19,10 +20,10 @@ GUI_LOG_DISPLAY_LINES = 75
 
 class Simulation:
 
-    def __init__(self, log: SimpleLogger, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
-        self.log = log
+    def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
+        self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
-        num_nodes = 10_000
+        num_nodes = 2
         node_neighbors = {}
 
         self.nodes: list[IDevice] = []
@@ -30,18 +31,23 @@ class Simulation:
         self.event_queue = DeviceEventQueue()
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
 
-        for i in range(1, num_nodes + 1):
-            neighbors = []
-            if i % 2 == 1 and i < num_nodes:  # Odd node, add next node as neighbor
-                neighbors.append(i + 1)
-            elif i % 2 == 0:  # Even node, add previous node as neighbor
-                neighbors.append(i - 1)
-            node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
+        # for i in range(1, num_nodes + 1):
+        #     neighbors = []
+        #     if i % 2 == 1 and i < num_nodes:  # Odd node, add next node as neighbor
+        #         neighbors.append(i + 1)
+        #     elif i % 2 == 0:  # Even node, add previous node as neighbor
+        #         neighbors.append(i - 1)
+        #     node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
+        node_neighbors[1] = NodeMediumInfo(position=(0, 0), neighbors=[], gateways_in_range=[2])
+        node_neighbors[2] = NodeMediumInfo(position=(100, 0), neighbors=[1], gateways_in_range=[], is_gateway=True)
 
         self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
 
-        for i in range(1, num_nodes + 1):
-            self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        # for i in range(1, num_nodes + 1):
+        #     self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        self.nodes.append(Node(node_id=1, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        self.nodes.append(Gateway(gateway_id=2, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+
         self.status = status
         self.lock = lock
         self.tps_value = tps_value
@@ -56,69 +62,72 @@ class Simulation:
         current_time = 0
         total_evaluated = 0
         last_tps_calc = time.time()
-        while len(self.event_queue.events):
-            # Check status on EVERY tick for immediate pause response
-            if self.status is not None and self.lock is not None:
-                with self.lock:
-                    sim_state = self.status.value
-            else:
+
+        try:
+            while len(self.event_queue.events):
+                # Check status on EVERY tick for immediate pause response
                 sim_state = SimState.RUNNING.value
-
-            if sim_state == SimState.STOPPED.value:
-                return
-
-            while sim_state == SimState.PAUSED.value:
-                time.sleep(0.05)
                 if self.status is not None and self.lock is not None:
                     with self.lock:
                         sim_state = self.status.value
-                else:
-                    sim_state = SimState.RUNNING.value
+
+                if sim_state == SimState.PAUSED.value:
+                    self.log.flush(force=True)
+
+                while sim_state == SimState.PAUSED.value:
+                    time.sleep(0.05)
+                    with self.lock:
+                        sim_state = self.status.value
+
                 if sim_state == SimState.STOPPED.value:
-                    return
+                    break
 
-            (current_time, node_ids) = self.event_queue.get_next_events()
+                (current_time, node_ids) = self.event_queue.get_next_events()
 
-            # Check if we've exceeded stop_tick BEFORE processing
-            if current_time > stop_tick:
-                # Update shared tick to exactly stop_tick (not beyond)
+                # Check if we've exceeded stop_tick BEFORE processing
+                if current_time > stop_tick:
+                    # Update shared tick to exactly stop_tick (not beyond)
+                    if self.current_tick_value is not None:
+                        self.current_tick_value.value = int(stop_tick)
+                    break
+
+                self.global_time.set_time(current_time)
+
+                # Update shared current tick value
                 if self.current_tick_value is not None:
-                    self.current_tick_value.value = int(stop_tick)
-                break
+                    self.current_tick_value.value = int(current_time)
 
-            self.global_time.set_time(current_time)
+                # Tick all nodes, do this in parallel if needed
+                node_start_time = time.time()
+                for node_id in node_ids:
+                    next_evaluation = self.nodes[node_id - 1].tick(current_time)
+                    self.event_queue.add_event(node_id, next_evaluation)
+                node_tick_time += time.time() - node_start_time
 
-            # Update shared current tick value
-            if self.current_tick_value is not None:
-                self.current_tick_value.value = int(current_time)
+                propagation_start_time = time.time()
+                self.medium_service.propagate_mediums(current_time)
+                propagation_time += time.time() - propagation_start_time
+                total_evaluated += 1
 
-            # Tick all nodes, do this in parallel if needed
-            node_start_time = time.time()
-            for node_id in node_ids:
-                next_evaluation = self.nodes[node_id - 1].tick(current_time)
-                self.event_queue.add_event(node_id, next_evaluation)
-            node_tick_time += time.time() - node_start_time
+                if self.log_queue is not None:
+                    try:
+                        lines = self.log.get()
+                        if lines:  # Only send if we have logs
+                            self.log_queue.put(lines[-GUI_LOG_DISPLAY_LINES:])
+                    except Exception:
+                        pass
+                self.log.flush()
+                # TPS calculation every second
+                now = time.time()
+                if self.tps_value is not None and now - last_tps_calc > 1.0:
+                    self.global_time.tps_calc()
+                    tps = self.global_time.get_tps()
+                    self.tps_value.value = int(tps) if tps is not None else 0
+                    last_tps_calc = now
+        except Exception as e:
+            print(f"Simulation error: {e}")
+            self.log.add(Severity.ERROR, Area.SIMULATOR, self.global_time.get_time(), f"Simulation error: {e}", data=None)
 
-            propagation_start_time = time.time()
-            self.medium_service.propagate_mediums(current_time)
-            propagation_time += time.time() - propagation_start_time
-            total_evaluated += 1
-
-            if self.log_queue is not None:
-                try:
-                    lines = self.log.get()
-                    if lines:  # Only send if we have logs
-                        self.log_queue.put(lines[-GUI_LOG_DISPLAY_LINES:])
-                except Exception:
-                    pass
-            self.log.flush()
-            # TPS calculation every second
-            now = time.time()
-            if self.tps_value is not None and now - last_tps_calc > 1.0:
-                self.global_time.tps_calc()
-                tps = self.global_time.get_tps()
-                self.tps_value.value = int(tps) if tps is not None else 0
-                last_tps_calc = now
         elapsed_time = time.time() - stopwatch_start_time
 
         self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
@@ -145,9 +154,10 @@ class Engine:
         self._run_ticks = None
         # Circular buffer to keep last N logs in memory (3x display for safety)
         self._log_buffer = deque(maxlen=GUI_LOG_DISPLAY_LINES * 3)
+        self.log_path = log_path
 
-    def _simulation_entry(self, log, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None):
-        sim = Simulation(log, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value)
+    def _simulation_entry(self, log_path: str, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None):
+        sim = Simulation(log_path=log_path, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value)
         if run_ticks is not None:
             sim.run_for(run_ticks)
         else:
@@ -186,7 +196,7 @@ class Engine:
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine started", data=None)
         self._run_ticks = run_ticks
         if self.sim_process is None or not self.sim_process.is_alive():
-            self.sim_process = Process(target=self._simulation_entry, args=(self.log, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks))
+            self.sim_process = Process(target=self._simulation_entry, args=(self.log_path, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks))
             self.sim_process.start()
 
     def run_for(self, ticks):

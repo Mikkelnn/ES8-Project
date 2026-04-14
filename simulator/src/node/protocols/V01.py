@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from pyparsing import cast
-from custom_types import LocalEventTypes, MediumTypes, TransceiverState, Severity, Area
+from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes, MediumTypes, TransceiverState, Severity, Area
 from node.Imodule import IModule
 from node.event_local_queue import LocalEventQueue
 from logger.ILogger import ILogger
@@ -40,7 +40,7 @@ class V01(IModule):
         
 
     def tick(self, current_global_tick: int) -> float:
-        current_local_time = self.local_event_queue.get_current_events_by_type(LocalEventTypes.LOCAL_TIME)[0].data
+        current_local_clock_info = cast(LocalClockInfo, self.local_event_queue.get_current_events_by_type(LocalEventTypes.LOCAL_TIME)[0].data)
         current_transceiver_states = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data # Always populated by transceiver service before this protocol is ticked, so we can be sure to have it.
         current_receptions = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA)
 
@@ -60,6 +60,7 @@ class V01(IModule):
                 lora_wan_frame = make_uplink(dev_addr=self.node_id, frame_count=0, payload=[], confirmed=True) # The content of the message does not matter in this protocol, so we just send a list with one element.)
                 self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_WAN, data=lora_wan_frame)
                 self.state = State.GATEWAY_TX_WAIT_COMPLETE
+                self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} is trying to connect to gateway by sending a message on the LoRaWAN channel...")
 
             case State.GATEWAY_TX_WAIT_COMPLETE:
                 if current_transceiver_states[MediumTypes.LORA_WAN] == TransceiverState.IDLE:
@@ -72,12 +73,14 @@ class V01(IModule):
             case State.GATEWAY_RX:
                 if current_transceiver_states[MediumTypes.LORA_WAN] == TransceiverState.IDLE:
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.RECEIVING)
-                    self.rx_stop_time = current_local_time + 1000 # Listen for 1 second as per LoRaWAN specification for rx1
+                    self.local_event_queue.add_event_to_next_tick(LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=1010) # Set timer to wake up after the rx window, we set it to 1100 ms to ensure we wake up after the rx window is closed.
                 
-                if current_local_time >= self.rx_stop_time:
+                timer_1 = current_local_clock_info.timer_1_remaining
+                if timer_1 is not None and timer_1 <= 0:
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
-                    self.rx_stop_time = None
+                    self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} did not receive any response from gateway, will try to connect using D2D...")
                     # waht to do now....
+                    self.state = State.D2D_SYNC
 
                 if len(current_receptions) > 0:
                     reception_data = cast(LoRaWanPHYPayload, current_receptions[0].data)
@@ -85,16 +88,18 @@ class V01(IModule):
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
                         self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} received ACK from gateway!")
                         # We did receive the ACK from the gateway, we can now set our hopcount to 0 and start doing D2D syncs to establish hopcounts to neighbors.
-                        self.gw_hopcount = 0 
-                        self.rx_stop_time = None
+                        self.gw_hopcount = 0
+                        self.state = State.D2D_SYNC
 
-        # return next tick to evaluate, rx_stop_time to global tick somehow...
+            case State.D2D_SYNC:
+                pass
+        
+        # return no next tick as this module will run whenever we receive a message or a timer expires.
         return (0, None) # Power consumption for this tick
 
     def reset(self, current_global_tick: int) -> None:
         self.state = State.INITIAL
         self.next_state = None
-        self.rx_stop_time = None
         # This is the maximum value for a uint16, we use this to indicate that we do not have a connection to the gateway yet. 
         # Once we have a connection to the gateway, we will set this to 0 and start doing D2D syncs to establish hopcounts to neighbors.
         # If we do not receive an ACK from the gateway we try to connect using D2D

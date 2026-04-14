@@ -65,6 +65,7 @@ class LocalEventTypes(Enum):
     NODE_SLEEP_FOR = "NODE_SLEEP_FOR"
     NODE_SLEEP = "NODE_SLEEP"
     NODE_WAKE_UP = "NODE_WAKE_UP"
+    SET_TIMER = "SET_TIMER"
 
 class TransceiverState(Enum):
     IDLE = 0
@@ -72,12 +73,15 @@ class TransceiverState(Enum):
     RECEIVING = 2
 
 class LocalEventSubTypes(str, Enum):
-    Placeholder = "PLACEHOLDER" # This is a placeholder value, you can replace it with actual subtypes as needed
+    TIMER_1 = "TIMER_1"
+    TIMER_2 = "TIMER_2"
 
 @dataclass
 class NodeMediumInfo:
     position: tuple[int, int]
     neighbors: List[int]
+    gateways_in_range: List[int]
+    is_gateway: bool = False
 
 @dataclass
 class LogMessage:
@@ -109,7 +113,13 @@ class LoRaD2DFrame(ILength):
         return 4 + 4 + 1 + len(self.payload) + 2
 
 @dataclass
+class LocalClockInfo:
+    current_local_time: int
+    timer_1_remaining: int | None
+    timer_2_remaining: int | None
+
+@dataclass
 class LocalEventNet:
     type: LocalEventTypes
-    data: int | dict[MediumTypes, TransceiverState] | TransceiverState | LoRaWanPHYPayload | LoRaD2DFrame
+    data: int | dict[MediumTypes, TransceiverState] | TransceiverState | LoRaWanPHYPayload | LoRaD2DFrame | LocalClockInfo
     sub_type: MediumTypes | LocalEventSubTypes | None = None

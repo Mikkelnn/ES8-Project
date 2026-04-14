@@ -19,4 +19,5 @@ class IDevice(ABC):
 class ILength(ABC):
     @property
     def length(self) -> int:
+        """Returns the length of the data in bytes."""
         raise NotImplementedError()

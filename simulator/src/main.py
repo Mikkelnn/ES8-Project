@@ -120,7 +120,7 @@ class GUI(QMainWindow):
         else:  # No areas selected at all
             self.left_top.setPlainText("No areas selected for filtering\n")
 
-        self.engine.log.flush(force=True)
+        # self.engine.log.flush(force=True)
 
         # Auto-pause when target tick is reached
         if (self._sim_state == SimState.RUNNING and
