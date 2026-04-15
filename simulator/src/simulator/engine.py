@@ -23,7 +23,7 @@ class Simulation:
     def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
         self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
-        num_nodes = 10
+        num_nodes = 4
         node_neighbors = {}
 
         self.nodes: list[IDevice] = []
@@ -42,12 +42,12 @@ class Simulation:
         node_neighbors[2] = NodeMediumInfo(position=(1, 0), neighbors=[3,4], gateways_in_range=[1])
         node_neighbors[3] = NodeMediumInfo(position=(2, 0), neighbors=[2,4,5], gateways_in_range=[])
         node_neighbors[4] = NodeMediumInfo(position=(3, 0), neighbors=[2,3,5,6], gateways_in_range=[])
-        node_neighbors[5] = NodeMediumInfo(position=(4, 0), neighbors=[3,4,6,7], gateways_in_range=[])
-        node_neighbors[6] = NodeMediumInfo(position=(5, 0), neighbors=[4,5,7,8], gateways_in_range=[])
-        node_neighbors[7] = NodeMediumInfo(position=(6, 0), neighbors=[5,6,8,9], gateways_in_range=[])
-        node_neighbors[8] = NodeMediumInfo(position=(7, 0), neighbors=[6,7,9,10], gateways_in_range=[])        
-        node_neighbors[9] = NodeMediumInfo(position=(8, 0), neighbors=[7,8,10], gateways_in_range=[])
-        node_neighbors[10] = NodeMediumInfo(position=(9, 0), neighbors=[8,9], gateways_in_range=[])
+        # node_neighbors[5] = NodeMediumInfo(position=(4, 0), neighbors=[3,4,6,7], gateways_in_range=[])
+        # node_neighbors[6] = NodeMediumInfo(position=(5, 0), neighbors=[4,5,7,8], gateways_in_range=[])
+        # node_neighbors[7] = NodeMediumInfo(position=(6, 0), neighbors=[5,6,8,9], gateways_in_range=[])
+        # node_neighbors[8] = NodeMediumInfo(position=(7, 0), neighbors=[6,7,9,10], gateways_in_range=[])        
+        # node_neighbors[9] = NodeMediumInfo(position=(8, 0), neighbors=[7,8,10], gateways_in_range=[])
+        # node_neighbors[10] = NodeMediumInfo(position=(9, 0), neighbors=[8,9], gateways_in_range=[])
 
         self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
 
@@ -57,12 +57,12 @@ class Simulation:
         self.nodes.append(Node(node_id=2, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
         self.nodes.append(Node(node_id=3, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
         self.nodes.append(Node(node_id=4, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=5, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=6, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=7, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=8, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=9, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=10, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        # self.nodes.append(Node(node_id=5, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        # self.nodes.append(Node(node_id=6, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        # self.nodes.append(Node(node_id=7, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        # self.nodes.append(Node(node_id=8, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        # self.nodes.append(Node(node_id=9, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        # self.nodes.append(Node(node_id=10, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 
         self.status = status
         self.lock = lock
