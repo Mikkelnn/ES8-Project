@@ -13,11 +13,11 @@ np.random.seed(42069)
 t0 = 900
 c_std = np.array([0.92705, 0.4163, 0.07483, -0.387, -0.03118]) #AR-model constants from page 32
 c_temp = np.array([0.4397, 0.3106, 0.1874])
-init = np.array([0, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5, 3.95e-5]) #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
+init = np.array([0, 3.95e-2, 3.95e-2, 3.95e-2, 3.95e-2, 3.95e-2]) #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
 init = np.transpose(init)
 init_Temp = np.array([0, 1.7e-3, 1.7e-3, 1.7e-3])
 init_Temp = np.transpose(init_Temp)
-noiseVar = 3.915e-15
+noiseVar = 3.915e-9
 noiseVarTemp = 6.9e-10
 
 simLength = 365 #days
@@ -199,14 +199,22 @@ def get_model_state_at_time(time_x, data, time_step_seconds=t0):
 def main ():
     # Uncomment the following line to plot a single realization with detailed stats
     # data = ARModelSimple()
-    # plotData(data)
+    ARArray = np.array([[c_std[0], c_std[1], c_std[2], c_std[3], c_std[4]],
+                        [1, 0, 0, 0, 0],
+                        [0, 1, 0, 0, 0],
+                        [0, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 0]])
     
+    eigValues, eigVectors = np.linalg.eig(ARArray)
+    eigValues = np.abs(eigValues)
+    print(eigValues)
+
     # Plot 10 realizations on the same plot
     # plot_multiple_realizations(num_realizations=10)
 
     #Temperature based drift
-    data = tempModel(start = 1) #Write month number
-    plotData(data)
+    # data = tempModel(start = 1) #Write month number
+    # plotData(data)
     
 
 if __name__=="__main__":
