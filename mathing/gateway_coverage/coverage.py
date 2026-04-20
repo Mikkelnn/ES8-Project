@@ -1,6 +1,10 @@
 from enum import Enum
 from math import log10, pi
-from scipy.constants import c
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+c = 299_792_458
 
 
 #https://hubble.com/community/guides/how-to-calculate-lorawan-link-budget/
@@ -122,7 +126,7 @@ def friis(
         Received power in watts.
     """
     wavelength = c / f
-    return p_t * g_t * g_r * (wavelength / (4 * pi * d)) ** 2 * l
+    return p_t * g_t * g_r * (wavelength / (4 * pi * d)) ** 2 / l
 
 
 def friis_dbm(p_t_dbm: float, g_t_dbi: float, g_r_dbi: float, d: float, f: float, l_db: float = 0.0) -> float:
@@ -276,6 +280,17 @@ def max_distance_from_link_budget(
     fspl_d0_db = free_space_path_loss(d0, f)
     return d0 * 10 ** ((link_budget_db - fspl_d0_db) / (10 * float(n))) #TODO double check
 
+def fading_db():
+    """Rayleigh fading in dB."""
+    r = np.random.rayleigh(scale=1 / np.sqrt(2))
+    db = 20 * np.log10(r)
+    return db
+
+def shadowing_db():
+    """Shadowing in dB."""
+    db = np.random.normal(loc=0, scale=6)  # ~6 dB std dev is typical for outdoor shadowing
+    return db
+
 # ============================================================================
 # Main / Example usage
 # ============================================================================
@@ -290,38 +305,116 @@ if __name__ == "__main__":
     g_t_dbi = 0.0           # Antenna gain LoRaWAN
     g_r_dbi = 0.0           # Antenna gain Node
 
-    dirt_loss_by_label_db = {
+    dirt_loss_db = {
         "dry": 0.087,
         "slightly wet": 32,
         "wet": 60,
     }
 
     sf = LoRaSpreadingFactor
-    fm = FadingMargin
     ple = PathLossExponent
-    environment = ple.INDOOR_OBSTRUCTED
     spreading_factor = sf.SF7
-    fade_margin = fm.LOW
+    environments = [ple.FREE_SPACE, ple.URBAN_LOS, ple.URBAN_SHADOWED]
+    rounds = 10000
 
-    link_budget = {
-        label: p_t_dbm + g_t_dbi + g_r_dbi - loss_dirt - spreading_factor.sensitivity_dbm() - fade_margin.margin_db()
-        for label, loss_dirt in dirt_loss_by_label_db.items()
-    }
+    # Compute mean fading and shadowing from simulations
+    fading_samples = [fading_db() for _ in range(rounds)]
+    shadowing_samples = [shadowing_db() for _ in range(rounds)]
+    mean_fading_db = float(np.mean(fading_samples))
+    mean_shadowing_db = float(np.mean(shadowing_samples))
 
-    max_distance = {
-        label: max_distance_from_link_budget(budget, f_hz, environment)
-        for label, budget in link_budget.items()
-    }
-
-    print("Link budget and max distance")
-    print(f"Frequency: {f_hz / 1e6:.1f} MHz")
-    print(f"Environment: {environment.name} (n={float(environment):.1f})")
-    print(f"Spreading factor: SF{spreading_factor.spreading_factor()}")
-    print(f"Fade margin: {fade_margin.margin_db():.1f} dB")
-    print()
-
-    for label, loss_dirt in dirt_loss_by_label_db.items():
-        print(
-            f"{label:12s} | dirt loss = {loss_dirt:5.1f} dB | "
-            f"link budget = {link_budget[label]:6.2f} dB | max distance = {max_distance[label]:9.2f} m"
+    link_budget_db = {
+        label: float(
+            np.mean(
+                [
+                    p_t_dbm
+                    + g_t_dbi
+                    + g_r_dbi
+                    - loss_dirt
+                    - spreading_factor.sensitivity_dbm()
+                    - shadowing_samples[i]
+                    - fading_samples[i]
+                    for i in range(rounds)
+                ]
+            )
         )
+        for label, loss_dirt in dirt_loss_db.items()
+    }
+
+    result_rows = []
+    for environment in environments:
+        max_distance = {
+            label: max_distance_from_link_budget(budget, f_hz, environment)
+            for label, budget in link_budget_db.items()
+        }
+        for label, loss_dirt in dirt_loss_db.items():
+            result_rows.append(
+                [
+                    label,
+                    environment.name,
+                    f"{float(environment):.1f}",
+                    f"{loss_dirt:.3f}",
+                    f"{link_budget_db[label]:.2f}",
+                    f"{max_distance[label]:.2f}",
+                ]
+            )
+
+    fig = plt.figure(figsize=(18, 10))
+    gs = fig.add_gridspec(2, 2, width_ratios=[1.25, 1.0], height_ratios=[1, 1])
+
+    ax_info = fig.add_subplot(gs[0, 0])
+    ax_results = fig.add_subplot(gs[1, 0])
+    ax_fading = fig.add_subplot(gs[0, 1])
+    ax_shadowing = fig.add_subplot(gs[1, 1])
+
+    ax_info.axis("off")
+    info_rows = [
+        ["TX Power (dBm)", f"{p_t_dbm:.1f}"],
+        ["TX Antenna Gain (dBi)", f"{g_t_dbi:.1f}"],
+        ["RX Antenna Gain (dBi)", f"{g_r_dbi:.1f}"],
+        ["RX Sensitivity SF7 (dBm)", f"{spreading_factor.sensitivity_dbm():.1f}"],
+        ["Frequency (MHz)", f"{f_hz / 1e6:.1f}"],
+        ["Simulation Rounds", f"{rounds:,}"],
+        ["Mean Fading (dB)", f"{mean_fading_db:.2f}"],
+        ["Mean Shadowing (dB)", f"{mean_shadowing_db:.2f}"],
+    ]
+    info_table = ax_info.table(
+        cellText=info_rows,
+        colLabels=["Parameter", "Value"],
+        cellLoc="left",
+        loc="center",
+    )
+    info_table.auto_set_font_size(False)
+    info_table.set_fontsize(10)
+    info_table.scale(1.05, 1.35)
+    ax_info.set_title("Simulation Parameters", fontsize=12, fontweight="bold", pad=10)
+
+    ax_fading.hist(fading_samples, bins=30, color="cyan", alpha=0.75, edgecolor="black")
+    ax_fading.axvline(mean_fading_db, color="red", linestyle="--", linewidth=2)
+    ax_fading.set_title("Fading Distribution", fontsize=11, fontweight="bold")
+    ax_fading.set_xlabel("Fading (dB)")
+    ax_fading.set_ylabel("Frequency")
+    ax_fading.grid(alpha=0.25)
+
+    ax_shadowing.hist(shadowing_samples, bins=30, color="green", alpha=0.75, edgecolor="black")
+    ax_shadowing.axvline(mean_shadowing_db, color="red", linestyle="--", linewidth=2)
+    ax_shadowing.set_title("Shadowing Distribution", fontsize=11, fontweight="bold")
+    ax_shadowing.set_xlabel("Shadowing (dB)")
+    ax_shadowing.set_ylabel("Frequency")
+    ax_shadowing.grid(alpha=0.25)
+
+    ax_results.axis("off")
+    results_table = ax_results.table(
+        cellText=result_rows,
+        colLabels=["Surface", "Environment", "n", "Dirt Loss", "Link Budget", "Max Dist (m)"],
+        cellLoc="center",
+        loc="center",
+    )
+    results_table.auto_set_font_size(False)
+    results_table.set_fontsize(8.8)
+    results_table.scale(1.0, 1.2)
+    ax_results.set_title("LoRa Coverage Results", fontsize=12, fontweight="bold", pad=10)
+
+    plt.tight_layout()
+    plt.savefig("result.png", dpi=120, bbox_inches="tight")
+    plt.show()
