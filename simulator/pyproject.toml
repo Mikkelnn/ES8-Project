@@ -19,6 +19,8 @@ dependencies = [
     "rich>=14.3.3",
     "lonboard>=0.14.0",
     "pyarrow>=23.0.1",
+    "networkx>=3.6.1",
+    "tqdm>=4.67.3",
 ]
 
 [dependency-groups]
