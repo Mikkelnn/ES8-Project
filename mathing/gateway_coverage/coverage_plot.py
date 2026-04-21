@@ -79,25 +79,25 @@ def style_axes(
         ax.set_xlim(*xlim)
 
 
-def add_vertical_marker(ax: plt.Axes, x: float, label: str) -> None:
-    """Add a red dashed vertical marker with legend label."""
+def add_vertical_marker(ax: plt.Axes, x: float, label: str, color: str = "red") -> None:
+    """Add a dashed vertical marker with legend label."""
     ax.axvline(
         x,
         linestyle="--",
         linewidth=2,
-        color="red",
+        color=color,
         zorder=5,
         label=label,
     )
 
 
-def add_horizontal_marker(ax: plt.Axes, y: float, label: str) -> None:
-    """Add a red dashed horizontal marker with legend label."""
+def add_horizontal_marker(ax: plt.Axes, y: float, label: str, color: str = "red") -> None:
+    """Add a dashed horizontal marker with legend label."""
     ax.axhline(
         y,
         linestyle="--",
         linewidth=2,
-        color="red",
+        color=color,
         zorder=5,
         label=label,
     )
@@ -115,7 +115,7 @@ def plot_empirical_cdf(
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.plot(x, cdf, linewidth=2, zorder=2, label="CDF")
     if quantile_x is not None and quantile_label is not None:
-        add_vertical_marker(ax, quantile_x, quantile_label)
+        add_vertical_marker(ax, quantile_x, quantile_label, color="green")
     style_axes(ax, title, xlabel, "CDF")
     if quantile_x is not None:
         ax.legend()
@@ -134,10 +134,10 @@ def plot_histogram(
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.hist(samples, bins=bins, density=True, alpha=0.75, edgecolor="black", zorder=2)
     if mean_value is not None:
-        add_vertical_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB")
+        add_vertical_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB", color="red")
     if extra_vlines:
         for x, label in extra_vlines:
-            add_vertical_marker(ax, x, label)
+            add_vertical_marker(ax, x, label, color="green")
     style_axes(ax, title, xlabel, "Probability Density")
     if mean_value is not None or extra_vlines:
         ax.legend()
@@ -159,8 +159,8 @@ def plot_series_over_rounds(
     xlim = (float(np.min(rounds_axis)), float(np.max(rounds_axis)))
 
     ax.plot(rounds_axis, series, linewidth=1.0, label=series_label, zorder=2)
-    add_horizontal_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB")
-    add_horizontal_marker(ax, constant_level_db, f"Constant part: {constant_level_db:.2f} dB")
+    add_horizontal_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB", color="red")
+    add_horizontal_marker(ax, constant_level_db, f"Constant part: {constant_level_db:.2f} dB", color="green")
 
     style_axes(ax, title, "Round", ylabel, xlim=xlim)
     ax.legend()
@@ -178,7 +178,7 @@ def plot_cdf_on_axes(
     """Draw a CDF plot on provided axes."""
     x, cdf = empirical_cdf(samples)
     ax.plot(x, cdf, linewidth=2, zorder=2, label="CDF")
-    add_vertical_marker(ax, quantile_x, quantile_label)
+    add_vertical_marker(ax, quantile_x, quantile_label, color="green")
     style_axes(ax, title, xlabel, "CDF")
     ax.legend(fontsize=8)
 
@@ -195,8 +195,8 @@ def plot_hist_on_axes(
 ) -> None:
     """Draw a histogram on provided axes."""
     ax.hist(samples, bins=bins, density=True, alpha=0.75, edgecolor="black", zorder=2)
-    add_vertical_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB")
-    add_vertical_marker(ax, quantile_value, quantile_label)
+    add_vertical_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB", color="red")
+    add_vertical_marker(ax, quantile_value, quantile_label, color="green")
     style_axes(ax, title, xlabel, "Probability Density")
     ax.legend(fontsize=8)
 
@@ -215,8 +215,8 @@ def plot_rounds_on_axes(
     xlim = (float(np.min(rounds_axis)), float(np.max(rounds_axis)))
 
     ax.plot(rounds_axis, series, linewidth=1.0, label=series_label, zorder=2)
-    add_horizontal_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB")
-    add_horizontal_marker(ax, constant_level_db, f"Constant part: {constant_level_db:.2f} dB")
+    add_horizontal_marker(ax, mean_value, f"Mean: {mean_value:.2f} dB", color="red")
+    add_horizontal_marker(ax, constant_level_db, f"Constant part: {constant_level_db:.2f} dB", color="green")
     style_axes(ax, title, "Round", ylabel, xlim=xlim)
     ax.legend(fontsize=8)
 
