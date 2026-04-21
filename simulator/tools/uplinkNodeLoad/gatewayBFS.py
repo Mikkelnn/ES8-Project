@@ -7,7 +7,7 @@ from collections import deque, defaultdict
 # CONFIG
 # -----------------------------
 INPUT_FILE = "node_outputs.json"
-RADIUS_M = 125
+RADIUS_M = 300
 
 
 # -----------------------------
@@ -127,7 +127,7 @@ def main():
     results = {
         "gateway_radius_m": RADIUS_M,
         "total_nodes": total_nodes,
-        "ttoal_reached": reached_count,
+        "total_reached": reached_count,
         "total_nodes_unreached": unreached_count,
 
         "max_hop": {
