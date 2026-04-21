@@ -20,7 +20,7 @@ init_Temp = np.transpose(init_Temp)
 noiseVar = 3.915e-9
 noiseVarTemp = 6.9e-10
 
-simLength = 365 #days
+simLength = 365*4 #days
 samplesDay = 24*3600/t0
 k_Temp = 5.559e-6
 
@@ -67,7 +67,34 @@ def plotData(data):
     print(f"  Mean: {np.mean(alpha_values):.6e}")
     print(f"  Std Dev: {np.std(alpha_values):.6e}")
         
-
+def plot_psd(w=None, psd=None):
+    """
+    Plot the Power Spectral Density of the AR model.
+    
+    Args:
+        w: Frequency array (default: np.linspace(0, np.pi, 1024))
+        psd: PSD values (default: computed from AR model)
+    """
+    if w is None or psd is None:
+        # Compute PSD if not provided
+        w = np.linspace(0, np.pi, 1024)
+        den = np.ones_like(w, dtype=complex)
+        
+        for k, c_stdk in enumerate(c_std, start=1):
+            den -= c_stdk * np.exp(-1j * k * w)
+        
+        psd = noiseVar / np.abs(den)**2
+    
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    ax.semilogy(w, psd, 'b-', linewidth=2)
+    ax.set_xlabel('Normalized Frequency (rad/sample)')
+    ax.set_ylabel('Power Spectral Density')
+    ax.set_title('Power Spectral Density of AR Clock Drift Model')
+    ax.grid(True, which='both', alpha=0.3)
+    
+    plt.tight_layout()
+    plt.show()
 
 def plot_multiple_realizations(num_realizations=10):
     """
@@ -198,23 +225,15 @@ def get_model_state_at_time(time_x, data, time_step_seconds=t0):
 
 def main ():
     # Uncomment the following line to plot a single realization with detailed stats
-    # data = ARModelSimple()
-    ARArray = np.array([[c_std[0], c_std[1], c_std[2], c_std[3], c_std[4]],
-                        [1, 0, 0, 0, 0],
-                        [0, 1, 0, 0, 0],
-                        [0, 0, 1, 0, 0],
-                        [0, 0, 0, 1, 0]])
-    
-    eigValues, eigVectors = np.linalg.eig(ARArray)
-    eigValues = np.abs(eigValues)
-    print(eigValues)
+    # data = ARModelSimple()  
 
     # Plot 10 realizations on the same plot
-    # plot_multiple_realizations(num_realizations=10)
+    plot_multiple_realizations(num_realizations=10)
 
     #Temperature based drift
     # data = tempModel(start = 1) #Write month number
     # plotData(data)
+    # plot_psd()
     
 
 if __name__=="__main__":
