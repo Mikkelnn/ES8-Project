@@ -487,6 +487,42 @@ def gdf_to_road_intersection_json(gdf: gpd.GeoDataFrame, svg_width: int = 1200, 
     return result
 
 
+def result_to_processed_roads_js(result: dict,
+                                 output_js_path: str = "processedRoads.js",
+                                 variable_name: str = "RAW") -> dict:
+    """
+    Convert the generated result dict into processedRoads.js roads-only format:
+    const RAW = {"roads": {"<osm_id>": "M... L..."}};
+    """
+    roads_in = result.get("Road_ID", {}) if isinstance(result, dict) else {}
+    roads_out = {}
+
+    for osm_id, road_info in roads_in.items():
+        if not isinstance(road_info, dict):
+            continue
+
+        # Each road may contain multiple path fragments; processedRoads.js stores one string.
+        path_parts = road_info.get("path", [])
+        if isinstance(path_parts, list):
+            joined_path = " ".join(p for p in path_parts if isinstance(p, str) and p.strip())
+        elif isinstance(path_parts, str):
+            joined_path = path_parts
+        else:
+            joined_path = ""
+
+        if joined_path:
+            roads_out[str(osm_id)] = joined_path
+
+    payload = {"roads": roads_out}
+
+    with open(output_js_path, "w", encoding="utf-8") as f:
+        f.write(f"const {variable_name} = ")
+        json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
+        f.write(";\n")
+
+    return payload
+
+
 
 def download_and_extract(url: str, filename: str):
     def _download(url: str, filename: str):
@@ -532,40 +568,45 @@ def download_and_extract(url: str, filename: str):
    
 
 if __name__ == "__main__":
-  geo_data_file = "denmark.gpkg"
-  url = "https://download.geofabrik.de/europe/denmark-latest-free.gpkg.zip"
-  
-  layer_name = "gis_osm_roads_free"
-  target_classes = ["secondary", "primary", "tertiary", "residential", "unclassified"]
-  
-  if not Path(geo_data_file).exists():
-      download_and_extract(url, geo_data_file)
+        geo_data_file = "denmark.gpkg"
+        url = "https://download.geofabrik.de/europe/denmark-latest-free.gpkg.zip"
 
-  # load road layer, extract and filter
-  print(f"Loading data ({geo_data_file})...")
-  gdf = gpd.read_file(geo_data_file, layer=layer_name)
+        layer_name = "gis_osm_roads_free"
+        target_classes = ["secondary", "primary", "tertiary", "residential", "unclassified"]
 
-  print("Extract classes...")
-  gdf_classes = road_extractor(gdf, target_fclasses=target_classes)
+        if not Path(geo_data_file).exists():
+                download_and_extract(url, geo_data_file)
 
-  print("Filter frame...")
-  roadnetwork_filtered = filtered_frame(gdf_classes)
+        # load road layer, extract and filter
+        print(f"Loading data ({geo_data_file})...")
+        gdf = gpd.read_file(geo_data_file, layer=layer_name)
 
-  # intersections
-#   print("Finding intersections...")
-#   intersections = find_road_intersections(roadnetwork_filtered)
-#   clustered_intersections = cluster_nearby_intersections(intersections, radius_m=20)
+        print("Extract classes...")
+        gdf_classes = road_extractor(gdf, target_fclasses=target_classes)
 
-  print("Combining roads and intersection data...")
-  combined_gdf = combine_road_intersections(roadnetwork_filtered)
+        print("Filter frame...")
+        roadnetwork_filtered = filtered_frame(gdf_classes)
 
-  # build data format
-  print("Converting combined data to json format used in GUI...")
-  result = gdf_to_road_intersection_json(combined_gdf)
+        # intersections
+        # print("Finding intersections...")
+        # intersections = find_road_intersections(roadnetwork_filtered)
+        # clustered_intersections = cluster_nearby_intersections(intersections, radius_m=20)
 
-  # save data
-  output_path = "roadnetwork_postproc_PSTR.json"
-  with open(output_path, "w") as f:
-    json.dump(result, f, indent=2)
+        print("Combining roads and intersection data...")
+        combined_gdf = combine_road_intersections(roadnetwork_filtered)
 
-  print(f"JSON written to: {output_path}")
+        # build data format
+        print("Converting combined data to json format used in GUI...")
+        result = gdf_to_road_intersection_json(combined_gdf)
+
+        # save data
+        output_path = "roadnetwork_postproc_PSTR.json"
+        with open(output_path, "w") as f:
+                json.dump(result, f, indent=2)
+
+        print(f"JSON written to: {output_path}")
+
+        # save roads-only JS in processedRoads.js format
+        roads_js_path = "processedRoads.js"
+        result_to_processed_roads_js(result, output_js_path=roads_js_path)
+        print(f"Road JS written to: {roads_js_path}")
