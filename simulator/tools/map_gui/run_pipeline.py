@@ -42,8 +42,8 @@ NODE_GENERATION  = HERE / "node_generation.py"
 # Files to delete before starting and to watch for after the GUI runs
 FILES_TO_DELETE = [
     HERE / "selected_roads.json",
-    HERE / "node_outputs.json",
-    HERE / "node_outputs.svg",
+    # HERE / "node_outputs.json",
+    # HERE / "node_outputs.svg",
 ]
 WATCH_FILE = HERE / "selected_roads.json"
 
@@ -166,7 +166,7 @@ def main() -> None:
         step_pre_process()
 
         # ── Step 1: clean ────────────────────────────────────────────────────
-        # step_clean()
+        step_clean()
 
         # ── Step 2: start GUI ────────────────────────────────────────────────
         gui_proc = step_gui(args.host, args.port)
