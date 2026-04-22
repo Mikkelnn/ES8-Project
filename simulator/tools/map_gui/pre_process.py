@@ -633,6 +633,7 @@ if __name__ == "__main__":
         print("Find and cluster intersections...")
         intersections = find_road_intersections(roadnetwork_filtered)
         intesection_clustered = cluster_nearby_intersections(intersections)
+        # intesection_clustered = None
 
         print("Combining roads and intersection data...")
         combined_gdf = combine_road_intersections(roadnetwork_filtered, intesection_clustered)
