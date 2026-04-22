@@ -257,32 +257,42 @@ def cluster_nearby_intersections(intersections_gdf, radius_m=10):
     result = result.to_crs(epsg=4326)
     return result
 
-def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered_intersections: gpd.GeoDataFrame):
-    # some fix... ????
-  if "intersection_id" not in clustered_intersections.columns:
-      clustered_intersections["intersection_id"] = clustered_intersections.index
+def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered_intersections: gpd.GeoDataFrame = None):
+    combined = []
+  
+    if clustered_intersections is not None:
+        # some fix... ????
+        if "intersection_id" not in clustered_intersections.columns:
+            clustered_intersections["intersection_id"] = clustered_intersections.index
+    
+        # Convert intersections_clustered to GeoJSON features
+        intersections_geojson = json.loads(clustered_intersections.to_json())
 
-  # Convert intersections_clustered to GeoJSON features
-  roadnetwork_geojson = json.loads(roadnetwork_filtered.to_json())
-  intersections_geojson = json.loads(clustered_intersections.to_json())
+        # Tag intersection features with a type indicator
+        for feature in intersections_geojson['features']:
+            feature['properties']['feature_type'] = 'intersection'
 
-  # Tag intersection features with a type indicator
-  for feature in intersections_geojson['features']:
-      feature['properties']['feature_type'] = 'intersection'
+        combined = intersections_geojson['features']
 
-  # Tag road features with a type indicator
-  for feature in roadnetwork_geojson['features']:
-      feature['properties']['feature_type'] = 'road'
+    if roadnetwork_filtered is not None:
+        # Convert intersections_clustered to GeoJSON features
+        roadnetwork_geojson = json.loads(roadnetwork_filtered.to_json())
 
-  # Combine features
-  combined_geojson = {
-      "type": "FeatureCollection",
-      "features": roadnetwork_geojson['features'] + intersections_geojson['features']
-  }
+        # Tag road features with a type indicator
+        for feature in roadnetwork_geojson['features']:
+            feature['properties']['feature_type'] = 'road'
 
-  # combined_gdf = gpd.GeoDataFrame(combined_geojson, geometry="geometry", crs="EPSG:3857")
-  # return combined_gdf.to_crs(epsg=4326)
-  return combined_geojson
+        combined = combined + roadnetwork_geojson['features']
+
+    # Combine features
+    combined_geojson = {
+        "type": "FeatureCollection",
+        "features": combined
+    }
+
+    combined_gdf = gpd.GeoDataFrame(combined_geojson, geometry="geometry", crs="EPSG:4326")
+    return combined_gdf
+    # return combined_geojson
 
 # =========================================================================== #
 #  Internal helpers                                                           #
@@ -527,12 +537,12 @@ if __name__ == "__main__":
   roadnetwork_filtered = filtered_frame(gdf_classes)
 
   # intersections
-  print("Finding intersections...")
-  intersections = find_road_intersections(roadnetwork_filtered)
-  clustered_intersections = cluster_nearby_intersections(intersections, radius_m=20)
+#   print("Finding intersections...")
+#   intersections = find_road_intersections(roadnetwork_filtered)
+#   clustered_intersections = cluster_nearby_intersections(intersections, radius_m=20)
 
   print("Combining roads and intersection data...")
-  combined_gdf = combine_road_intersections(roadnetwork_filtered, clustered_intersections)
+  combined_gdf = combine_road_intersections(roadnetwork_filtered)
 
   # build data format
   print("Converting combined data to json format used in GUI...")
