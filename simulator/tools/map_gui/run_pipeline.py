@@ -140,7 +140,7 @@ def main() -> None:
 
     try:
         # ── Step 1: clean ────────────────────────────────────────────────────
-        step_clean()
+        # step_clean()
 
         # ── Step 2: start GUI ────────────────────────────────────────────────
         gui_proc = step_gui(args.host, args.port)

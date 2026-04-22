@@ -572,7 +572,7 @@ if __name__ == "__main__":
         layer_name = "gis_osm_roads_free"
         target_classes = ["secondary", "primary", "tertiary", "residential", "unclassified"]
         
-        result_name = "processedRoads_1.js"
+        result_name = "processedRoads.js"
 
         if not Path(geo_data_file).exists():
                 download_and_extract(url, geo_data_file)
