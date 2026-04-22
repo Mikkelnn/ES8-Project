@@ -630,8 +630,12 @@ if __name__ == "__main__":
         print("Filter frame...")
         roadnetwork_filtered = filtered_frame(gdf_classes)
 
+        print("Find and cluster intersections...")
+        intersections = find_road_intersections(roadnetwork_filtered)
+        intesection_clustered = cluster_nearby_intersections(intersections)
+
         print("Combining roads and intersection data...")
-        combined_gdf = combine_road_intersections(roadnetwork_filtered)
+        combined_gdf = combine_road_intersections(roadnetwork_filtered, intesection_clustered)
 
         # build data format
         print("Converting combined data to json format used in GUI...")
