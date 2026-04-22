@@ -300,42 +300,6 @@ def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered
     return combined_gdf
     # return combined_geojson
 
-
-def result_to_js(result: dict,
-                output_path: str = "processedRoads.js",
-                variable_name: str = "RAW") -> dict:
-    """
-    Convert the generated result dict into processedRoads.js roads-only format:
-    const RAW = {"roads": {"<osm_id>": "M... L..."}};
-    """
-    roads_in = result.get("Road_ID", {}) if isinstance(result, dict) else {}
-    roads_out = {}
-
-    for osm_id, road_info in roads_in.items():
-        if not isinstance(road_info, dict):
-            continue
-
-        # Each road may contain multiple path fragments; processedRoads.js stores one string.
-        path_parts = road_info.get("path", [])
-        if isinstance(path_parts, list):
-            joined_path = " ".join(p for p in path_parts if isinstance(p, str) and p.strip())
-        elif isinstance(path_parts, str):
-            joined_path = path_parts
-        else:
-            joined_path = ""
-
-        if joined_path:
-            roads_out[str(osm_id)] = joined_path
-
-    payload = {"roads": roads_out}
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(f"const {variable_name} = ")
-        json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
-        f.write(";\n")
-
-    return payload
-
 # =========================================================================== #
 #  Internal helpers                                                           #
 # =========================================================================== #
@@ -524,7 +488,7 @@ def gdf_to_road_intersection_json(gdf: gpd.GeoDataFrame, svg_width: int = 1200, 
     return result
 
 
-def result_to_processed_roads_js(result: dict,
+def result_to_js(result: dict,
                                  output_js_path: str = "processedRoads.js",
                                  variable_name: str = "RAW") -> dict:
     """
