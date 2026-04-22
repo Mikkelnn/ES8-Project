@@ -958,10 +958,17 @@
 
       function resetView() {
         if (confirmedMode) showAllRoads()
-        vx = 413.333
-        vy = 366.333
-        vw = 373.333
-        vh = 167.333
+        // initial centering....
+        // vx = 413.333
+        // vy = 366.333
+        // vw = 373.333
+        // vh = 167.333
+
+        // centered around Aalborg
+        vx = 256.058
+        vy = 226.96
+        vw = 153.996
+        vh = 153.996
         scheduleUpdate()
       }
 
@@ -1027,8 +1034,8 @@
           const svgX = vx + mx * (vw / rect.width),
             svgY = vy + my * (vh / rect.height)
           const f = e.deltaY > 0 ? 1.15 : 0.87
-          vw = Math.max(10, Math.min(1400, vw * f))
-          vh = Math.max(5, Math.min(700, vh * f))
+          vw = Math.max(1, Math.min(1400, vw * f)) // 10
+          vh = Math.max(1, Math.min(700, vh * f)) // 5
           vx = svgX - mx * (vw / rect.width)
           vy = svgY - my * (vh / rect.height)
           scheduleUpdate()
