@@ -33,6 +33,9 @@ from pathlib import Path
 # ── Resolve every file relative to THIS script's directory ───────────────────
 HERE = Path(__file__).resolve().parent
 
+PROCESSED_ROADS = HERE / "processedRoads.js"
+
+PRE_PROCESS      = HERE / "pre_process.py"
 DISPLAYED_GUI    = HERE / "displayed_gui.py"
 NODE_GENERATION  = HERE / "node_generation.py"
 
@@ -50,6 +53,26 @@ WATCH_FILE = HERE / "selected_roads.json"
 def _print(msg: str, prefix: str = "►") -> None:
     print(f"[pipeline] {prefix} {msg}", flush=True)
 
+def step_pre_process():
+    """
+    Step 0 — run pre_process.py in the foreground and return its exit code.
+    """
+    if Path(PROCESSED_ROADS).exists():
+        return
+    
+    _print("Running pre_process.py ...")
+    result = subprocess.run(
+        [sys.executable, str(PRE_PROCESS)],
+        check=False,
+    )
+    if result.returncode == 0:
+        _print("pre_process.py completed successfully ✓", prefix="✓")
+    else:
+        _print(
+            f"pre_process.py exited with code {result.returncode}",
+            prefix="✗",
+        )
+    return result.returncode
 
 def step_clean() -> None:
     """Step 1 — delete previous output files."""
@@ -139,6 +162,9 @@ def main() -> None:
     exit_code = 0
 
     try:
+        # ── Step 0: pre_process ────────────────────────────────────────────────────
+        step_pre_process()
+
         # ── Step 1: clean ────────────────────────────────────────────────────
         step_clean()
 
