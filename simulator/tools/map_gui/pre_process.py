@@ -261,9 +261,14 @@ def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered
     combined = []
   
     if clustered_intersections is not None:
-        # some fix... ????
-        if "intersection_id" not in clustered_intersections.columns:
-            clustered_intersections["intersection_id"] = clustered_intersections.index
+        clustered_intersections = clustered_intersections.copy()
+
+        # Ensure intersections have an "id" field used later by gdf_to_road_intersection_json.
+        if "id" not in clustered_intersections.columns:
+            if "intersection_id" in clustered_intersections.columns:
+                clustered_intersections["id"] = clustered_intersections["intersection_id"]
+            else:
+                clustered_intersections["id"] = clustered_intersections.index
     
         # Convert intersections_clustered to GeoJSON features
         intersections_geojson = json.loads(clustered_intersections.to_json())
@@ -290,7 +295,7 @@ def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered
         "features": combined
     }
 
-    combined_gdf = gpd.GeoDataFrame(combined_geojson, geometry="geometry", crs="EPSG:4326")
+    combined_gdf = gpd.GeoDataFrame.from_features(combined_geojson["features"], crs="EPSG:4326")
     return combined_gdf
     # return combined_geojson
 
@@ -320,7 +325,17 @@ def _build_projector(gdf: gpd.GeoDataFrame,
     - Aspect ratio is preserved via uniform scaling
     - The map is centred inside the viewport with the requested padding
     """
-    min_x, min_y, max_x, max_y = gdf.geometry.total_bounds
+    if gdf is None or gdf.empty or "geometry" not in gdf.columns:
+        raise ValueError("Cannot build projector: input GeoDataFrame has no geometry rows.")
+
+    non_empty_geoms = gdf.geometry.dropna()
+    if non_empty_geoms.empty:
+        raise ValueError("Cannot build projector: all geometry values are null.")
+
+    min_x, min_y, max_x, max_y = non_empty_geoms.total_bounds
+    if any(math.isnan(v) for v in (min_x, min_y, max_x, max_y)):
+        raise ValueError("Cannot build projector: geometry bounds are invalid (NaN).")
+
     print(f"GeoDataFrame bounds: min_x={min_x}, min_y={min_y}, max_x={max_x}, max_y={max_y}")
 
     usable_w = svg_w - 2 * padding
