@@ -372,7 +372,7 @@ def _build_projector(gdf: gpd.GeoDataFrame,
     if any(math.isnan(v) for v in (min_x, min_y, max_x, max_y)):
         raise ValueError("Cannot build projector: geometry bounds are invalid (NaN).")
 
-    print(f"GeoDataFrame bounds: min_x={min_x}, min_y={min_y}, max_x={max_x}, max_y={max_y}")
+    # print(f"GeoDataFrame bounds: min_x={min_x}, min_y={min_y}, max_x={max_x}, max_y={max_y}")
 
     usable_w = svg_w - 2 * padding
     usable_h = svg_h - 2 * padding
