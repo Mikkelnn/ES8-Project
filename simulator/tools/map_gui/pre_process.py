@@ -13,6 +13,7 @@ from shapely.geometry import MultiLineString, Point
 from shapely.geometry import MultiPoint
 import math
 import json
+import re
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 from pathlib import Path
@@ -521,6 +522,84 @@ def gdf_to_road_intersection_json(gdf: gpd.GeoDataFrame, svg_width: int = 1200, 
     }
 
     return result
+
+
+def result_to_processed_roads_js(result: dict,
+                                 output_js_path: str = "processedRoads.js",
+                                 variable_name: str = "RAW") -> dict:
+    """
+    Convert the generated result dict into processedRoads.js format for the HTML GUI.
+    Exports: roads (SVG paths), intersections (coordinates), and roads_bb (bounding boxes).
+    
+    Output format:
+    const RAW = {
+        "roads": {"<osm_id>": "M x,y L x,y ..."},
+        "intersections": {"<int_id>": [cx, cy]},
+        "roads_bb": {"<osm_id>": [x1, y1, x2, y2]}
+    };
+    """
+    roads_in = result.get("Road_ID", {}) if isinstance(result, dict) else {}
+    intersections_in = result.get("intersection_ID", {}) if isinstance(result, dict) else {}
+    
+    roads_out = {}
+    intersections_out = {}
+    roads_bb_out = {}
+
+    # Process roads and calculate bounding boxes
+    for osm_id, road_info in roads_in.items():
+        if not isinstance(road_info, dict):
+            continue
+
+        # Each road may contain multiple path fragments; join them into one string
+        path_parts = road_info.get("path", [])
+        if isinstance(path_parts, list):
+            joined_path = " ".join(p for p in path_parts if isinstance(p, str) and p.strip())
+        elif isinstance(path_parts, str):
+            joined_path = path_parts
+        else:
+            joined_path = ""
+
+        if joined_path:
+            roads_out[str(osm_id)] = joined_path
+            
+            # Calculate bounding box from SVG path commands (M x,y L x,y ...)
+            coords = []
+            for match in re.finditer(r'([ML])\s*([\d.]+)[,\s]+([\d.]+)', joined_path):
+                coords.append((float(match.group(2)), float(match.group(3))))
+            
+            if coords:
+                xs = [c[0] for c in coords]
+                ys = [c[1] for c in coords]
+                roads_bb_out[str(osm_id)] = [min(xs), min(ys), max(xs), max(ys)]
+
+    # Process intersections
+    for int_id, int_info in intersections_in.items():
+        if not isinstance(int_info, dict):
+            continue
+        
+        point_data = int_info.get("point", [])
+        if isinstance(point_data, list) and len(point_data) > 0:
+            # Extract first point [cx, cy]
+            first_point = point_data[0]
+            if isinstance(first_point, dict):
+                cx = first_point.get("cx")
+                cy = first_point.get("cy")
+                if cx is not None and cy is not None:
+                    intersections_out[str(int_id)] = [cx, cy]
+
+    payload = {
+        "roads": roads_out,
+        "intersections": intersections_out,
+        "roads_bb": roads_bb_out
+    }
+
+    with open(output_js_path, "w", encoding="utf-8") as f:
+        f.write(f"const {variable_name} = ")
+        json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
+        f.write(";\n")
+    return payload
+
+
 
 def download_and_extract(url: str, filename: str):
     def _download(url: str, filename: str):
