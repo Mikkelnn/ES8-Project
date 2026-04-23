@@ -8,19 +8,22 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-np.random.seed(42069)
+np.random.seed(42)
 
-t0 = 900
-c_std = np.array([0.92705, 0.4163, 0.07483, -0.387, -0.03118]) #AR-model constants from page 32
+
+tolerance = 5e-2
+meanDrift = np.random.uniform(-tolerance, tolerance)
+
+t0 = 0.1
+c_std = np.array([0.92705, 0.4163, 0.07483, -0.387, -0.03118])*0.95 #AR-model constants from page 32
 c_temp = np.array([0.4397, 0.3106, 0.1874])
-init = np.array([0, 3.95e-2, 3.95e-2, 3.95e-2, 3.95e-2, 3.95e-2]) #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
-init = np.transpose(init)
+
 init_Temp = np.array([0, 1.7e-3, 1.7e-3, 1.7e-3])
 init_Temp = np.transpose(init_Temp)
 noiseVar = 3.915e-9
 noiseVarTemp = 6.9e-10
 
-simLength = 365*4 #days
+simLength = 5 #minuttes
 samplesDay = 24*3600/t0
 k_Temp = 5.559e-6
 
@@ -30,14 +33,14 @@ def plotData(data):
     # Extract theta and alpha values
     theta_values = [point[0] for point in data]
     alpha_values = [point[1] for point in data]
-    time_steps = np.arange(len(data)) / 96  # Convert samples to days (96 samples per day)
+    time_steps = np.arange(len(data)) / 60  # Convert samples to days/minutes (96/60 samples per day/minute)
     
     # Create figure with two subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
     
     # Plot theta (clock drift)
     ax1.plot(time_steps, theta_values, 'b-', linewidth=1.5, label='Clock Drift (θ)')
-    ax1.set_xlabel('Time (days)')
+    ax1.set_xlabel('Time (minutes)')
     ax1.set_ylabel('Clock Drift (seconds)')
     ax1.set_title('Clock Drift (Theta) over Time')
     ax1.grid(True, alpha=0.3)
@@ -45,7 +48,7 @@ def plotData(data):
     
     # Plot alpha (clock skew)
     ax2.plot(time_steps, alpha_values, 'r-', linewidth=1.5, label='Clock Skew (α)')
-    ax2.set_xlabel('Time (days)')
+    ax2.set_xlabel('Time (minutes)')
     ax2.set_ylabel('Clock Skew (s/s)')
     ax2.set_title('Clock Skew (Alpha) over Time')
     ax2.grid(True, alpha=0.3)
@@ -107,21 +110,22 @@ def plot_multiple_realizations(num_realizations=10):
     
     for i in range(num_realizations):
         data = ARModelSimple()
+        # print(f"Realization {i} clock drift after 100 days: {data[9600][0]}")
         theta_values = [point[0] for point in data]
         alpha_values = [point[1] for point in data]
-        time_steps = np.arange(len(data)) / 96  # Convert samples to days
+        time_steps = np.arange(len(data)) / 60  # Convert samples to days/minuttes
         
         ax1.plot(time_steps, theta_values, alpha=0.7, linewidth=1)
         ax2.plot(time_steps, alpha_values, alpha=0.7, linewidth=1)
     
     # Configure theta subplot
-    ax1.set_xlabel('Time (days)')
+    ax1.set_xlabel('Time (minutes)')
     ax1.set_ylabel('Clock Drift (seconds)')
     ax1.set_title(f'{num_realizations} Clock Drift Realizations')
     ax1.grid(True, alpha=0.3)
     
     # Configure alpha subplot
-    ax2.set_xlabel('Time (days)')
+    ax2.set_xlabel('Time (minutes)')
     ax2.set_ylabel('Clock Skew (s/s)')
     ax2.set_title(f'{num_realizations} Clock Skew Realizations')
     ax2.grid(True, alpha=0.3)
@@ -131,6 +135,10 @@ def plot_multiple_realizations(num_realizations=10):
 
 
 def ARModelSimple():
+    # meanDrift = np.random.uniform(-tolerance, tolerance)
+    # print(f"Mean skew: {meanDrift}")
+    # meanDrift = 0
+
     A = np.array([[1, t0, 0, 0, 0, 0],
          [0, c_std[0], c_std[1], c_std[2], c_std[3], c_std[4]],
          [0, 1, 0, 0, 0, 0],
@@ -140,14 +148,20 @@ def ARModelSimple():
     std_dev = np.sqrt(noiseVar)
     z0 = np.random.normal(0, scale=std_dev)  
     w0 = np.array([0, z0, 0, 0, 0, 0]) 
+    init = np.array([0, meanDrift, meanDrift, meanDrift, meanDrift, meanDrift])*1.05 #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
+    init = np.transpose(init)
+
     X = A @ init + np.transpose(w0)
-    z = np.random.normal(0, scale=std_dev, size=simLength*96) #96 15 minuttes in a day 
+    z = np.random.normal(0, scale=std_dev, size=simLength*60) #96 15 minuttes in a day 
     data = [[X[0], X[1]]]
+    meanVector = np.array([0, meanDrift, meanDrift, meanDrift, meanDrift, meanDrift])
+    meanVector = np.transpose(meanVector)
+
     for i in range(len(z)):
         # print(f"Time: {i*t0} seconds\nX vector:\n{X.reshape(-1, 1)}\nnoise: {z[i]}")
-        w = np.array([0, z[i], 0, 0, 0, 0])
+        w = np.array([t0*meanDrift, z[i], 0, 0, 0, 0])
         w = np.transpose(w)
-        X = A @ X + w
+        X = A @ (X-meanVector) + w + meanVector
         data.append(X[:2])
     # print(data)
     return data
