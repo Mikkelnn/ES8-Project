@@ -12,19 +12,21 @@ np.random.seed(42)
 
 
 tolerance = 5e-2
-meanDrift = np.random.uniform(-tolerance, tolerance)
+meanDrift = 3.95e-5 #np.random.uniform(-tolerance, tolerance)
 
-t0 = 0.1
-c_std = np.array([0.92705, 0.4163, 0.07483, -0.387, -0.03118])*0.95 #AR-model constants from page 32
+t0 = 900
+c_std = np.array([0.9271, 0.4163, 0.07483, -0.387, -0.03118])*0.98 #AR-model constants from page 32
 c_temp = np.array([0.4397, 0.3106, 0.1874])
 
 init_Temp = np.array([0, 1.7e-3, 1.7e-3, 1.7e-3])
 init_Temp = np.transpose(init_Temp)
+
 noiseVar = 3.915e-9
 noiseVarTemp = 6.9e-10
 
-simLength = 5 #minuttes
-samplesDay = 24*3600/t0
+simLength = 365*4 #days
+timeScale = 'Days'
+samplesDay = int(24*3600/t0)
 k_Temp = 5.559e-6
 
 
@@ -33,14 +35,14 @@ def plotData(data):
     # Extract theta and alpha values
     theta_values = [point[0] for point in data]
     alpha_values = [point[1] for point in data]
-    time_steps = np.arange(len(data)) / 60  # Convert samples to days/minutes (96/60 samples per day/minute)
+    time_steps = np.arange(len(data)) / 96  # Convert samples to days/minutes (96/60 samples per day/minute)
     
     # Create figure with two subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
     
     # Plot theta (clock drift)
     ax1.plot(time_steps, theta_values, 'b-', linewidth=1.5, label='Clock Drift (θ)')
-    ax1.set_xlabel('Time (minutes)')
+    ax1.set_xlabel(f'Time ({timeScale})')
     ax1.set_ylabel('Clock Drift (seconds)')
     ax1.set_title('Clock Drift (Theta) over Time')
     ax1.grid(True, alpha=0.3)
@@ -48,7 +50,7 @@ def plotData(data):
     
     # Plot alpha (clock skew)
     ax2.plot(time_steps, alpha_values, 'r-', linewidth=1.5, label='Clock Skew (α)')
-    ax2.set_xlabel('Time (minutes)')
+    ax2.set_xlabel(f'Time ({timeScale})')
     ax2.set_ylabel('Clock Skew (s/s)')
     ax2.set_title('Clock Skew (Alpha) over Time')
     ax2.grid(True, alpha=0.3)
@@ -119,13 +121,13 @@ def plot_multiple_realizations(num_realizations=10):
         ax2.plot(time_steps, alpha_values, alpha=0.7, linewidth=1)
     
     # Configure theta subplot
-    ax1.set_xlabel('Time (minutes)')
+    ax1.set_xlabel(f'Time ({timeScale})')
     ax1.set_ylabel('Clock Drift (seconds)')
     ax1.set_title(f'{num_realizations} Clock Drift Realizations')
     ax1.grid(True, alpha=0.3)
     
     # Configure alpha subplot
-    ax2.set_xlabel('Time (minutes)')
+    ax2.set_xlabel(f'Time ({timeScale})')
     ax2.set_ylabel('Clock Skew (s/s)')
     ax2.set_title(f'{num_realizations} Clock Skew Realizations')
     ax2.grid(True, alpha=0.3)
@@ -152,16 +154,16 @@ def ARModelSimple():
     init = np.transpose(init)
 
     X = A @ init + np.transpose(w0)
-    z = np.random.normal(0, scale=std_dev, size=simLength*60) #96 15 minuttes in a day 
+    z = np.random.normal(0, scale=std_dev, size=simLength*96) #96 15 minuttes in a day 
     data = [[X[0], X[1]]]
     meanVector = np.array([0, meanDrift, meanDrift, meanDrift, meanDrift, meanDrift])
     meanVector = np.transpose(meanVector)
 
     for i in range(len(z)):
         # print(f"Time: {i*t0} seconds\nX vector:\n{X.reshape(-1, 1)}\nnoise: {z[i]}")
-        w = np.array([t0*meanDrift, z[i], 0, 0, 0, 0])
+        w = np.array([0, z[i], 0, 0, 0, 0])
         w = np.transpose(w)
-        X = A @ (X-meanVector) + w + meanVector
+        X = A @ X + w
         data.append(X[:2])
     # print(data)
     return data
@@ -235,18 +237,30 @@ def get_model_state_at_time(time_x, data, time_step_seconds=t0):
     
     return clock_drift, clock_skew    
         
-    
+def AR1Model():
+    VarStd = np.sqrt(noiseVar)
+    mean = 0
+    c1 = 0.95
+    alpha0 = 0
+    theta0 = 0
+    data = [[theta0, alpha0]]
+    for i in range(samplesDay*simLength):
+        skew = data[i][1]*c1 + np.random.normal(0, VarStd)
+        drift = data[i][0] + t0*(skew + mean)
+        data.append([drift, skew])
+    return data
 
 def main ():
     # Uncomment the following line to plot a single realization with detailed stats
-    # data = ARModelSimple()  
+    data = ARModelSimple()
+    # data = AR1Model()  
 
     # Plot 10 realizations on the same plot
-    plot_multiple_realizations(num_realizations=10)
+    # plot_multiple_realizations(num_realizations=10)
 
     #Temperature based drift
     # data = tempModel(start = 1) #Write month number
-    # plotData(data)
+    plotData(data)
     # plot_psd()
     
 
