@@ -38,6 +38,8 @@ from collections import defaultdict
 import sys as _sys
 _sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_svg import generate_svg
+from datetime import datetime
+import os
 
 # ── Projection constants ──────────────────────────────────────────────────────
 _SCALE       = 733.452594
@@ -55,8 +57,10 @@ SNAP_TOL       = 0.05   # SVG units — max intersection-to-chain snap distance
 # Put selected_roads.json in the same folder as node_generation.py.
 _CWD        = Path(__file__).resolve().parent
 INPUT_FILE  = str(_CWD / "selected_roads.json")
-OUTPUT_FILE = str(_CWD / "node_outputs.json")
 
+result_dir = _CWD / "results" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+os.makedirs(result_dir, exist_ok=True)
+OUTPUT_FILE = str(result_dir / "node_outputs.json")
 
 # ── Distance helpers ──────────────────────────────────────────────────────────
 
@@ -658,9 +662,10 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
     print(f"\n{'='*65}  Done.\n")
 
     # Auto-generate validation SVG alongside the JSON (both in CWD)
-    svg_path = str(_CWD / (Path(output_path).stem + ".svg"))
+    svg_path = Path(out_path).with_suffix('.svg')
     print("Generating validation SVG...")
-    generate_svg(input_path=str(out_path), output_path=svg_path)
+    print(f"HERE: {svg_path}")
+    generate_svg(input_path=str(out_path), output_path=str(svg_path))
 
 
 if __name__ == "__main__":

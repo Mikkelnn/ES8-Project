@@ -1,633 +1,1061 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Road Network Explorer</title>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&display=swap');
-  :root {
-    --bg:#0d0f14;--surface:#13161e;--border:#1e2330;
-    --road:#c62828;--road-hover:#ef5350;--road-sel:#ff8a80;
-    --pt:#1e3a5f;--pt-hover:#5b9bd5;--pt-sel:#ff6b35;
-    --text:#c8d0e0;--dim:#5a6478;--accent:#f0c040;--accent2:#ff6b35;
-  }
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;height:100vh;display:flex;flex-direction:column;overflow:hidden}
-  header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;gap:12px;flex-wrap:wrap}
-  .logo{font-family:'Syne',sans-serif;font-weight:800;font-size:14px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent)}
-  .stats{font-size:11px;color:var(--dim);display:flex;gap:16px}
-  .stats span b{color:var(--text)}
-  .controls{display:flex;gap:8px;align-items:center}
-  button{background:var(--border);color:var(--text);border:1px solid #2a3044;padding:5px 12px;font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;border-radius:3px;transition:all .15s}
-  button:hover{background:#252b3a;border-color:var(--accent);color:var(--accent)}
-  button.danger:hover{border-color:var(--accent2);color:var(--accent2)}
-  button.confirm{flex:1;background:rgba(0,180,100,.1);border-color:#00b464;color:#00b464}
-  button.confirm:hover{background:rgba(0,180,100,.2);border-color:#00e67a;color:#00e67a}
-  button.confirm:disabled{opacity:.35;cursor:not-allowed;border-color:var(--border);color:var(--dim)}
-  .main{display:flex;flex:1;overflow:hidden}
-  #svg-container{flex:1;overflow:hidden;position:relative;cursor:grab;background:var(--bg);background-image:linear-gradient(rgba(255,255,255,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.02) 1px,transparent 1px);background-size:40px 40px}
-  #svg-container.grabbing{cursor:grabbing}
-  #road-svg{width:100%;height:100%;display:block}
-  .rp{fill:none;stroke:var(--road);stroke-width:0.1;stroke-linecap:round;stroke-linejoin:round;cursor:pointer}
-  .rp:hover{stroke:var(--road-hover);stroke-width:0.2}
-  .rp.sel{stroke:var(--road-sel);stroke-width:0.2}
-  .ip{fill:var(--pt);stroke:#0d0f14;stroke-width:.5;cursor:pointer}
-  .ip:hover{fill:var(--pt-hover)}
-  .ip.sel{fill:var(--pt-sel)}
-  .gw{fill:var(--accent);stroke:none;pointer-events:none}
-  .gw.sel{fill:var(--accent2)}
-  #panel{width:300px;background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0}
-  .ph{padding:14px 16px 10px;border-bottom:1px solid var(--border);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);display:flex;align-items:center;justify-content:space-between}
-  .badge{background:var(--accent);color:#0d0f14;font-size:10px;font-weight:700;padding:1px 7px;border-radius:10px}
-  #sel-list{flex:1;overflow-y:auto;padding:8px}
-  #sel-list::-webkit-scrollbar{width:4px}
-  #sel-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-  .ri{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:3px;border:1px solid transparent;margin-bottom:3px;font-size:11px;animation:fi .2s ease;cursor:pointer;transition:background .1s,border-color .1s}
-  .ri:hover{background:rgba(240,192,64,.06);border-color:rgba(240,192,64,.2)}
-  .ri .rid{color:var(--accent);font-weight:600}
-  .ri .rm{background:none;border:none;color:var(--dim);font-size:14px;padding:0 2px;cursor:pointer}
-  .ri .rm:hover{color:var(--accent2)}
-  .gw-item{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:3px;border:1px solid transparent;margin-bottom:3px;font-size:10px;background:rgba(240,192,64,.05);cursor:pointer;transition:background .1s,border-color .1s}
-  .gw-item:hover{background:rgba(240,192,64,.09);border-color:rgba(240,192,64,.22)}
-  .gw-item.sel{background:rgba(255,107,53,.14);border-color:rgba(255,107,53,.45)}
-  .gw-item .gid{color:var(--accent);font-weight:600;margin-right:8px}
-  .gw-item .coords{color:var(--text)}
-  @keyframes fi{from{opacity:0;transform:translateX(6px)}to{opacity:1;transform:translateX(0)}}
-  .empty{padding:24px 16px;text-align:center;color:var(--dim);font-size:11px;line-height:1.7}
-  .empty .icon{font-size:22px;display:block;margin-bottom:8px;opacity:.5}
-  .pf{padding:10px 12px;border-top:1px solid var(--border);display:flex;gap:6px}
-  .pf button{flex:1;font-size:10px}
-  button.toggle-active{background:rgba(240,192,64,.12);border-color:var(--accent);color:var(--accent)}
-  #tip{position:fixed;background:#1a1f2e;border:1px solid var(--accent);color:var(--text);padding:5px 10px;border-radius:4px;font-size:11px;pointer-events:none;opacity:0;transition:opacity .12s;z-index:100;white-space:nowrap}
-  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--surface);border:1px solid var(--accent);color:var(--accent);padding:8px 18px;border-radius:4px;font-size:12px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:200}
-  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  #loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:16px}
-  .lt{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--accent);letter-spacing:.15em}
-  .ls{font-size:11px;color:var(--dim)}
-  .sp{width:36px;height:36px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
-  @keyframes spin{to{transform:rotate(360deg)}}
-</style>
-<script src="processedRoads.js"></script>
-</head>
-<body>
-<div id="loading"><div class="sp"></div><div class="lt">ROAD NETWORK</div><div class="ls">Loading data...</div></div>
-<header>
-  <div class="logo">Road Network Explorer</div>
-  <div class="stats">
-    <span>Total: <b>14,262</b> roads</span>
-    <span>In view: <b id="stat-vis">0</b></span>
-    <span>Selected: <b id="stat-sel">0</b></span>
-  </div>
-  <div class="controls">
-    <button onclick="resetView()">Reset View</button>
-    <button onclick="ClearRoad()">Clear Road</button>
-    <button onclick="SelectRoadsInView()">Select Displayed Roads</button>
-    <button id="gateway-toggle" onclick="toggleGatewayMode()">Place Gateways</button>
-    <button onclick="importGatewaysFromFile()">Import Gateways</button>
-    <input type="file" id="fileInput" accept=".json" style="display:none" />
-    <button onclick="clearGateways()">Clear Gateways</button>
-    <button class="danger" onclick="clearAll()">Clear All</button>
-  </div>
-</header>
-<div class="main">
-  <div id="svg-container">
-    <svg id="road-svg" xmlns="http://www.w3.org/2000/svg">
-      <g id="roads-layer"></g>
-      <g id="points-layer"></g>
-      <g id="gateways-layer"></g>
-    </svg>
-  </div>
-  <div id="panel">
-    <div class="ph">Selected Roads<span class="badge" id="sel-count">0</span></div>
-    <div id="sel-list"><div class="empty"><span class="icon">&#128739;</span>Click any road to select it.</div></div>
-    <div class="ph">Placed Gateways<span class="badge" id="gw-count">0</span></div>
-    <div id="gw-list"><div class="empty"><span class="icon">&#128205;</span>Enable Place Gateways, then click on the map.</div></div>
-    <div class="pf" id="show-all-btn" style="display:none">
-      <button onclick="showAllRoads()">&#8635; Show All Roads</button>
-    </div>
-    <div class="pf">
-      <button onclick="ClearRoad()">Clear Road</button>
-      <button onclick="clearGateways()">Clear Gateways</button>
-    </div>
-    <div class="pf">
-      <button class="confirm" onclick="confirmSelection()">&#10003; Confirm Selection</button>
-    </div>
-  </div>
-</div>
-<div id="tip"></div><div id="toast"></div>
-
-<script>
-
-// ── State ──────────────────────────────────────────────────────────
-let vx=413.333, vy=366.333, vw=373.333, vh=167.333;
-let selectedIDs = [];
-let gatewayMode = false;
-let gateways = [];
-let selectedGatewayIDs = new Set();
-const GATEWAY_RADIUS = 0.1;
-let confirmedMode = false;  // when true, only confirmed roads are rendered
-let confirmedSet = new Set();
-const domCache = {};          // rid -> <path> element (only for visible roads)
-const ptCache  = {};          // iid -> <circle> element
-
-// ── Spatial grid index ─────────────────────────────────────────────
-// Divide SVG coordinate space into grid cells; each cell stores road IDs
-const CELL = 20;              // grid cell size in SVG units
-const gridIndex = {};         // "gx,gy" -> Set of rids
-
-function gridKey(gx,gy){ return gx+','+gy; }
-
-function buildIndex(){
-  const bb = RAW.roads_bb;
-  for(const rid in bb){
-    const [x1,y1,x2,y2] = bb[rid];
-    const gx1=Math.floor(x1/CELL), gy1=Math.floor(y1/CELL);
-    const gx2=Math.floor(x2/CELL), gy2=Math.floor(y2/CELL);
-    for(let gx=gx1;gx<=gx2;gx++){
-      for(let gy=gy1;gy<=gy2;gy++){
-        const k=gridKey(gx,gy);
-        if(!gridIndex[k]) gridIndex[k]=new Set();
-        gridIndex[k].add(rid);
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Road Network Explorer</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@700;800&display=swap');
+      :root {
+        --bg: #0d0f14;
+        --surface: #13161e;
+        --border: #1e2330;
+        --road: #c62828;
+        --road-hover: #ef5350;
+        --road-sel: #ff8a80;
+        --pt: #1e3a5f;
+        --pt-hover: #5b9bd5;
+        --pt-sel: #ff6b35;
+        --text: #c8d0e0;
+        --dim: #5a6478;
+        --accent: #f0c040;
+        --accent2: #ff6b35;
       }
-    }
-  }
-}
-
-function queryVisible(vx,vy,vw,vh, pad){
-  // Return Set of road IDs whose bbox intersects the viewport (+ padding)
-  const x1=vx-pad, y1=vy-pad, x2=vx+vw+pad, y2=vy+vh+pad;
-  const gx1=Math.floor(x1/CELL), gy1=Math.floor(y1/CELL);
-  const gx2=Math.floor(x2/CELL), gy2=Math.floor(y2/CELL);
-  const result=new Set();
-  for(let gx=gx1;gx<=gx2;gx++){
-    for(let gy=gy1;gy<=gy2;gy++){
-      const cell=gridIndex[gridKey(gx,gy)];
-      if(cell) cell.forEach(rid=>result.add(rid));
-    }
-  }
-  return result;
-}
-
-// ── DOM helpers ────────────────────────────────────────────────────
-const roadsLayer  = document.getElementById('roads-layer');
-const pointsLayer = document.getElementById('points-layer');
-const gatewaysLayer = document.getElementById('gateways-layer');
-const svg = document.getElementById('road-svg');
-const tip = document.getElementById('tip');
-const ENABLE_POINTS_LAYER = false;
-
-function makeRoad(rid){
-  const el=document.createElementNS('http://www.w3.org/2000/svg','path');
-  el.setAttribute('d', RAW.roads[rid]);
-  el.className.baseVal = 'rp' + (selectedIDs.includes(rid)?' sel':'');
-  el.dataset.rid=rid;
-  el.addEventListener('click', onRoadClick);
-  el.addEventListener('mouseenter', e=>{ tip.textContent='Road: '+rid; tip.style.opacity='1'; moveTip(e); });
-  el.addEventListener('mouseleave', ()=>{ tip.style.opacity='0'; });
-  return el;
-}
-
-function makePoint(iid){
-  const [cx,cy]=RAW.intersections[iid];
-  const el=document.createElementNS('http://www.w3.org/2000/svg','circle');
-  el.setAttribute('cx',cx); el.setAttribute('cy',cy); el.setAttribute('r','1.5');
-  el.className.baseVal='ip';
-  el.style.pointerEvents='none'; // don't interfere with road clicks
-  return el;
-}
-
-// ── Viewport culling ───────────────────────────────────────────────
-let currentVisible = new Set();
-let rafPending = false;
-
-function scheduleUpdate(){
-  if(rafPending) return;
-  rafPending=true;
-  requestAnimationFrame(updateViewport);
-}
-
-function updateViewport(){
-  rafPending=false;
-  svg.setAttribute('viewBox',`${vx} ${vy} ${vw} ${vh}`);
-
-  const PAD = Math.max(vw,vh)*0.1;  // small look-ahead padding
-  const queriedVisible = confirmedMode
-    ? confirmedSet
-    : queryVisible(vx,vy,vw,vh,PAD);
-  const nextVisible = queriedVisible;
-
-  // Add roads that entered the viewport
-  const addFrag = document.createDocumentFragment();
-  nextVisible.forEach(rid=>{
-    if(!currentVisible.has(rid)){
-      const el=makeRoad(rid);
-      domCache[rid]=el;
-      addFrag.appendChild(el);
-    }
-  });
-  roadsLayer.appendChild(addFrag);
-
-  // Remove roads that left the viewport
-  currentVisible.forEach(rid=>{
-    if(!nextVisible.has(rid)){
-      const el=domCache[rid];
-      if(el){ el.remove(); delete domCache[rid]; }
-    }
-  });
-
-  currentVisible=nextVisible;
-  document.getElementById('stat-vis').textContent=currentVisible.size.toLocaleString();
-
-  // Points: only show when enabled and zoomed in enough (vw < 200)
-  if(ENABLE_POINTS_LAYER && vw < 200){
-    const ptFrag=document.createDocumentFragment();
-    const ptVisible=queryVisible(vx,vy,vw,vh,PAD);
-    // Show only points whose coords fall in view
-    for(const iid in RAW.intersections){
-      const [cx,cy]=RAW.intersections[iid];
-      if(cx>=vx-PAD && cx<=vx+vw+PAD && cy>=vy-PAD && cy<=vy+vh+PAD){
-        if(!ptCache[iid]){
-          const el=makePoint(iid); ptCache[iid]=el; ptFrag.appendChild(el);
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'JetBrains Mono', monospace;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 20px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .logo {
+        font-family: 'Syne', sans-serif;
+        font-weight: 800;
+        font-size: 14px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+      }
+      .stats {
+        font-size: 11px;
+        color: var(--dim);
+        display: flex;
+        gap: 16px;
+      }
+      .stats span b {
+        color: var(--text);
+      }
+      .controls {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      button {
+        background: var(--border);
+        color: var(--text);
+        border: 1px solid #2a3044;
+        padding: 5px 12px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        cursor: pointer;
+        border-radius: 3px;
+        transition: all 0.15s;
+      }
+      button:hover {
+        background: #252b3a;
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      button.danger:hover {
+        border-color: var(--accent2);
+        color: var(--accent2);
+      }
+      button.confirm {
+        flex: 1;
+        background: rgba(0, 180, 100, 0.1);
+        border-color: #00b464;
+        color: #00b464;
+      }
+      button.confirm:hover {
+        background: rgba(0, 180, 100, 0.2);
+        border-color: #00e67a;
+        color: #00e67a;
+      }
+      button.confirm:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+        border-color: var(--border);
+        color: var(--dim);
+      }
+      .main {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+      }
+      #svg-container {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+        cursor: grab;
+        background: var(--bg);
+        background-image: linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        background-size: 40px 40px;
+      }
+      #svg-container.grabbing {
+        cursor: grabbing;
+      }
+      #road-svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .rp {
+        fill: none;
+        stroke: var(--road);
+        stroke-width: var(--road-stroke-width);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        cursor: pointer;
+      }
+      .rp:hover {
+        stroke: var(--road-hover);
+        stroke-width: var(--road-hover-stroke-width);
+      }
+      .rp.sel {
+        stroke: var(--road-sel);
+        stroke-width: var(--road-sel-stroke-width);
+      }
+      .ip {
+        fill: var(--pt);
+        stroke: #0d0f14;
+        stroke-width: 0.5;
+        cursor: pointer;
+      }
+      .ip:hover {
+        fill: var(--pt-hover);
+      }
+      .ip.sel {
+        fill: var(--pt-sel);
+      }
+      .gw {
+        fill: var(--accent);
+        stroke: none;
+        pointer-events: none;
+      }
+      .gw.sel {
+        fill: var(--accent2);
+      }
+      #panel {
+        width: 300px;
+        background: var(--surface);
+        border-left: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      .ph {
+        padding: 14px 16px 10px;
+        border-bottom: 1px solid var(--border);
+        font-family: 'Syne', sans-serif;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: var(--dim);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .badge {
+        background: var(--accent);
+        color: #0d0f14;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 1px 7px;
+        border-radius: 10px;
+      }
+      #sel-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+      }
+      #sel-list::-webkit-scrollbar {
+        width: 4px;
+      }
+      #sel-list::-webkit-scrollbar-thumb {
+        background: var(--border);
+        border-radius: 2px;
+      }
+      .ri {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 7px 10px;
+        border-radius: 3px;
+        border: 1px solid transparent;
+        margin-bottom: 3px;
+        font-size: 11px;
+        animation: fi 0.2s ease;
+        cursor: pointer;
+        transition:
+          background 0.1s,
+          border-color 0.1s;
+      }
+      .ri:hover {
+        background: rgba(240, 192, 64, 0.06);
+        border-color: rgba(240, 192, 64, 0.2);
+      }
+      .ri .rid {
+        color: var(--accent);
+        font-weight: 600;
+      }
+      .ri .rm {
+        background: none;
+        border: none;
+        color: var(--dim);
+        font-size: 14px;
+        padding: 0 2px;
+        cursor: pointer;
+      }
+      .ri .rm:hover {
+        color: var(--accent2);
+      }
+      .gw-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        border-radius: 3px;
+        border: 1px solid transparent;
+        margin-bottom: 3px;
+        font-size: 10px;
+        background: rgba(240, 192, 64, 0.05);
+        cursor: pointer;
+        transition:
+          background 0.1s,
+          border-color 0.1s;
+      }
+      .gw-item:hover {
+        background: rgba(240, 192, 64, 0.09);
+        border-color: rgba(240, 192, 64, 0.22);
+      }
+      .gw-item.sel {
+        background: rgba(255, 107, 53, 0.14);
+        border-color: rgba(255, 107, 53, 0.45);
+      }
+      .gw-item .gid {
+        color: var(--accent);
+        font-weight: 600;
+        margin-right: 8px;
+      }
+      .gw-item .coords {
+        color: var(--text);
+      }
+      @keyframes fi {
+        from {
+          opacity: 0;
+          transform: translateX(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
         }
       }
-    }
-    pointsLayer.appendChild(ptFrag);
-    for(const iid in ptCache){
-      const [cx,cy]=RAW.intersections[iid];
-      if(cx<vx-PAD||cx>vx+vw+PAD||cy<vy-PAD||cy>vy+vh+PAD){
-        ptCache[iid].remove(); delete ptCache[iid];
+      .empty {
+        padding: 24px 16px;
+        text-align: center;
+        color: var(--dim);
+        font-size: 11px;
+        line-height: 1.7;
       }
-    }
-  } else {
-    // Clear all points when zoomed out
-    pointsLayer.innerHTML='';
-    for(const k in ptCache) delete ptCache[k];
-  }
-}
-
-// ── Interaction ────────────────────────────────────────────────────
-function onRoadClick(e){
-  e.stopPropagation();
-  if(gatewayMode){
-    placeGatewayAtEvent(e);
-    return;
-  }
-  const rid=e.currentTarget.dataset.rid;
-  selectedIDs.includes(rid)?deselect(rid):select(rid);
-}
-
-function SelectRoadsInView() {
-  selectedIDs.length = 0
-
-  let visible = currentVisible.keys()
-  for (const key of visible) {    
-    selectedIDs.push(key)
-    domCache[key].classList.add('sel')
-  }
-
-  updatePanel()
-  showToast('Selected all visible roads')
-}
-
-function updateGatewayPanel(){
-  const n = gateways.length;
-  document.getElementById('gw-count').textContent = n;
-  const list = document.getElementById('gw-list');
-  if(!n){
-    list.innerHTML='<div class="empty"><span class="icon">&#128205;</span>Enable Place Gateways, then click on the map.</div>';
-    return;
-  }
-  list.innerHTML = gateways.map(g=>
-    `<div class="gw-item ${selectedGatewayIDs.has(g.id)?'sel':''}" onclick="toggleGatewaySelection(${g.id})"><span class="gid">#${g.id}</span><span class="coords">x: ${g.x.toFixed(3)}, y: ${g.y.toFixed(3)}</span></div>`
-  ).join('');
-}
-
-function syncGatewayVisibilityForMode(){
-  gateways.forEach(g=>{
-    if(!g.el) return;
-    g.el.style.display = (!confirmedMode || selectedGatewayIDs.has(g.id)) ? '' : 'none';
-    g.el.classList.toggle('sel', selectedGatewayIDs.has(g.id));
-  });
-}
-
-function toggleGatewaySelection(id){
-  const gateway = gateways.find(g=>g.id===id);
-  if(!gateway) return;
-
-  if(selectedGatewayIDs.has(id)) selectedGatewayIDs.delete(id);
-  else selectedGatewayIDs.add(id);
-
-  updateGatewayPanel();
-  syncGatewayVisibilityForMode();
-}
-
-function toggleGatewayMode(){
-  gatewayMode = !gatewayMode;
-  const btn = document.getElementById('gateway-toggle');
-  btn.classList.toggle('toggle-active', gatewayMode);
-  btn.textContent = gatewayMode ? 'Placing Gateways: ON' : 'Place Gateways';
-  showToast(gatewayMode ? 'Gateway placement enabled' : 'Gateway placement disabled');
-}
-
-function clearGateways(){
-  if(!gateways.length){
-    showToast('No gateways to clear');
-    return;
-  }
-
-  const removed = gateways.pop();
-  if(removed){
-    selectedGatewayIDs.delete(removed.id);
-    if(removed.el) removed.el.remove();
-  }
-
-  updateGatewayPanel();
-  showToast('Cleared latest gateway');
-}
-
-function importGatewaysFromFile() {
-  const input = document.getElementById('fileInput');
-  input.onchange = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target.result)
-        
-        for (const [key, { latitude, longitude }] of Object.entries(json)) {          
-          let { x, y } = lonLatToSvg(latitude, longitude)
-          addGatewayXY(x,y)          
+      .empty .icon {
+        font-size: 22px;
+        display: block;
+        margin-bottom: 8px;
+        opacity: 0.5;
+      }
+      .pf {
+        padding: 10px 12px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        gap: 6px;
+      }
+      .pf button {
+        flex: 1;
+        font-size: 10px;
+      }
+      button.toggle-active {
+        background: rgba(240, 192, 64, 0.12);
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      #tip {
+        position: fixed;
+        background: #1a1f2e;
+        border: 1px solid var(--accent);
+        color: var(--text);
+        padding: 5px 10px;
+        border-radius: 4px;
+        font-size: 11px;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.12s;
+        z-index: 100;
+        white-space: nowrap;
+      }
+      #toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--surface);
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        padding: 8px 18px;
+        border-radius: 4px;
+        font-size: 12px;
+        opacity: 0;
+        transition:
+          opacity 0.2s,
+          transform 0.2s;
+        pointer-events: none;
+        z-index: 200;
+      }
+      #toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+      #loading {
+        position: fixed;
+        inset: 0;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 999;
+        gap: 16px;
+      }
+      .lt {
+        font-family: 'Syne', sans-serif;
+        font-size: 18px;
+        font-weight: 800;
+        color: var(--accent);
+        letter-spacing: 0.15em;
+      }
+      .ls {
+        font-size: 11px;
+        color: var(--dim);
+      }
+      .sp {
+        width: 36px;
+        height: 36px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
         }
-      
+      }
+
+      #roads-layer {
+        --road-stroke-width: 0.1;
+        --road-hover-stroke-width: 0.2;
+        --road-sel-stroke-width: 0.2;
+      }
+
+      #roads-layer.zoomed {
+        --road-stroke-width: 0.01;
+        --road-hover-stroke-width: 0.02;
+        --road-sel-stroke-width: 0.02;
+      }
+    </style>
+    <script src="processedRoads.js"></script>
+  </head>
+  <body>
+    <div id="loading">
+      <div class="sp"></div>
+      <div class="lt">ROAD NETWORK</div>
+      <div class="ls">Loading data...</div>
+    </div>
+    <header>
+      <div class="logo">Road Network Explorer</div>
+      <div class="stats">
+        <span>Total: <b id="stat-tot">0</b> roads</span>
+        <span>In view: <b id="stat-vis">0</b></span>
+        <span>Selected: <b id="stat-sel">0</b></span>
+      </div>
+      <div class="controls">
+        <button onclick="resetView()">Reset View</button>
+        <button onclick="ClearRoad()">Clear Road</button>
+        <button onclick="SelectRoadsInView()">Select Displayed Roads</button>
+        <button id="gateway-toggle" onclick="toggleGatewayMode()">Place Gateways</button>
+        <button onclick="importGatewaysFromFile()">Import Gateways</button>
+        <input type="file" id="fileInput" accept=".json" style="display: none" />
+        <button onclick="clearGateways()">Clear Gateways</button>
+        <button class="danger" onclick="clearAll()">Clear All</button>
+      </div>
+    </header>
+    <div class="main">
+      <div id="svg-container">
+        <svg id="road-svg" xmlns="http://www.w3.org/2000/svg">
+          <g id="roads-layer"></g>
+          <g id="points-layer"></g>
+          <g id="gateways-layer"></g>
+        </svg>
+      </div>
+      <div id="panel">
+        <div class="ph">Selected Roads<span class="badge" id="sel-count">0</span></div>
+        <div id="sel-list">
+          <div class="empty"><span class="icon">&#128739;</span>Click any road to select it.</div>
+        </div>
+        <div class="ph">Placed Gateways<span class="badge" id="gw-count">0</span></div>
+        <div id="gw-list">
+          <div class="empty"><span class="icon">&#128205;</span>Enable Place Gateways, then click on the map.</div>
+        </div>
+        <div class="pf" id="show-all-btn" style="display: none">
+          <button onclick="showAllRoads()">&#8635; Show All Roads</button>
+        </div>
+        <div class="pf">
+          <button onclick="ClearRoad()">Clear Road</button>
+          <button onclick="clearGateways()">Clear Gateways</button>
+        </div>
+        <div class="pf">
+          <button class="confirm" onclick="confirmSelection()">&#10003; Confirm Selection</button>
+        </div>
+      </div>
+    </div>
+    <div id="tip"></div>
+    <div id="toast"></div>
+
+    <script>
+      // ── State ──────────────────────────────────────────────────────────
+      let vx = 413.333,
+        vy = 366.333,
+        vw = 373.333,
+        vh = 167.333
+      let selectedIDs = []
+      let gatewayMode = false
+      let gateways = []
+      let selectedGatewayIDs = new Set()
+      const GATEWAY_RADIUS = 0.1
+      let confirmedMode = false // when true, only confirmed roads are rendered
+      let confirmedSet = new Set()
+      const domCache = {} // rid -> <path> element (only for visible roads)
+      const ptCache = {} // iid -> <circle> element
+
+      // ── Spatial grid index ─────────────────────────────────────────────
+      // Divide SVG coordinate space into grid cells; each cell stores road IDs
+      const CELL = 20 // grid cell size in SVG units
+      const gridIndex = {} // "gx,gy" -> Set of rids
+
+      function gridKey(gx, gy) {
+        return gx + ',' + gy
+      }
+
+      function buildIndex() {
+        const bb = RAW.roads_bb
+        for (const rid in bb) {
+          const [x1, y1, x2, y2] = bb[rid]
+          const gx1 = Math.floor(x1 / CELL),
+            gy1 = Math.floor(y1 / CELL)
+          const gx2 = Math.floor(x2 / CELL),
+            gy2 = Math.floor(y2 / CELL)
+          for (let gx = gx1; gx <= gx2; gx++) {
+            for (let gy = gy1; gy <= gy2; gy++) {
+              const k = gridKey(gx, gy)
+              if (!gridIndex[k]) gridIndex[k] = new Set()
+              gridIndex[k].add(rid)
+            }
+          }
+        }
+      }
+
+      function updateTotalCount() {
+        document.getElementById('stat-tot').textContent = Object.keys(RAW.roads).length.toLocaleString()
+      }
+
+      function queryVisible(vx, vy, vw, vh, pad) {
+        // Return Set of road IDs whose bbox intersects the viewport (+ padding)
+        const x1 = vx - pad,
+          y1 = vy - pad,
+          x2 = vx + vw + pad,
+          y2 = vy + vh + pad
+        const gx1 = Math.floor(x1 / CELL),
+          gy1 = Math.floor(y1 / CELL)
+        const gx2 = Math.floor(x2 / CELL),
+          gy2 = Math.floor(y2 / CELL)
+        const result = new Set()
+        for (let gx = gx1; gx <= gx2; gx++) {
+          for (let gy = gy1; gy <= gy2; gy++) {
+            const cell = gridIndex[gridKey(gx, gy)]
+            if (cell) cell.forEach((rid) => result.add(rid))
+          }
+        }
+        return result
+      }
+
+      // ── DOM helpers ────────────────────────────────────────────────────
+      const roadsLayer = document.getElementById('roads-layer')
+      const pointsLayer = document.getElementById('points-layer')
+      const gatewaysLayer = document.getElementById('gateways-layer')
+      const svg = document.getElementById('road-svg')
+      const tip = document.getElementById('tip')
+      const ENABLE_POINTS_LAYER = false
+
+      function makeRoad(rid) {
+        const el = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+        el.setAttribute('d', RAW.roads[rid])
+        el.className.baseVal = 'rp' + (selectedIDs.includes(rid) ? ' sel' : '')
+        el.dataset.rid = rid
+        el.addEventListener('click', onRoadClick)
+        el.addEventListener('mouseenter', (e) => {
+          tip.textContent = 'Road: ' + rid
+          tip.style.opacity = '1'
+          moveTip(e)
+        })
+        el.addEventListener('mouseleave', () => {
+          tip.style.opacity = '0'
+        })
+        return el
+      }
+
+      function makePoint(iid) {
+        const [cx, cy] = RAW.intersections[iid]
+        const el = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        el.setAttribute('cx', cx)
+        el.setAttribute('cy', cy)
+        el.setAttribute('r', '1.5')
+        el.className.baseVal = 'ip'
+        el.style.pointerEvents = 'none' // don't interfere with road clicks
+        return el
+      }
+
+      // ── Viewport culling ───────────────────────────────────────────────
+      let currentVisible = new Set()
+      let rafPending = false
+
+      function scheduleUpdate() {
+        if (rafPending) return
+        rafPending = true
+        requestAnimationFrame(updateViewport)
+      }
+
+      function updateViewport() {
+        rafPending = false
+        svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`)
+
+        const PAD = Math.max(vw, vh) * 0.1 // small look-ahead padding
+        const queriedVisible = confirmedMode ? confirmedSet : queryVisible(vx, vy, vw, vh, PAD)
+        const nextVisible = queriedVisible
+
+        // Add roads that entered the viewport
+        const addFrag = document.createDocumentFragment()
+        nextVisible.forEach((rid) => {
+          if (!currentVisible.has(rid)) {
+            const el = makeRoad(rid)
+            domCache[rid] = el
+            addFrag.appendChild(el)
+          }
+        })
+        roadsLayer.appendChild(addFrag)
+
+        // Remove roads that left the viewport
+        currentVisible.forEach((rid) => {
+          if (!nextVisible.has(rid)) {
+            const el = domCache[rid]
+            if (el) {
+              el.remove()
+              delete domCache[rid]
+            }
+          }
+        })
+
+        currentVisible = nextVisible
+        currentVisibleCount = currentVisible.size
+        document.getElementById('stat-vis').textContent = currentVisibleCount.toLocaleString()
+
+        if (currentVisibleCount <= 3500) {
+          roadsLayer.classList.add('zoomed')
+        } else {
+          roadsLayer.classList.remove('zoomed')
+        }
+
+        // Points: only show when enabled and zoomed in enough (vw < 200)
+        if (ENABLE_POINTS_LAYER && vw < 200) {
+          const ptFrag = document.createDocumentFragment()
+          const ptVisible = queryVisible(vx, vy, vw, vh, PAD)
+          // Show only points whose coords fall in view
+          for (const iid in RAW.intersections) {
+            const [cx, cy] = RAW.intersections[iid]
+            if (cx >= vx - PAD && cx <= vx + vw + PAD && cy >= vy - PAD && cy <= vy + vh + PAD) {
+              if (!ptCache[iid]) {
+                const el = makePoint(iid)
+                ptCache[iid] = el
+                ptFrag.appendChild(el)
+              }
+            }
+          }
+          pointsLayer.appendChild(ptFrag)
+          for (const iid in ptCache) {
+            const [cx, cy] = RAW.intersections[iid]
+            if (cx < vx - PAD || cx > vx + vw + PAD || cy < vy - PAD || cy > vy + vh + PAD) {
+              ptCache[iid].remove()
+              delete ptCache[iid]
+            }
+          }
+        } else {
+          // Clear all points when zoomed out
+          pointsLayer.innerHTML = ''
+          for (const k in ptCache) delete ptCache[k]
+        }
+      }
+
+      // ── Interaction ────────────────────────────────────────────────────
+      function onRoadClick(e) {
+        e.stopPropagation()
+        if (gatewayMode) {
+          placeGatewayAtEvent(e)
+          return
+        }
+        const rid = e.currentTarget.dataset.rid
+        selectedIDs.includes(rid) ? deselect(rid) : select(rid)
+      }
+
+      function SelectRoadsInView() {
+        selectedIDs.length = 0
+
+        let visible = currentVisible.keys()
+        for (const key of visible) {
+          selectedIDs.push(key)
+          domCache[key].classList.add('sel')
+        }
+
+        updatePanel()
+        showToast('Selected all visible roads')
+      }
+
+      function updateGatewayPanel() {
+        const n = gateways.length
+        document.getElementById('gw-count').textContent = n
+        const list = document.getElementById('gw-list')
+        if (!n) {
+          list.innerHTML = '<div class="empty"><span class="icon">&#128205;</span>Enable Place Gateways, then click on the map.</div>'
+          return
+        }
+        list.innerHTML = gateways
+          .map(
+            (g) =>
+              `<div class="gw-item ${selectedGatewayIDs.has(g.id) ? 'sel' : ''}" onclick="toggleGatewaySelection(${g.id})"><span class="gid">#${g.id}</span><span class="coords">x: ${g.x.toFixed(3)}, y: ${g.y.toFixed(3)}</span></div>`,
+          )
+          .join('')
+      }
+
+      function syncGatewayVisibilityForMode() {
+        gateways.forEach((g) => {
+          if (!g.el) return
+          g.el.style.display = !confirmedMode || selectedGatewayIDs.has(g.id) ? '' : 'none'
+          g.el.classList.toggle('sel', selectedGatewayIDs.has(g.id))
+        })
+      }
+
+      function toggleGatewaySelection(id) {
+        const gateway = gateways.find((g) => g.id === id)
+        if (!gateway) return
+
+        if (selectedGatewayIDs.has(id)) selectedGatewayIDs.delete(id)
+        else selectedGatewayIDs.add(id)
+
         updateGatewayPanel()
-        // showToast(`Gateway #${nextId} -> x: ${x.toFixed(3)}, y: ${y.toFixed(3)}`);
-        
-      } catch (err) {
-        console.error('Invalid JSON file', err)
+        syncGatewayVisibilityForMode()
       }
-    }
 
-    reader.readAsText(file)
-  }
+      function toggleGatewayMode() {
+        gatewayMode = !gatewayMode
+        const btn = document.getElementById('gateway-toggle')
+        btn.classList.toggle('toggle-active', gatewayMode)
+        btn.textContent = gatewayMode ? 'Placing Gateways: ON' : 'Place Gateways'
+        showToast(gatewayMode ? 'Gateway placement enabled' : 'Gateway placement disabled')
+      }
 
-  input.click()
-}
+      function clearGateways() {
+        if (!gateways.length) {
+          showToast('No gateways to clear')
+          return
+        }
 
-function lonLatToSvg(lat, lon, svgW = 1200, svgH = 900, padding = 40.0) {
-    const DEFAULT_BOUNDS = [8.084347, 54.5737391, 15.1519023, 57.7382542]
+        const removed = gateways.pop()
+        if (removed) {
+          selectedGatewayIDs.delete(removed.id)
+          if (removed.el) removed.el.remove()
+        }
 
-    const [minLon, minLat, maxLon, maxLat] = DEFAULT_BOUNDS
+        updateGatewayPanel()
+        showToast('Cleared latest gateway')
+      }
 
-    const usableW = svgW - 2 * padding
-    const usableH = svgH - 2 * padding
+      function importGatewaysFromFile() {
+        const input = document.getElementById('fileInput')
+        input.onchange = (event) => {
+          const file = event.target.files[0]
+          if (!file) return
 
-    const spanX = (maxLon - minLon) || 1e-9
-    const spanY = (maxLat - minLat) || 1e-9
+          const reader = new FileReader()
 
-    const scale = Math.min(usableW / spanX, usableH / spanY)
+          reader.onload = (e) => {
+            try {
+              const json = JSON.parse(e.target.result)
 
-    const offsetX = padding + (usableW - spanX * scale) / 2
-    const offsetY = padding + (usableH - spanY * scale) / 2
+              for (const [key, { latitude, longitude }] of Object.entries(json)) {
+                let { x, y } = lonLatToSvg(latitude, longitude)
+                addGatewayXY(x, y)
+              }
 
-    const x = Math.round((offsetX + (lon - minLon) * scale) * 1000) / 1000
-    const y = Math.round((offsetY + (maxLat - lat) * scale) * 1000) / 1000
+              updateGatewayPanel()
+              // showToast(`Gateway #${nextId} -> x: ${x.toFixed(3)}, y: ${y.toFixed(3)}`);
+            } catch (err) {
+              console.error('Invalid JSON file', err)
+            }
+          }
 
-    return { x, y }
-}
+          reader.readAsText(file)
+        }
 
-function addGatewayXY(x,y) {
-  const dot = document.createElementNS('http://www.w3.org/2000/svg','circle');
-  dot.setAttribute('cx', x.toFixed(3));
-  dot.setAttribute('cy', y.toFixed(3));
-  dot.setAttribute('r', String(GATEWAY_RADIUS));
-  dot.className.baseVal = 'gw';
-  gatewaysLayer.appendChild(dot);
+        input.click()
+      }
 
-  const nextId = gateways.length + 1;
-  gateways.push({ id: nextId, x, y, el: dot });
-  selectedGatewayIDs.add(nextId);
-  dot.classList.add('sel');
-}
+      function lonLatToSvg(lat, lon, svgW = 1200, svgH = 900, padding = 40.0) {
+        const DEFAULT_BOUNDS = [8.084347, 54.5737391, 15.1519023, 57.7382542]
 
-function placeGatewayAtEvent(e){
-  const svg = container.querySelector('svg') // if container is a div
-  // OR just: const svg = container   (if container IS the svg element)
+        const [minLon, minLat, maxLon, maxLat] = DEFAULT_BOUNDS
 
-  const pt = svg.createSVGPoint();
-  pt.x = e.clientX;
-  pt.y = e.clientY;
-  const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        const usableW = svgW - 2 * padding
+        const usableH = svgH - 2 * padding
 
-  const x = svgP.x;
-  const y = svgP.y;
+        const spanX = maxLon - minLon || 1e-9
+        const spanY = maxLat - minLat || 1e-9
 
-  addGatewayXY(x,y)
+        const scale = Math.min(usableW / spanX, usableH / spanY)
 
-  updateGatewayPanel();
-  showToast(`Gateway #${nextId} -> x: ${x.toFixed(3)}, y: ${y.toFixed(3)}`);
-}
+        const offsetX = padding + (usableW - spanX * scale) / 2
+        const offsetY = padding + (usableH - spanY * scale) / 2
 
-function select(rid){
-  if(selectedIDs.includes(rid)) return;
-  selectedIDs.push(rid);
-  if(domCache[rid]) domCache[rid].classList.add('sel');
-  updatePanel();
-}
+        const x = Math.round((offsetX + (lon - minLon) * scale) * 1000) / 1000
+        const y = Math.round((offsetY + (maxLat - lat) * scale) * 1000) / 1000
 
-function deselect(rid){
-  selectedIDs=selectedIDs.filter(id=>id!==rid);
-  if(domCache[rid]) domCache[rid].classList.remove('sel');
-  updatePanel();
-}
+        return { x, y }
+      }
 
-function ClearRoad(){
-  if(!selectedIDs.length){
-    showToast('No roads to clear');
-    return;
-  }
+      function addGatewayXY(x, y) {
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+        dot.setAttribute('cx', x.toFixed(3))
+        dot.setAttribute('cy', y.toFixed(3))
+        dot.setAttribute('r', String(GATEWAY_RADIUS))
+        dot.className.baseVal = 'gw'
+        gatewaysLayer.appendChild(dot)
 
-  const removed = selectedIDs.pop();
-  if(removed && domCache[removed]) domCache[removed].classList.remove('sel');
+        const nextId = gateways.length + 1
+        gateways.push({ id: nextId, x, y, el: dot })
+        selectedGatewayIDs.add(nextId)
+        dot.classList.add('sel')
+      }
 
-  updatePanel();
-  showToast('Cleared latest road');
-}
+      function placeGatewayAtEvent(e) {
+        const svg = container.querySelector('svg') // if container is a div
+        // OR just: const svg = container   (if container IS the svg element)
 
-function clearAll(){
-  selectedIDs.forEach(rid=>{ if(domCache[rid]) domCache[rid].classList.remove('sel'); });
-  selectedIDs=[];
-  if(confirmedMode) showAllRoads();
-  updatePanel();
-  
-  // Also clear gateways
-  gatewaysLayer.innerHTML='';
-  gateways=[];
-  selectedGatewayIDs = new Set();
-  updateGatewayPanel();
-}
+        const pt = svg.createSVGPoint()
+        pt.x = e.clientX
+        pt.y = e.clientY
+        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse())
 
-function updatePanel(){
-  const n=selectedIDs.length;
-  document.getElementById('sel-count').textContent=n;
-  document.getElementById('stat-sel').textContent=n;
-  const list=document.getElementById('sel-list');
-  if(!n){
-    list.innerHTML='<div class="empty"><span class="icon">&#128739;</span>Click any road to select it.</div>';
-    return;
-  }
-  list.innerHTML=selectedIDs.map(rid=>
-    `<div class="ri" onclick="focusRoad('${rid}')">
+        const x = svgP.x
+        const y = svgP.y
+
+        addGatewayXY(x, y)
+
+        updateGatewayPanel()
+        showToast(`Gateway #${nextId} -> x: ${x.toFixed(3)}, y: ${y.toFixed(3)}`)
+      }
+
+      function select(rid) {
+        if (selectedIDs.includes(rid)) return
+        selectedIDs.push(rid)
+        if (domCache[rid]) domCache[rid].classList.add('sel')
+        updatePanel()
+      }
+
+      function deselect(rid) {
+        selectedIDs = selectedIDs.filter((id) => id !== rid)
+        if (domCache[rid]) domCache[rid].classList.remove('sel')
+        updatePanel()
+      }
+
+      function ClearRoad() {
+        if (!selectedIDs.length) {
+          showToast('No roads to clear')
+          return
+        }
+
+        const removed = selectedIDs.pop()
+        if (removed && domCache[removed]) domCache[removed].classList.remove('sel')
+
+        updatePanel()
+        showToast('Cleared latest road')
+      }
+
+      function clearAll() {
+        selectedIDs.forEach((rid) => {
+          if (domCache[rid]) domCache[rid].classList.remove('sel')
+        })
+        selectedIDs = []
+        if (confirmedMode) showAllRoads()
+        updatePanel()
+
+        // Also clear gateways
+        gatewaysLayer.innerHTML = ''
+        gateways = []
+        selectedGatewayIDs = new Set()
+        updateGatewayPanel()
+      }
+
+      function updatePanel() {
+        const n = selectedIDs.length
+        document.getElementById('sel-count').textContent = n
+        document.getElementById('stat-sel').textContent = n
+        const list = document.getElementById('sel-list')
+        if (!n) {
+          list.innerHTML = '<div class="empty"><span class="icon">&#128739;</span>Click any road to select it.</div>'
+          return
+        }
+        list.innerHTML = selectedIDs
+          .map(
+            (rid) =>
+              `<div class="ri" onclick="focusRoad('${rid}')">
       <span class="rid">#${rid}</span>
       <button class="rm" onclick="event.stopPropagation();deselect('${rid}')">&#215;</button>
-    </div>`
-  ).join('');
-}
+    </div>`,
+          )
+          .join('')
+      }
 
-function focusRoad(rid){
-  const bb=RAW.roads_bb[rid];
-  if(!bb) return;
-  // Pan/zoom to fit road bbox
-  const cx=(bb[0]+bb[2])/2, cy=(bb[1]+bb[3])/2;
-  const span=Math.max(bb[2]-bb[0],bb[3]-bb[1]);
-  vw=Math.max(span*4,30); vh=vw*0.45;
-  vx=cx-vw/2; vy=cy-vh/2;
-  scheduleUpdate();
-  // Flash after viewport settles
-  setTimeout(()=>{
-    const el=domCache[rid];
-    if(el){ el.style.stroke='#ff6b35'; el.style.strokeWidth='5';
-      setTimeout(()=>{ el.style.stroke=''; el.style.strokeWidth=''; },600); }
-  },80);
-}
+      function focusRoad(rid) {
+        const bb = RAW.roads_bb[rid]
+        if (!bb) return
+        // Pan/zoom to fit road bbox
+        const cx = (bb[0] + bb[2]) / 2,
+          cy = (bb[1] + bb[3]) / 2
+        const span = Math.max(bb[2] - bb[0], bb[3] - bb[1])
+        vw = Math.max(span * 4, 30)
+        vh = vw * 0.45
+        vx = cx - vw / 2
+        vy = cy - vh / 2
+        scheduleUpdate()
+        // Flash after viewport settles
+        setTimeout(() => {
+          const el = domCache[rid]
+          if (el) {
+            el.style.stroke = '#ff6b35'
+            el.style.strokeWidth = '5'
+            setTimeout(() => {
+              el.style.stroke = ''
+              el.style.strokeWidth = ''
+            }, 600)
+          }
+        }, 80)
+      }
 
-// ── Delegates confirmed-selection logic to external module ───────────────────
-function getSelectedGatewayPoints(){
-  return gateways
-    .filter(g=>selectedGatewayIDs.has(g.id))
-    .map(g=>({ id: g.id, point: [Number(g.x), Number(g.y)] }));
-}
+      // ── Delegates confirmed-selection logic to external module ───────────────────
+      function getSelectedGatewayPoints() {
+        return gateways.filter((g) => selectedGatewayIDs.has(g.id)).map((g) => ({ id: g.id, point: [Number(g.x), Number(g.y)] }))
+      }
 
-function onSelectionConfirmed(ids){
-  const gatewayPoints = getSelectedGatewayPoints();
-  import('./selection_confirmation.js')
-    .then(({ onSelectionConfirmed: runSelectionConfirmation }) => {
-      runSelectionConfirmation(ids, {
-        showToast,
-        roadPaths: RAW.roads,
-        intersectionPoints: RAW.intersections,
-        gatewayPoints,
-        saveEndpoint: '/save-selected-roads',
-      });
-    })
-    .catch((err) => {
-      console.error('Failed to load selection_confirmation.js:', err);
-      console.log('Confirmed road IDs:', ids);
-      console.log('Selected gateway points:', gatewayPoints);
-    });
-}
+      function onSelectionConfirmed(ids) {
+        const gatewayPoints = getSelectedGatewayPoints()
+        import('./selection_confirmation.js')
+          .then(({ onSelectionConfirmed: runSelectionConfirmation }) => {
+            runSelectionConfirmation(ids, {
+              showToast,
+              roadPaths: RAW.roads,
+              intersectionPoints: RAW.intersections,
+              gatewayPoints,
+              saveEndpoint: '/save-selected-roads',
+            })
+          })
+          .catch((err) => {
+            console.error('Failed to load selection_confirmation.js:', err)
+            console.log('Confirmed road IDs:', ids)
+            console.log('Selected gateway points:', gatewayPoints)
+          })
+      }
 
-function confirmSelection(){
-  if(!selectedIDs.length){ showToast('No roads selected'); return; }
-  confirmedSet = new Set(selectedIDs);
-  confirmedMode = true;
-  syncGatewayVisibilityForMode();
-  document.getElementById('show-all-btn').style.display = '';
-  // Clear DOM roads not in confirmed set
-  currentVisible.forEach(rid=>{
-    if(!confirmedSet.has(rid)){
-      const el=domCache[rid];
-      if(el){ el.remove(); delete domCache[rid]; }
-    }
-  });
-  currentVisible = new Set([...confirmedSet].filter(rid=>domCache[rid]));
-  svg.setAttribute('viewBox',`${vx} ${vy} ${vw} ${vh}`);
-  document.getElementById('stat-vis').textContent=currentVisible.size.toLocaleString();
-  showToast(`Showing ${confirmedSet.size} confirmed road${confirmedSet.size!==1?'s':''} and ${selectedGatewayIDs.size} selected gateway${selectedGatewayIDs.size!==1?'s':''}`);
-  onSelectionConfirmed([...confirmedSet]);
-}
+      function confirmSelection() {
+        if (!selectedIDs.length) {
+          showToast('No roads selected')
+          return
+        }
+        confirmedSet = new Set(selectedIDs)
+        confirmedMode = true
+        syncGatewayVisibilityForMode()
+        document.getElementById('show-all-btn').style.display = ''
+        // Clear DOM roads not in confirmed set
+        currentVisible.forEach((rid) => {
+          if (!confirmedSet.has(rid)) {
+            const el = domCache[rid]
+            if (el) {
+              el.remove()
+              delete domCache[rid]
+            }
+          }
+        })
+        currentVisible = new Set([...confirmedSet].filter((rid) => domCache[rid]))
+        svg.setAttribute('viewBox', `${vx} ${vy} ${vw} ${vh}`)
+        document.getElementById('stat-vis').textContent = currentVisible.size.toLocaleString()
+        showToast(
+          `Showing ${confirmedSet.size} confirmed road${confirmedSet.size !== 1 ? 's' : ''} and ${selectedGatewayIDs.size} selected gateway${selectedGatewayIDs.size !== 1 ? 's' : ''}`,
+        )
+        onSelectionConfirmed([...confirmedSet])
+      }
 
-function showAllRoads(){
-  confirmedMode = false;
-  confirmedSet = new Set();
-  syncGatewayVisibilityForMode();
-  document.getElementById('show-all-btn').style.display = 'none';
-  // Force a full re-render
-  currentVisible.forEach(rid=>{
-    const el=domCache[rid]; if(el){ el.remove(); delete domCache[rid]; }
-  });
-  currentVisible = new Set();
-  scheduleUpdate();
-}
+      function showAllRoads() {
+        confirmedMode = false
+        confirmedSet = new Set()
+        syncGatewayVisibilityForMode()
+        document.getElementById('show-all-btn').style.display = 'none'
+        // Force a full re-render
+        currentVisible.forEach((rid) => {
+          const el = domCache[rid]
+          if (el) {
+            el.remove()
+            delete domCache[rid]
+          }
+        })
+        currentVisible = new Set()
+        scheduleUpdate()
+      }
 
-function resetView(){
-  if(confirmedMode) showAllRoads();
-  vx=413.333;vy=366.333;vw=373.333;vh=167.333;
-  scheduleUpdate();
-}
+      function resetView() {
+        if (confirmedMode) showAllRoads()
+        // initial centering....
+        // vx = 413.333
+        // vy = 366.333
+        // vw = 373.333
+        // vh = 167.333
 
-function showToast(m){
-  const t=document.getElementById('toast');
-  t.textContent=m; t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2000);
-}
+        // centered around Aalborg
+        vx = 256.058
+        vy = 226.96
+        vw = 153.996
+        vh = 153.996
+        scheduleUpdate()
+      }
 
-function moveTip(e){ tip.style.left=(e.clientX+14)+'px'; tip.style.top=(e.clientY-28)+'px'; }
-document.addEventListener('mousemove',e=>{ if(tip.style.opacity==='1') moveTip(e); });
+      function showToast(m) {
+        const t = document.getElementById('toast')
+        t.textContent = m
+        t.classList.add('show')
+        setTimeout(() => t.classList.remove('show'), 2000)
+      }
 
-// ── Pan & Zoom ─────────────────────────────────────────────────────
-const container=document.getElementById('svg-container');
-let isPanning=false,panX,panY,originVX,originVY;
-let didPanDrag=false;
+      function moveTip(e) {
+        tip.style.left = e.clientX + 14 + 'px'
+        tip.style.top = e.clientY - 28 + 'px'
+      }
+      document.addEventListener('mousemove', (e) => {
+        if (tip.style.opacity === '1') moveTip(e)
+      })
 
-container.addEventListener('mousedown',e=>{
-  if(e.button!==0) return;
-  isPanning=true; panX=e.clientX; panY=e.clientY; originVX=vx; originVY=vy;
-  didPanDrag=false;
-  container.classList.add('grabbing');
-});
-window.addEventListener('mousemove',e=>{
-  if(!isPanning) return;
-  if(Math.abs(e.clientX-panX)>2 || Math.abs(e.clientY-panY)>2) didPanDrag=true;
-  const rect=container.getBoundingClientRect();
-  vx=originVX-(e.clientX-panX)*(vw/rect.width);
-  vy=originVY-(e.clientY-panY)*(vh/rect.height);
-  scheduleUpdate();
-});
-window.addEventListener('mouseup',()=>{ isPanning=false; container.classList.remove('grabbing'); });
+      // ── Pan & Zoom ─────────────────────────────────────────────────────
+      const container = document.getElementById('svg-container')
+      let isPanning = false,
+        panX,
+        panY,
+        originVX,
+        originVY
+      let didPanDrag = false
 
-container.addEventListener('click',e=>{
-  if(!gatewayMode || didPanDrag) return;
-  placeGatewayAtEvent(e);
-});
+      container.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return
+        isPanning = true
+        panX = e.clientX
+        panY = e.clientY
+        originVX = vx
+        originVY = vy
+        didPanDrag = false
+        container.classList.add('grabbing')
+      })
+      window.addEventListener('mousemove', (e) => {
+        if (!isPanning) return
+        if (Math.abs(e.clientX - panX) > 2 || Math.abs(e.clientY - panY) > 2) didPanDrag = true
+        const rect = container.getBoundingClientRect()
+        vx = originVX - (e.clientX - panX) * (vw / rect.width)
+        vy = originVY - (e.clientY - panY) * (vh / rect.height)
+        scheduleUpdate()
+      })
+      window.addEventListener('mouseup', () => {
+        isPanning = false
+        container.classList.remove('grabbing')
+      })
 
-container.addEventListener('wheel',e=>{
-  e.preventDefault();
-  const rect=container.getBoundingClientRect();
-  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
-  const svgX=vx+mx*(vw/rect.width), svgY=vy+my*(vh/rect.height);
-  const f=e.deltaY>0?1.15:0.87;
-  vw=Math.max(10,Math.min(1400,vw*f));
-  vh=Math.max(5,Math.min(700,vh*f));
-  vx=svgX-mx*(vw/rect.width); vy=svgY-my*(vh/rect.height);
-  scheduleUpdate();
-},{passive:false});
+      container.addEventListener('click', (e) => {
+        if (!gatewayMode || didPanDrag) return
+        placeGatewayAtEvent(e)
+      })
 
-// ── Boot ───────────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded',()=>{
-  document.querySelector('.ls').textContent='Building spatial index...';
-  setTimeout(()=>{
-    buildIndex();
-    document.querySelector('.ls').textContent='Rendering...';
-    setTimeout(()=>{
-      resetView();
-      document.getElementById('loading').style.display='none';
-    },30);
-  },30);
-});
-</script>
-</body>
+      container.addEventListener(
+        'wheel',
+        (e) => {
+          e.preventDefault()
+          const rect = container.getBoundingClientRect()
+          const mx = e.clientX - rect.left,
+            my = e.clientY - rect.top
+          const svgX = vx + mx * (vw / rect.width),
+            svgY = vy + my * (vh / rect.height)
+          const f = e.deltaY > 0 ? 1.15 : 0.87
+          vw = Math.max(1, Math.min(1400, vw * f)) // 10
+          vh = Math.max(1, Math.min(700, vh * f)) // 5
+          vx = svgX - mx * (vw / rect.width)
+          vy = svgY - my * (vh / rect.height)
+          scheduleUpdate()
+        },
+        { passive: false },
+      )
+
+      // ── Boot ───────────────────────────────────────────────────────────
+      window.addEventListener('DOMContentLoaded', () => {
+        document.querySelector('.ls').textContent = 'Building spatial index...'
+        setTimeout(() => {
+          updateTotalCount()
+          buildIndex()
+          document.querySelector('.ls').textContent = 'Rendering...'
+          setTimeout(() => {
+            resetView()
+            document.getElementById('loading').style.display = 'none'
+          }, 30)
+        }, 30)
+      })
+    </script>
+  </body>
 </html>

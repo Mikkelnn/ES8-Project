@@ -13,6 +13,7 @@ from shapely.geometry import MultiLineString, Point
 from shapely.geometry import MultiPoint
 import math
 import json
+import re
 import geopandas as gpd
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 from pathlib import Path
@@ -257,32 +258,47 @@ def cluster_nearby_intersections(intersections_gdf, radius_m=10):
     result = result.to_crs(epsg=4326)
     return result
 
-def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered_intersections: gpd.GeoDataFrame):
-    # some fix... ????
-  if "intersection_id" not in clustered_intersections.columns:
-      clustered_intersections["intersection_id"] = clustered_intersections.index
+def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered_intersections: gpd.GeoDataFrame = None):
+    combined = []
+  
+    if clustered_intersections is not None:
+        clustered_intersections = clustered_intersections.copy()
 
-  # Convert intersections_clustered to GeoJSON features
-  roadnetwork_geojson = json.loads(roadnetwork_filtered.to_json())
-  intersections_geojson = json.loads(clustered_intersections.to_json())
+        # Ensure intersections have an "id" field used later by gdf_to_road_intersection_json.
+        if "id" not in clustered_intersections.columns:
+            if "intersection_id" in clustered_intersections.columns:
+                clustered_intersections["id"] = clustered_intersections["intersection_id"]
+            else:
+                clustered_intersections["id"] = clustered_intersections.index
+    
+        # Convert intersections_clustered to GeoJSON features
+        intersections_geojson = json.loads(clustered_intersections.to_json())
 
-  # Tag intersection features with a type indicator
-  for feature in intersections_geojson['features']:
-      feature['properties']['feature_type'] = 'intersection'
+        # Tag intersection features with a type indicator
+        for feature in intersections_geojson['features']:
+            feature['properties']['feature_type'] = 'intersection'
 
-  # Tag road features with a type indicator
-  for feature in roadnetwork_geojson['features']:
-      feature['properties']['feature_type'] = 'road'
+        combined = intersections_geojson['features']
 
-  # Combine features
-  combined_geojson = {
-      "type": "FeatureCollection",
-      "features": roadnetwork_geojson['features'] + intersections_geojson['features']
-  }
+    if roadnetwork_filtered is not None:
+        # Convert intersections_clustered to GeoJSON features
+        roadnetwork_geojson = json.loads(roadnetwork_filtered.to_json())
 
-  # combined_gdf = gpd.GeoDataFrame(combined_geojson, geometry="geometry", crs="EPSG:3857")
-  # return combined_gdf.to_crs(epsg=4326)
-  return combined_geojson
+        # Tag road features with a type indicator
+        for feature in roadnetwork_geojson['features']:
+            feature['properties']['feature_type'] = 'road'
+
+        combined = combined + roadnetwork_geojson['features']
+
+    # Combine features
+    combined_geojson = {
+        "type": "FeatureCollection",
+        "features": combined
+    }
+
+    combined_gdf = gpd.GeoDataFrame.from_features(combined_geojson["features"], crs="EPSG:4326")
+    return combined_gdf
+    # return combined_geojson
 
 # =========================================================================== #
 #  Internal helpers                                                           #
@@ -310,8 +326,18 @@ def _build_projector(gdf: gpd.GeoDataFrame,
     - Aspect ratio is preserved via uniform scaling
     - The map is centred inside the viewport with the requested padding
     """
-    min_x, min_y, max_x, max_y = gdf.geometry.total_bounds
-    print(f"GeoDataFrame bounds: min_x={min_x}, min_y={min_y}, max_x={max_x}, max_y={max_y}")
+    if gdf is None or gdf.empty or "geometry" not in gdf.columns:
+        raise ValueError("Cannot build projector: input GeoDataFrame has no geometry rows.")
+
+    non_empty_geoms = gdf.geometry.dropna()
+    if non_empty_geoms.empty:
+        raise ValueError("Cannot build projector: all geometry values are null.")
+
+    min_x, min_y, max_x, max_y = non_empty_geoms.total_bounds
+    if any(math.isnan(v) for v in (min_x, min_y, max_x, max_y)):
+        raise ValueError("Cannot build projector: geometry bounds are invalid (NaN).")
+
+    # print(f"GeoDataFrame bounds: min_x={min_x}, min_y={min_y}, max_x={max_x}, max_y={max_y}")
 
     usable_w = svg_w - 2 * padding
     usable_h = svg_h - 2 * padding
@@ -462,6 +488,82 @@ def gdf_to_road_intersection_json(gdf: gpd.GeoDataFrame, svg_width: int = 1200, 
     return result
 
 
+def result_to_js(result: dict,
+                output_path: str = "processedRoads.js",
+                variable_name: str = "RAW") -> dict:
+    """
+    Convert the generated result dict into processedRoads.js format for the HTML GUI.
+    Exports: roads (SVG paths), intersections (coordinates), and roads_bb (bounding boxes).
+    
+    Output format:
+    const RAW = {
+        "roads": {"<osm_id>": "M x,y L x,y ..."},
+        "intersections": {"<int_id>": [cx, cy]},
+        "roads_bb": {"<osm_id>": [x1, y1, x2, y2]}
+    };
+    """
+    roads_in = result.get("Road_ID", {}) if isinstance(result, dict) else {}
+    intersections_in = result.get("intersection_ID", {}) if isinstance(result, dict) else {}
+    
+    roads_out = {}
+    intersections_out = {}
+    roads_bb_out = {}
+
+    # Process roads and calculate bounding boxes
+    for osm_id, road_info in roads_in.items():
+        if not isinstance(road_info, dict):
+            continue
+
+        # Each road may contain multiple path fragments; join them into one string
+        path_parts = road_info.get("path", [])
+        if isinstance(path_parts, list):
+            joined_path = " ".join(p for p in path_parts if isinstance(p, str) and p.strip())
+        elif isinstance(path_parts, str):
+            joined_path = path_parts
+        else:
+            joined_path = ""
+
+        if joined_path:
+            roads_out[str(osm_id)] = joined_path
+            
+            # Calculate bounding box from SVG path commands (M x,y L x,y ...)
+            coords = []
+            for match in re.finditer(r'([ML])\s*([\d.]+)[,\s]+([\d.]+)', joined_path):
+                coords.append((float(match.group(2)), float(match.group(3))))
+            
+            if coords:
+                xs = [c[0] for c in coords]
+                ys = [c[1] for c in coords]
+                roads_bb_out[str(osm_id)] = [min(xs), min(ys), max(xs), max(ys)]
+
+    # Process intersections
+    for int_id, int_info in intersections_in.items():
+        if not isinstance(int_info, dict):
+            continue
+        
+        point_data = int_info.get("point", [])
+        if isinstance(point_data, list) and len(point_data) > 0:
+            # Extract first point [cx, cy]
+            first_point = point_data[0]
+            if isinstance(first_point, dict):
+                cx = first_point.get("cx")
+                cy = first_point.get("cy")
+                if cx is not None and cy is not None:
+                    intersections_out[str(int_id)] = [cx, cy]
+
+    payload = {
+        "roads": roads_out,
+        "intersections": intersections_out,
+        "roads_bb": roads_bb_out
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(f"const {variable_name} = ")
+        json.dump(payload, f, separators=(",", ":"), ensure_ascii=False)
+        f.write(";\n")
+    return payload
+
+
 
 def download_and_extract(url: str, filename: str):
     def _download(url: str, filename: str):
@@ -507,40 +609,39 @@ def download_and_extract(url: str, filename: str):
    
 
 if __name__ == "__main__":
-  geo_data_file = "denmark.gpkg"
-  url = "https://download.geofabrik.de/europe/denmark-latest-free.gpkg.zip"
-  
-  layer_name = "gis_osm_roads_free"
-  target_classes = ["secondary", "primary", "tertiary", "residential", "unclassified"]
-  
-  if not Path(geo_data_file).exists():
-      download_and_extract(url, geo_data_file)
+        geo_data_file = "denmark.gpkg"
+        url = "https://download.geofabrik.de/europe/denmark-latest-free.gpkg.zip"
 
-  # load road layer, extract and filter
-  print(f"Loading data ({geo_data_file})...")
-  gdf = gpd.read_file(geo_data_file, layer=layer_name)
+        layer_name = "gis_osm_roads_free"
+        target_classes = ["secondary", "primary", "tertiary", "residential", "unclassified"]
+        
+        result_name = "processedRoads.js"
 
-  print("Extract classes...")
-  gdf_classes = road_extractor(gdf, target_fclasses=target_classes)
+        if not Path(geo_data_file).exists():
+                download_and_extract(url, geo_data_file)
 
-  print("Filter frame...")
-  roadnetwork_filtered = filtered_frame(gdf_classes)
+        # load road layer, extract and filter
+        print(f"Loading data ({geo_data_file})...")
+        gdf = gpd.read_file(geo_data_file, layer=layer_name)
 
-  # intersections
-  print("Finding intersections...")
-  intersections = find_road_intersections(roadnetwork_filtered)
-  clustered_intersections = cluster_nearby_intersections(intersections, radius_m=20)
+        print("Extract classes...")
+        gdf_classes = road_extractor(gdf, target_fclasses=target_classes)
 
-  print("Combining roads and intersection data...")
-  combined_gdf = combine_road_intersections(roadnetwork_filtered, clustered_intersections)
+        print("Filter frame...")
+        roadnetwork_filtered = filtered_frame(gdf_classes)
 
-  # build data format
-  print("Converting combined data to json format used in GUI...")
-  result = gdf_to_road_intersection_json(combined_gdf)
+        print("Find and cluster intersections...")
+        intersections = find_road_intersections(roadnetwork_filtered)
+        intesection_clustered = cluster_nearby_intersections(intersections)
+        # intesection_clustered = None
 
-  # save data
-  output_path = "roadnetwork_postproc_PSTR.json"
-  with open(output_path, "w") as f:
-    json.dump(result, f, indent=2)
+        print("Combining roads and intersection data...")
+        combined_gdf = combine_road_intersections(roadnetwork_filtered, intesection_clustered)
 
-  print(f"JSON written to: {output_path}")
+        # build data format
+        print("Converting combined data to json format used in GUI...")
+        result = gdf_to_road_intersection_json(combined_gdf)
+
+        # save data
+        result_to_js(result, output_path=result_name)
+        print(f"JSON written to: {result_name}")
