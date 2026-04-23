@@ -42,7 +42,7 @@ from datetime import datetime
 import os
 
 # ── Projection constants ──────────────────────────────────────────────────────
-_SCALE       = 733.452594
+_SCALE       = 733.452594 * 0.2149033923489 #TODO: quicck fix but should be done proper....
 _CENTRE_LAT  = (55.787 + 56.905) / 2
 M_PER_SVG_X  = 111_320.0 * math.cos(math.radians(_CENTRE_LAT)) / _SCALE
 M_PER_SVG_Y  = 111_320.0 / _SCALE
@@ -429,9 +429,14 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
     PARALLEL_TOL_M = 5.0   # chains within this avg distance are parallel duplicates
     road_chains = {}
     for rid, info in road_data.items():
-        raw_chains    = stitch(parse_svg_path(info["path"]), STITCH_TOL)
+        parsed = parse_svg_path(info["path"])        
+        raw_chains    = stitch(parsed, STITCH_TOL)
         unique_chains = remove_parallel_chains(raw_chains, PARALLEL_TOL_M)
         road_chains[rid] = [deduplicate_chain(c) for c in unique_chains]
+
+        # print(f"Parsed: {len(parsed)} raw_chains: {len(raw_chains)} unique_chains: {len(unique_chains)} deduped_chains: {len(road_chains[rid])}")
+        # print(unique_chains)
+        # exit()
 
     # Step 2: snap each merged intersection onto its road chains
     int_on_road = {rid: {} for rid in road_chains}
@@ -446,6 +451,10 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
             if best is not None:
                 ci, arc, snapped, _ = best
                 int_on_road[rid][mid] = (ci, arc, snapped)
+            
+            # add internal intersections
+
+
 
     # Step 3: split chains at intersections, sample each segment uniformly
     nodes   = {}
@@ -554,6 +563,11 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
                 if len(seq) >= 2:
                     seg_node_seqs.append(seq)
 
+                print(f"seg: {ci}, k: {k}, length (m): {arc_m}, nodes: {len(seq)}")
+
+            # print(f"seg: {ci}, length (m): {arc_m}")
+            
+
             # Wire neighbours
             for seq in seg_node_seqs:
                 for si, nid in enumerate(seq):
@@ -565,6 +579,8 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
                         nxt = seq[si + 1]
                         if nxt not in nodes[nid]["neighbours"]:
                             nodes[nid]["neighbours"].append(nxt)
+        
+        # exit()
 
     # Step 4: post-process — remove cross-sequence spurious edges
     # An edge is spurious if its length is < 90% of the average target spacing
@@ -664,9 +680,16 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
     # Auto-generate validation SVG alongside the JSON (both in CWD)
     svg_path = Path(out_path).with_suffix('.svg')
     print("Generating validation SVG...")
-    print(f"HERE: {svg_path}")
     generate_svg(input_path=str(out_path), output_path=str(svg_path))
 
 
 if __name__ == "__main__":
     generate()
+
+# WRONG node placement -> scale is of by x4
+# double check the projection values....
+
+# WRONG OUTPU!
+# - "neighbours" only contain neighbours along same path 
+#       - the direct intersecting nodes should also be neighbours
+# "intersection_id" and "source_intersection_ids" should be removed from the output
