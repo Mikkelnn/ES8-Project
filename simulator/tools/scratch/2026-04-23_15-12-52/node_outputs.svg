@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="328.7252 312.8039 1.4949 1.9042" width="1600" height="2037" style="background:#080d14;">
+<defs>
+  <filter id="rg_45156875" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="0.018" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="iglow" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="0.07" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="mglow" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="0.10" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="gglow" x="-150%" y="-150%" width="400%" height="400%"><feGaussianBlur stdDeviation="0.07" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>
+<g stroke="#aaaaaa" stroke-width="0.018" opacity="0.40">
+<line x1="329.125223" y1="314.308114" x2="329.17866" y2="314.234899"/>
+<line x1="329.17866" y1="314.234899" x2="329.231202" y2="314.161485"/>
+<line x1="329.231202" y1="314.161485" x2="329.285178" y2="314.088393"/>
+<line x1="329.285178" y1="314.088393" x2="329.33951" y2="314.01538"/>
+<line x1="329.33951" y1="314.01538" x2="329.393744" y2="313.942345"/>
+<line x1="329.393744" y1="313.942345" x2="329.44691" y2="313.869069"/>
+<line x1="329.44691" y1="313.869069" x2="329.500444" y2="313.795876"/>
+<line x1="329.500444" y1="313.795876" x2="329.554043" y2="313.722697"/>
+<line x1="329.554043" y1="313.722697" x2="329.606962" y2="313.649367"/>
+<line x1="329.606962" y1="313.649367" x2="329.533959" y2="313.586441"/>
+<line x1="329.533959" y1="313.586441" x2="329.518596" y2="313.515181"/>
+<line x1="329.518596" y1="313.515181" x2="329.549467" y2="313.438084"/>
+<line x1="329.549467" y1="313.438084" x2="329.583333" y2="313.361369"/>
+<line x1="329.583333" y1="313.361369" x2="329.591566" y2="313.282905"/>
+<line x1="329.591566" y1="313.282905" x2="329.593733" y2="313.203942"/>
+<line x1="329.638808" y1="313.571067" x2="329.677637" y2="313.50616"/>
+<line x1="329.677637" y1="313.50616" x2="329.674038" y2="313.431988"/>
+<line x1="329.500333" y1="313.965" x2="329.619667" y2="313.991"/>
+<line x1="329.574333" y1="313.862667" x2="329.693667" y2="313.888333"/>
+<line x1="329.642333" y1="313.759667" x2="329.754667" y2="313.784333"/>
+<line x1="329.71658" y1="313.660815" x2="329.820161" y2="313.680631"/>
+<line x1="329.412" y1="314.063333" x2="329.518" y2="314.086667"/>
+<line x1="329.683333" y1="313.538333" x2="329.777667" y2="313.555667"/>
+<line x1="329.324333" y1="314.162333" x2="329.418667" y2="314.182667"/>
+</g>
+<g fill="#aaaaaa" opacity="0.92" filter="url(#rg_45156875)">
+<circle cx="329.125223" cy="314.308114" r="0.045"/>
+<circle cx="329.17866" cy="314.234899" r="0.045"/>
+<circle cx="329.231202" cy="314.161485" r="0.045"/>
+<circle cx="329.285178" cy="314.088393" r="0.045"/>
+<circle cx="329.33951" cy="314.01538" r="0.045"/>
+<circle cx="329.393744" cy="313.942345" r="0.045"/>
+<circle cx="329.44691" cy="313.869069" r="0.045"/>
+<circle cx="329.500444" cy="313.795876" r="0.045"/>
+<circle cx="329.554043" cy="313.722697" r="0.045"/>
+<circle cx="329.606962" cy="313.649367" r="0.045"/>
+<circle cx="329.533959" cy="313.586441" r="0.045"/>
+<circle cx="329.518596" cy="313.515181" r="0.045"/>
+<circle cx="329.549467" cy="313.438084" r="0.045"/>
+<circle cx="329.583333" cy="313.361369" r="0.045"/>
+<circle cx="329.591566" cy="313.282905" r="0.045"/>
+<circle cx="329.593733" cy="313.203942" r="0.045"/>
+<circle cx="329.638808" cy="313.571067" r="0.045"/>
+<circle cx="329.677637" cy="313.50616" r="0.045"/>
+<circle cx="329.674038" cy="313.431988" r="0.045"/>
+<circle cx="329.500333" cy="313.965" r="0.045"/>
+<circle cx="329.619667" cy="313.991" r="0.045"/>
+<circle cx="329.574333" cy="313.862667" r="0.045"/>
+<circle cx="329.693667" cy="313.888333" r="0.045"/>
+<circle cx="329.642333" cy="313.759667" r="0.045"/>
+<circle cx="329.754667" cy="313.784333" r="0.045"/>
+<circle cx="329.71658" cy="313.660815" r="0.045"/>
+<circle cx="329.820161" cy="313.680631" r="0.045"/>
+<circle cx="329.412" cy="314.063333" r="0.045"/>
+<circle cx="329.518" cy="314.086667" r="0.045"/>
+<circle cx="329.683333" cy="313.538333" r="0.045"/>
+<circle cx="329.777667" cy="313.555667" r="0.045"/>
+<circle cx="329.324333" cy="314.162333" r="0.045"/>
+<circle cx="329.418667" cy="314.182667" r="0.045"/>
+</g>
+<g id="legend">
+<rect x="328.755" y="312.804" width="3.8" height="1.930" fill="#080d14" fill-opacity="0.80" rx="0.10"/>
+<text x="328.925" y="313.024" font-size="0.17850000000000002" fill="#ffffff" font-weight="bold" font-family="monospace">Node map  (merge r=12.5 m, interval=12.5 m)</text>
+<circle cx="328.945" cy="313.290" r="0.07" fill="#aaa"/>
+<text x="329.071" y="313.332" font-size="0.1394" fill="#aaa" font-family="monospace">road 45156875</text>
+<line x1="328.875" y1="313.528" x2="332.375" y2="313.528" stroke="#ffffff22" stroke-width="0.015"/>
+<circle cx="328.945" cy="313.570" r="0.11200000000000002" fill="none" stroke="#ffffff" stroke-width="0.022"/>
+<circle cx="328.945" cy="313.570" r="0.038500000000000006" fill="#ffffff"/>
+<text x="329.071" y="313.612" font-size="0.1394" fill="#ffffff" font-family="monospace">intersection node</text>
+<circle cx="328.945" cy="313.850" r="0.11200000000000002" fill="none" stroke="#fbbf24" stroke-width="0.028"/>
+<circle cx="328.945" cy="313.850" r="0.038500000000000006" fill="#fbbf24"/>
+<text x="329.071" y="313.892" font-size="0.1394" fill="#fbbf24" font-family="monospace">merged intersection</text>
+<circle cx="328.945" cy="314.130" r="0.09450000000000001" fill="#22d3ee0d" stroke="#22d3ee" stroke-width="0.022"/>
+<circle cx="328.945" cy="314.130" r="0.038500000000000006" fill="#22d3ee"/>
+<text x="329.071" y="314.172" font-size="0.1394" fill="#22d3ee" font-family="monospace">gateway point</text>
+</g>
+</svg>

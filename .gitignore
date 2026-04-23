@@ -5,8 +5,8 @@ __pycache__
 results
 scalene-profile
 GIS_data
-node_outputs.json
-node_outputs.svg
+**/map_gui/node_outputs.json
+**/map_gui/node_outputs.svg
 selected_roads.json
 roadnetwork_postproc_PSTR.json
 *Zone.Identifier

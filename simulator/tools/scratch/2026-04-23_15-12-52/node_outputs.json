@@ -1,0 +1,469 @@
+{
+  "metadata": {
+    "input_file": "selected_roads.json",
+    "merge_radius_m": 12.5,
+    "target_interval_m": 12.5,
+    "algorithm": "uniform_division",
+    "m_per_svg_x": 84.110286,
+    "m_per_svg_y": 151.775317,
+    "intersections_raw": 0,
+    "intersections_merged": 0,
+    "total_nodes": 33,
+    "intersection_nodes": 0,
+    "road_sample_nodes": 33,
+    "segment_spacing_stats": {
+      "mean_m": 10.3246,
+      "median_m": 10.7666,
+      "min_m": 8.3592,
+      "max_m": 11.9868,
+      "n_segs": 11
+    }
+  },
+  "nodes": {
+    "2": {
+      "point": [
+        329.125223,
+        314.308114
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "3"
+      ],
+      "spacing_m": 11.9868
+    },
+    "3": {
+      "point": [
+        329.17866,
+        314.234899
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "2",
+        "4"
+      ],
+      "spacing_m": 11.9868
+    },
+    "4": {
+      "point": [
+        329.231202,
+        314.161485
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "3",
+        "5"
+      ],
+      "spacing_m": 11.9868
+    },
+    "5": {
+      "point": [
+        329.285178,
+        314.088393
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "4",
+        "6"
+      ],
+      "spacing_m": 11.9868
+    },
+    "6": {
+      "point": [
+        329.33951,
+        314.01538
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "5",
+        "7"
+      ],
+      "spacing_m": 11.9868
+    },
+    "7": {
+      "point": [
+        329.393744,
+        313.942345
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "6",
+        "8"
+      ],
+      "spacing_m": 11.9868
+    },
+    "8": {
+      "point": [
+        329.44691,
+        313.869069
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "7",
+        "9"
+      ],
+      "spacing_m": 11.9868
+    },
+    "9": {
+      "point": [
+        329.500444,
+        313.795876
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "8",
+        "10"
+      ],
+      "spacing_m": 11.9868
+    },
+    "10": {
+      "point": [
+        329.554043,
+        313.722697
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "9",
+        "11"
+      ],
+      "spacing_m": 11.9868
+    },
+    "11": {
+      "point": [
+        329.606962,
+        313.649367
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "10",
+        "12"
+      ],
+      "spacing_m": 11.9868
+    },
+    "12": {
+      "point": [
+        329.533959,
+        313.586441
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "11",
+        "13"
+      ],
+      "spacing_m": 11.9868
+    },
+    "13": {
+      "point": [
+        329.518596,
+        313.515181
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "12",
+        "14"
+      ],
+      "spacing_m": 11.9868
+    },
+    "14": {
+      "point": [
+        329.549467,
+        313.438084
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "13",
+        "15"
+      ],
+      "spacing_m": 11.9868
+    },
+    "15": {
+      "point": [
+        329.583333,
+        313.361369
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "14",
+        "16"
+      ],
+      "spacing_m": 11.9868
+    },
+    "16": {
+      "point": [
+        329.591566,
+        313.282905
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "15",
+        "17"
+      ],
+      "spacing_m": 11.9868
+    },
+    "17": {
+      "point": [
+        329.593733,
+        313.203942
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "16"
+      ],
+      "spacing_m": 11.9868
+    },
+    "18": {
+      "point": [
+        329.638808,
+        313.571067
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "19"
+      ],
+      "spacing_m": 11.4195
+    },
+    "19": {
+      "point": [
+        329.677637,
+        313.50616
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "18",
+        "20"
+      ],
+      "spacing_m": 11.4195
+    },
+    "20": {
+      "point": [
+        329.674038,
+        313.431988
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "19"
+      ],
+      "spacing_m": 11.4195
+    },
+    "21": {
+      "point": [
+        329.500333,
+        313.965
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "22"
+      ],
+      "spacing_m": 10.785
+    },
+    "22": {
+      "point": [
+        329.619667,
+        313.991
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "21"
+      ],
+      "spacing_m": 10.785
+    },
+    "23": {
+      "point": [
+        329.574333,
+        313.862667
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "24"
+      ],
+      "spacing_m": 10.7666
+    },
+    "24": {
+      "point": [
+        329.693667,
+        313.888333
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "23"
+      ],
+      "spacing_m": 10.7666
+    },
+    "25": {
+      "point": [
+        329.642333,
+        313.759667
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "26"
+      ],
+      "spacing_m": 10.1631
+    },
+    "26": {
+      "point": [
+        329.754667,
+        313.784333
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "25"
+      ],
+      "spacing_m": 10.1631
+    },
+    "27": {
+      "point": [
+        329.71658,
+        313.660815
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "28"
+      ],
+      "spacing_m": 9.2167
+    },
+    "28": {
+      "point": [
+        329.820161,
+        313.680631
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "27"
+      ],
+      "spacing_m": 9.2167
+    },
+    "29": {
+      "point": [
+        329.412,
+        314.063333
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "30"
+      ],
+      "spacing_m": 9.5933
+    },
+    "30": {
+      "point": [
+        329.518,
+        314.086667
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "29"
+      ],
+      "spacing_m": 9.5933
+    },
+    "31": {
+      "point": [
+        329.683333,
+        313.538333
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "32"
+      ],
+      "spacing_m": 8.3592
+    },
+    "32": {
+      "point": [
+        329.777667,
+        313.555667
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "31"
+      ],
+      "spacing_m": 8.3592
+    },
+    "33": {
+      "point": [
+        329.324333,
+        314.162333
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "34"
+      ],
+      "spacing_m": 8.5134
+    },
+    "34": {
+      "point": [
+        329.418667,
+        314.182667
+      ],
+      "road_id": "45156875",
+      "intersection_id": null,
+      "source_intersection_ids": null,
+      "neighbours": [
+        "33"
+      ],
+      "spacing_m": 8.5134
+    }
+  },
+  "gateways": {}
+}
