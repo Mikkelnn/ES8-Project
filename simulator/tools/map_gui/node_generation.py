@@ -40,6 +40,7 @@ _sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate_svg import generate_svg
 from datetime import datetime
 import os
+import numpy as np
 
 # ── Projection constants ──────────────────────────────────────────────────────
 _SCALE       = 733.452594 * 0.2149033923489 #TODO: quicck fix but should be done proper....
@@ -377,6 +378,169 @@ def place_uniform_nodes(chain):
     return pts, spacing_m
 
 
+# from shapely.geometry import LineString
+# from rtree import index
+
+# def find_intersections_with_rtree(paths):
+#     # Create a spatial index using Rtree
+#     idx = index.Index()
+    
+#     # Add all line segments to the spatial index
+#     line_strings = [LineString(path) for path in paths]
+#     for i, line in enumerate(line_strings):
+#         # Insert each line into the Rtree index: (xmin, ymin, xmax, ymax, index)
+#         bbox = line.bounds  # returns (xmin, ymin, xmax, ymax)
+#         idx.insert(i, bbox)
+    
+#     intersection_points = []
+    
+#     # Now, check each pair of line segments using Rtree spatial index
+#     for i, line1 in enumerate(line_strings):
+#         possible_neighbors = list(idx.intersection(line1.bounds))  # Get potential neighbors
+#         print(possible_neighbors)
+#         for j in possible_neighbors:
+#             if i < j:  # Only check each pair once
+#                 line2 = line_strings[j]
+#                 if line1.intersects(line2):
+#                     intersection = line1.intersection(line2)
+#                     if intersection.geom_type == 'Point':
+#                         intersection_points.append((intersection.x, intersection.y))
+#                     elif intersection.geom_type == 'MultiPoint':
+#                         for point in intersection.geoms:
+#                             intersection_points.append((point.x, point.y))
+#                 else: print("nope iner")
+#             else: print("nope i,j")
+    
+#     return intersection_points
+
+def calculate_line_params(p1, p2):
+    """
+    Given two points p1 and p2, calculate the slope (m) and intercept (b) of the line.
+    Returns the parameters for the line equation: y = mx + b
+    """
+    x1, y1 = p1
+    x2, y2 = p2
+    # Handling vertical lines to avoid division by zero
+    if x2 == x1:
+        m = float('inf')  # Vertical line
+        b = x1  # x-intercept
+    else:
+        m = (y2 - y1) / (x2 - x1)
+        b = y1 - m * x1
+    return m, b
+
+def solve_intersection(line1_params, line2_params, tolerance=1e-5):
+    """
+    Given the parameters of two lines, solve for their intersection point (if any).
+    Returns the intersection point (x, y), or None if no valid intersection within the segments.
+    """
+    m1, b1 = line1_params
+    m2, b2 = line2_params
+    
+    # If both lines are vertical
+    if m1 == float('inf') and m2 == float('inf'):
+        return None  # Parallel vertical lines (no intersection)
+    
+    # If one line is vertical
+    if m1 == float('inf'):
+        x = b1
+        y = m2 * x + b2
+        return x, y
+    
+    if m2 == float('inf'):
+        x = b2
+        y = m1 * x + b1
+        return x, y
+    
+    # Otherwise, solve for x where y1 = y2, i.e., m1*x + b1 = m2*x + b2
+    x = (b2 - b1) / (m1 - m2)
+    y = m1 * x + b1
+    
+    return x, y
+
+def is_within_bounds(x, y, p1, p2, tolerance=1e-5):
+    """
+    Check if the intersection point (x, y) is within the bounds of the segment defined by p1 and p2.
+    """
+    x1, y1 = p1
+    x2, y2 = p2
+    # Check if the intersection point is within the bounds of the segment
+    return min(x1, x2) - tolerance <= x <= max(x1, x2) + tolerance and \
+           min(y1, y2) - tolerance <= y <= max(y1, y2) + tolerance
+
+def remove_duplicates(intersections, tolerance):
+    """
+    Removes duplicate intersection points that are within the tolerance distance.
+    Uses vectorized approach with NumPy.
+    """
+    length = len(intersections)
+    if length == 0: return []
+    elif length == 1: return intersections
+
+    # Convert list of intersections to a numpy array for vectorized operations
+    print(intersections)
+    intersections = np.array(intersections)
+    
+    unique_points = np.array([])
+    
+    for point in intersections:
+        # Calculate the distance to all points already in unique_points
+        distances = np.linalg.norm(unique_points[:,0] - point[0], axis=1) if len(unique_points) else []
+        # If no points are too close, add this point as a new unique point
+
+        min_dist, min_idx = None, None
+        for idx, d in enumerate(distances):
+            if d < tolerance and (min_dist is None or d < min_dist):
+                min_dist = d
+                min_idx = idx
+
+        if min_idx is None:
+            if len(unique_points): unique_points.append(point)
+            else: unique_points = np.array([point])
+        else:
+            unique_points[min_idx][1] = list(set(unique_points[min_idx][1] + point[1]))
+    
+    # return [tuple(p) for p in unique_points]
+    return unique_points
+
+def find_intersections(paths, tolerance=5e-2):
+    """
+    Find the intersections between all line segments in the given paths using linear equations.
+    """
+    intersections = []
+    
+    # Loop over all path pairs
+    for i in range(len(paths)):
+        for j in range(i + 1, len(paths)):
+            path1 = paths[i]
+            path2 = paths[j]
+            
+            # Iterate over all pairs of segments in path1 and path2
+            for k in range(len(path1) - 1):
+                for l in range(len(path2) - 1):
+                    p1, p2 = path1[k], path1[k + 1]
+                    p3, p4 = path2[l], path2[l + 1]
+                    
+                    # Calculate line parameters for each segment
+                    line1_params = calculate_line_params(p1, p2)
+                    line2_params = calculate_line_params(p3, p4)
+                    
+                    # Find the intersection of the two lines
+                    intersection = solve_intersection(line1_params, line2_params, tolerance)
+                    
+                    if intersection is not None:
+                        x, y = intersection
+
+                        # Check if the intersection is within the bounds of both segments
+                        if is_within_bounds(x, y, p1, p2, tolerance) and is_within_bounds(x, y, p3, p4, tolerance):
+                            # Add intersection to the list
+                            intersections.append(((x, y), [i,j])) # note the intersecting paths
+
+    print(f"inter: {len(intersections)}")
+    dedup = remove_duplicates(intersections, tolerance)
+    print(f"dedup inter: {len(dedup)}")
+    return dedup
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
@@ -434,9 +598,17 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
         unique_chains = remove_parallel_chains(raw_chains, PARALLEL_TOL_M)
         road_chains[rid] = [deduplicate_chain(c) for c in unique_chains]
 
+        # add internal intersections
+        # test = [road_chains[rid][i] for i in [0,9]]
+        # print(test)
+        intersections = find_intersections(road_chains[rid], tolerance=4e-2)
+        print(f"count: {len(intersections)}")
+        print(intersections)
+
         # print(f"Parsed: {len(parsed)} raw_chains: {len(raw_chains)} unique_chains: {len(unique_chains)} deduped_chains: {len(road_chains[rid])}")
         # print(unique_chains)
-        # exit()
+        # print(road_chains[rid])
+    exit()
 
     # Step 2: snap each merged intersection onto its road chains
     int_on_road = {rid: {} for rid in road_chains}
@@ -451,10 +623,6 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
             if best is not None:
                 ci, arc, snapped, _ = best
                 int_on_road[rid][mid] = (ci, arc, snapped)
-            
-            # add internal intersections
-
-
 
     # Step 3: split chains at intersections, sample each segment uniformly
     nodes   = {}
