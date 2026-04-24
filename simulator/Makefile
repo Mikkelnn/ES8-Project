@@ -18,11 +18,11 @@ test: install
 run: install
 	PYTHONPATH=$(PYTHONPATH) uv run python -m main
 
-benchmark:
-	PYTHONPATH=$(PYTHONPATH) uv run scalene run main
+benchmark: install
+	PYTHONPATH=$(PYTHONPATH) uv run scalene run -- python -m main
 
-benchmark_mem:
-	PYTHONPATH=$(PYTHONPATH) uv run memray run  src/main.py
+benchmark_mem: install
+	PYTHONPATH=$(PYTHONPATH) uv run memray run --live -m main
 
 benchmark_view:
 	PYTHONPATH=$(PYTHONPATH) uv run scalene view

@@ -11,3 +11,6 @@ selected_roads.json
 roadnetwork_postproc_PSTR.json
 *Zone.Identifier
 *.gpkg
+*memray*
+*scalene*
+*scalene-profile*
