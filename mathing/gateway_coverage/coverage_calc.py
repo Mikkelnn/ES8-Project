@@ -1,11 +1,8 @@
 from enum import Enum
 from math import log10, pi
-
 import numpy as np
 
-
 c = 299_792_458
-
 
 # ============================================================================
 # Enumerations
@@ -19,7 +16,6 @@ class PathLossExponent(float, Enum):
     INDOOR_LOS = 1.7
     INDOOR_NLOS = 5.0
     INDOOR_OBSTRUCTED = 2.5
-
 
 class LoRaSpreadingFactor(Enum):
     """LoRa spreading factor settings with approximate sensitivity values."""

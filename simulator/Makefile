@@ -21,6 +21,9 @@ run: install
 benchmark:
 	PYTHONPATH=$(PYTHONPATH) uv run scalene run main
 
+benchmark_mem:
+	PYTHONPATH=$(PYTHONPATH) uv run memray run  src/main.py
+
 benchmark_view:
 	PYTHONPATH=$(PYTHONPATH) uv run scalene view
 
