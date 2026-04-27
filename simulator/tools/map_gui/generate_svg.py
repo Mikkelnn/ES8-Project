@@ -166,7 +166,7 @@ def generate_svg(
                 if nb is None:
                     continue
                 x2, y2 = nb["point"]
-                edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}"/>')
+                edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" data-nodes="{nid},{nb_nid}"/>')
         if edges:
             L.append(f'<g stroke="{col}" stroke-width="{EDGE_W}" opacity="0.40">')
             L.extend(edges)
@@ -183,7 +183,7 @@ def generate_svg(
             if nb is None:
                 continue
             x2, y2 = nb["point"]
-            int_edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}"/>')
+            int_edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" data-nodes="{nid},{nb_nid}"/>')
     if int_edges:
         L.append(f'<g stroke="#ffffff" stroke-width="{INT_EDGE_W}" opacity="0.55">')
         L.extend(int_edges)
@@ -197,7 +197,7 @@ def generate_svg(
             if n["road_id"] != rid:
                 continue
             x, y = n["point"]
-            dots.append(f'<circle cx="{x}" cy="{y}" r="{R_ROAD}"/>')
+            dots.append(f'<circle cx="{x}" cy="{y}" r="{R_ROAD}" data-nodes="{nid}"/>')
         if dots:
             L.append(f'<g fill="{col}" opacity="0.92" filter="url(#rg_{rid})">')
             L.extend(dots)

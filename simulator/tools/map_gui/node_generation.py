@@ -478,15 +478,14 @@ def remove_duplicates(intersections, tolerance):
     elif length == 1: return intersections
 
     # Convert list of intersections to a numpy array for vectorized operations
-    print(intersections)
-    intersections = np.array(intersections)
-    
-    unique_points = np.array([])
-    
+    # print(intersections)    
+    unique_points = []
+
     for point in intersections:
-        # Calculate the distance to all points already in unique_points
-        distances = np.linalg.norm(unique_points[:,0] - point[0], axis=1) if len(unique_points) else []
-        # If no points are too close, add this point as a new unique point
+        if len(unique_points):
+            distances = [np.linalg.norm(np.array(p[0]) - np.array(point[0])) for p in unique_points]
+        else:
+            distances = []
 
         min_dist, min_idx = None, None
         for idx, d in enumerate(distances):
@@ -495,19 +494,21 @@ def remove_duplicates(intersections, tolerance):
                 min_idx = idx
 
         if min_idx is None:
-            if len(unique_points): unique_points.append(point)
-            else: unique_points = np.array([point])
+            unique_points.append(list(point))  # now works
         else:
             unique_points[min_idx][1] = list(set(unique_points[min_idx][1] + point[1]))
-    
-    # return [tuple(p) for p in unique_points]
-    return unique_points
+
+    return np.array(unique_points, dtype=object)
 
 def find_intersections(paths, tolerance=5e-2):
     """
     Find the intersections between all line segments in the given paths using linear equations.
     """
+
     intersections = []
+
+    if len(paths) < 2:
+        return intersections
     
     # Loop over all path pairs
     for i in range(len(paths)):
@@ -536,10 +537,7 @@ def find_intersections(paths, tolerance=5e-2):
                             # Add intersection to the list
                             intersections.append(((x, y), [i,j])) # note the intersecting paths
 
-    print(f"inter: {len(intersections)}")
-    dedup = remove_duplicates(intersections, tolerance)
-    print(f"dedup inter: {len(dedup)}")
-    return dedup
+    return remove_duplicates(intersections, tolerance)
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
@@ -592,28 +590,39 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
     # Step 1: parse, stitch, remove parallel duplicate chains, deduplicate vertices
     PARALLEL_TOL_M = 5.0   # chains within this avg distance are parallel duplicates
     road_chains = {}
+    internal_ints = {}  # new dict
     for rid, info in road_data.items():
         parsed = parse_svg_path(info["path"])        
         raw_chains    = stitch(parsed, STITCH_TOL)
         unique_chains = remove_parallel_chains(raw_chains, PARALLEL_TOL_M)
         road_chains[rid] = [deduplicate_chain(c) for c in unique_chains]
 
-        # add internal intersections
-        # test = [road_chains[rid][i] for i in [0,9]]
-        # print(test)
-        intersections = find_intersections(road_chains[rid], tolerance=4e-2)
-        print(f"count: {len(intersections)}")
-        print(intersections)
+        # road_chains[rid] = [road_chains[rid][i] for i in [0,2,9]]
+        iid_ctr = 0
+        intersections = find_intersections(road_chains[rid], tolerance=4e-2) #TODO: change to meters and use correct scaling
+        for iinter in intersections:
+            iid_ctr += 1
+            mid = f"int_{rid}_{iid_ctr}"
+            if rid not in internal_ints:
+                internal_ints[rid] = {}
 
-        # print(f"Parsed: {len(parsed)} raw_chains: {len(raw_chains)} unique_chains: {len(unique_chains)} deduped_chains: {len(road_chains[rid])}")
-        # print(unique_chains)
-        # print(road_chains[rid])
-    exit()
+            internal_ints[rid][mid] = iinter
+            merged_ints[mid] = {
+                "point": list(iinter[0]),
+                "road_id": rid,                
+                "source_intersection_ids": None,
+                "is_internal": True,
+            }
+            
 
     # Step 2: snap each merged intersection onto its road chains
-    int_on_road = {rid: {} for rid in road_chains}
+    int_on_road = {rid: {} for rid in road_chains}    
     for mid, minfo in merged_ints.items():
         pt = tuple(minfo["point"])
+
+        if minfo.get("is_internal"):
+            continue
+
         for rid, chains in road_chains.items():
             best = None
             for ci, chain in enumerate(chains):
@@ -636,28 +645,42 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
 
     def get_or_create_int_node(mid):
         if mid not in int_nid:
-            nid   = new_nid()
+            nid = new_nid()
             int_nid[mid] = nid
             minfo = merged_ints[mid]
+
             nodes[nid] = {
-                "point"                  : minfo["point"],
-                "road_id"                : None,
-                "intersection_id"        : mid,
-                "source_intersection_ids": minfo["source_intersection_ids"],
-                "neighbours"             : [],
+                "point": minfo["point"],
+                "road_id": minfo.get("road_id"),  # internal keeps road_id
+                "intersection_id": "is_internal" if minfo.get("is_internal") else mid,
+                "source_intersection_ids": minfo.get("source_intersection_ids"),
+                "neighbours": [],
+                "is_internal": minfo.get("is_internal", False),
             }
+
         return int_nid[mid]
 
     seg_stats = []   # (arc_m, n, spacing_m) for reporting
 
     for rid, chains in road_chains.items():
         road_int_map = int_on_road[rid]
+        internal_int_map = internal_ints[rid]
+
+        # print(road_int_map)
+
         chain_ints   = defaultdict(list)
         for mid, (ci, arc, snapped) in road_int_map.items():
             chain_ints[ci].append((arc, mid, snapped))
 
+        for mid, (pt, cidx) in internal_int_map.items():
+            for ci in cidx:
+                arc, snapped, _ = project_onto_chain(pt, chains[ci])
+                chain_ints[ci].append((arc, mid, snapped))
+
         for ci, chain in enumerate(chains):
             ints_here = sorted(chain_ints[ci], key=lambda x: x[0])
+
+            # print(f"rid: {rid}, ci: {ci}, ints_here: {len(ints_here)}")
 
             # Insert snapped intersection points into chain geometry
             working = list(chain)
@@ -666,7 +689,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
 
             # Re-project for accurate arc positions after insertion
             splits = []
-            for _, mid, _ in ints_here:
+            for _, mid, _ in ints_here: 
                 arc, snapped, _ = project_onto_chain(
                     merged_ints[mid]["point"], working)
                 splits.append((arc, mid, snapped))
@@ -677,9 +700,9 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
             breakpoints = ([(0.0,       None, working[0])] +
                            [(a, m, s) for a, m, s in splits] +
                            [(total_arc, None, working[-1])])
-
             seg_node_seqs = []
 
+            # print(breakpoints)
             for k in range(len(breakpoints) - 1):
                 arc_s, mid_s, snap_s = breakpoints[k]
                 arc_e, mid_e, snap_e = breakpoints[k + 1]
@@ -731,10 +754,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
                 if len(seq) >= 2:
                     seg_node_seqs.append(seq)
 
-                print(f"seg: {ci}, k: {k}, length (m): {arc_m}, nodes: {len(seq)}")
-
-            # print(f"seg: {ci}, length (m): {arc_m}")
-            
+                # print(f"seg: {ci}, k: {k}, length (m): {arc_m}, nodes: {len(seq)}")
 
             # Wire neighbours
             for seq in seg_node_seqs:
