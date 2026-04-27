@@ -252,17 +252,48 @@ def AR1Model():
 
 def main ():
     # Uncomment the following line to plot a single realization with detailed stats
-    data = ARModelSimple()
-    # data = AR1Model()  
+    AR5data = np.array(ARModelSimple())
+    AR1data = np.array(AR1Model())  
+    # print(AR5data[:,1])
+
 
     # Plot 10 realizations on the same plot
     # plot_multiple_realizations(num_realizations=10)
 
     #Temperature based drift
     # data = tempModel(start = 1) #Write month number
-    plotData(data)
+    # plotData(AR5data)
     # plot_psd()
+    analysis(AR1data, AR5data)
     
+def analysis(AR1data, AR5data):
+    AR5ACF = np.correlate(AR5data[:, 1], AR5data[:, 1], mode = "full")
+    AR5ACF = AR5ACF[AR5ACF.size//2:]
+    AR5ACF = AR5ACF/AR5ACF[0] #Normalize the ACF
+
+    AR1ACF = np.correlate(AR1data[:, 1], AR1data[:, 1], mode = "full")
+    AR1ACF = AR1ACF[AR1ACF.size//2:]
+    AR1ACF = AR1ACF/AR1ACF[0] #Normalize the ACF
+
+    # Plot both ACFs on the same figure
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    lags = np.arange(20)
+    ax.plot(lags, AR5ACF[:20], 'b-', linewidth=2, label='AR5 ACF', alpha=0.7)
+    ax.plot(lags, AR1ACF[:20], 'r-', linewidth=2, label='AR1 ACF', alpha=0.7)
+    
+    ax.set_xlabel('Lag')
+    ax.set_ylabel('Autocorrelation')
+    ax.set_title('Autocorrelation Functions normalized: AR5 vs AR1')
+    # ax.set_yscale('log')
+    ax.legend()
+    ax.grid(True, alpha=0.3, which='both')
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
 
 if __name__=="__main__":
     main()
