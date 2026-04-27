@@ -21,6 +21,7 @@ dependencies = [
     "pyarrow>=23.0.1",
     "networkx>=3.6.1",
     "tqdm>=4.67.3",
+    "memray>=1.19.3",
 ]
 
 [dependency-groups]
