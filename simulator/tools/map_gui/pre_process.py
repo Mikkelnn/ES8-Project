@@ -106,7 +106,7 @@ def filtered_frame(gdf):
     gdf_exploded = gdf_exploded[gdf_exploded.geometry.type == "LineString"].copy()
 
     # Extend each segment by x meter at both ends so near-touching segments overlap
-    gdf_exploded["geometry"] = gdf_exploded.geometry.apply(lambda line: extend_line(line, 25.0))
+    gdf_exploded["geometry"] = gdf_exploded.geometry.apply(lambda line: extend_line(line, 0.0))
 
     # For each name group, merge only connected (intersecting/touching) segments
     all_rows = []
@@ -260,16 +260,20 @@ def cluster_nearby_intersections(intersections_gdf, radius_m=10):
 
 def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered_intersections: gpd.GeoDataFrame = None):
     combined = []
-  
+    
+    if "intersection_id" not in clustered_intersections.columns:
+        clustered_intersections["intersection_id"] = clustered_intersections.index
+
+
     if clustered_intersections is not None:
         clustered_intersections = clustered_intersections.copy()
 
         # Ensure intersections have an "id" field used later by gdf_to_road_intersection_json.
-        if "id" not in clustered_intersections.columns:
-            if "intersection_id" in clustered_intersections.columns:
-                clustered_intersections["id"] = clustered_intersections["intersection_id"]
-            else:
-                clustered_intersections["id"] = clustered_intersections.index
+        #if "id" not in clustered_intersections.columns:
+        #    if "intersection_id" in clustered_intersections.columns:
+        #        clustered_intersections["id"] = clustered_intersections["intersection_id"]
+        #    else:
+        #        clustered_intersections["id"] = clustered_intersections.index
     
         # Convert intersections_clustered to GeoJSON features
         intersections_geojson = json.loads(clustered_intersections.to_json())
@@ -277,6 +281,8 @@ def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered
         # Tag intersection features with a type indicator
         for feature in intersections_geojson['features']:
             feature['properties']['feature_type'] = 'intersection'
+            feature['properties']['id'] = feature['properties'].get('intersection_id')
+            feature['id'] = feature['properties']['id']
 
         combined = intersections_geojson['features']
 
@@ -287,8 +293,10 @@ def combine_road_intersections(roadnetwork_filtered: gpd.GeoDataFrame, clustered
         # Tag road features with a type indicator
         for feature in roadnetwork_geojson['features']:
             feature['properties']['feature_type'] = 'road'
+            feature['properties']['id'] = None
+            feature['id'] = None
 
-        combined = combined + roadnetwork_geojson['features']
+        combined = roadnetwork_geojson['features'] + combined
 
     # Combine features
     combined_geojson = {
@@ -352,8 +360,30 @@ def _build_projector(gdf: gpd.GeoDataFrame,
         x = round(offset_x + (lon - min_x) * scale, 3)
         y = round(offset_y + (max_y - lat) * scale, 3)   # flip Y
         return x, y
+    
+    #Change: Added metadata to aid the scaling calculation in the JS GUI
+    metadata = {
+        "scale": scale,
+        "bounds": {
+            "min_x": min_x,
+            "min_y": min_y,
+            "max_x": max_x,
+            "max_y": max_y
+        },
+        "svg_dimensions": {
+            "width": svg_w,
+            "height": svg_h,
+            "used_width": usable_w,
+            "used_height": usable_h,
+            "padding": padding
+        },
+        "offset": {
+            "x": offset_x,
+            "y": offset_y
+        }
+    }
 
-    return project
+    return project, metadata
 
 
 def _linestring_to_svg_path(coords, project) -> str:
@@ -440,7 +470,7 @@ def gdf_to_road_intersection_json(gdf: gpd.GeoDataFrame, svg_width: int = 1200, 
     padding     : Margin (px) around the map inside the viewport  (default 40).
     """
 
-    project = _build_projector(gdf, svg_width, svg_height, padding)
+    project, metadata = _build_projector(gdf, svg_width, svg_height, padding)
 
     road_section:         dict = {}
     intersection_section: dict = {}
@@ -480,7 +510,9 @@ def gdf_to_road_intersection_json(gdf: gpd.GeoDataFrame, svg_width: int = 1200, 
                 if int_id not in road_section[osm_id]["intersection_IDs"]:
                     road_section[osm_id]["intersection_IDs"].append(int_id)
 
+    #Change added metadata to the result dict to aid the scaling calculation in the JS GUI
     result = {
+        "metadata": metadata,
         "Road_ID":         road_section,
         "intersection_ID": intersection_section,
     }
@@ -489,7 +521,7 @@ def gdf_to_road_intersection_json(gdf: gpd.GeoDataFrame, svg_width: int = 1200, 
 
 
 def result_to_js(result: dict,
-                output_path: str = "processedRoads.js",
+                output_path: str = "processedRoads_test.js",
                 variable_name: str = "RAW") -> dict:
     """
     Convert the generated result dict into processedRoads.js format for the HTML GUI.
@@ -497,11 +529,13 @@ def result_to_js(result: dict,
     
     Output format:
     const RAW = {
+        "metadata": {...scale, bounds, etc...},
         "roads": {"<osm_id>": "M x,y L x,y ..."},
         "intersections": {"<int_id>": [cx, cy]},
         "roads_bb": {"<osm_id>": [x1, y1, x2, y2]}
     };
     """
+    metadata_in = result.get("metadata", {}) if isinstance(result, dict) else {}
     roads_in = result.get("Road_ID", {}) if isinstance(result, dict) else {}
     intersections_in = result.get("intersection_ID", {}) if isinstance(result, dict) else {}
     
@@ -552,6 +586,7 @@ def result_to_js(result: dict,
                     intersections_out[str(int_id)] = [cx, cy]
 
     payload = {
+        "metadata": metadata_in,
         "roads": roads_out,
         "intersections": intersections_out,
         "roads_bb": roads_bb_out
@@ -615,7 +650,7 @@ if __name__ == "__main__":
         layer_name = "gis_osm_roads_free"
         target_classes = ["secondary", "primary", "tertiary", "residential", "unclassified"]
         
-        result_name = "processedRoads.js"
+        result_name = "processedRoads_test.js"
 
         if not Path(geo_data_file).exists():
                 download_and_extract(url, geo_data_file)

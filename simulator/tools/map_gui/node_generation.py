@@ -31,7 +31,7 @@ SVG X and Y have different metres-per-unit values:
 All metric distances use the correct per-axis conversion.
 """
 
-import json, math
+import json, math, re
 from pathlib import Path
 from collections import defaultdict
 # Ensure generate_svg.py is importable from the same directory as this script
@@ -43,14 +43,8 @@ import os
 import numpy as np
 import tqdm 
 
-# ── Projection constants ──────────────────────────────────────────────────────
-_SCALE       = 733.452594 * 0.2149033923489 #TODO: quicck fix but should be done proper....
-_CENTRE_LAT  = (55.787 + 56.905) / 2
-M_PER_SVG_X  = 111_320.0 * math.cos(math.radians(_CENTRE_LAT)) / _SCALE
-M_PER_SVG_Y  = 111_320.0 / _SCALE
-
 # ── Configurable ─────────────────────────────────────────────────────────────
-INTERVAL_M     = 12.5
+INTERVAL_M     = 5
 MERGE_RADIUS_M = 12.5   # set 0 to disable
 STITCH_TOL     = 0.05   # SVG units — sub-path endpoint join tolerance
 SNAP_TOL       = 0.05   # SVG units — max intersection-to-chain snap distance
@@ -59,6 +53,32 @@ SNAP_TOL       = 0.05   # SVG units — max intersection-to-chain snap distance
 # Put selected_roads.json in the same folder as node_generation.py.
 _CWD        = Path(__file__).resolve().parent
 INPUT_FILE  = str(_CWD / "selected_roads.json")
+PROCESSED_ROADS_JS = _CWD / "processedRoads.js"
+
+
+def _load_scale_from_processed_roads_js(js_path=PROCESSED_ROADS_JS, default_m_to_svg_scale=158.44):
+    """Read metadata.scale from processedRoads.js and fall back to the default scale."""
+    if not js_path.exists():
+        return default_m_to_svg_scale
+
+    try:
+        text = js_path.read_text(encoding="utf-8")
+        match = re.search(r"const\s+\w+\s*=\s*(\{.*\});\s*$", text, re.DOTALL)
+        if not match:
+            return default_m_to_svg_scale
+
+        payload = json.loads(match.group(1))
+        m_svg_scale = payload.get("metadata", {}).get("scale")
+        return float(m_svg_scale) if m_svg_scale is not None else default_m_to_svg_scale
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return default_m_to_svg_scale
+
+
+# ── Projection constants ──────────────────────────────────────────────────────
+_M_to_SVG_SCALE       = _load_scale_from_processed_roads_js()
+#_CENTRE_LAT  = (55.787 + 56.905) / 2
+M_PER_SVG_X  = 111_320.0 / _M_to_SVG_SCALE
+M_PER_SVG_Y  = 111_320.0 / _M_to_SVG_SCALE
 
 result_dir = _CWD / "results" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 os.makedirs(result_dir, exist_ok=True)
