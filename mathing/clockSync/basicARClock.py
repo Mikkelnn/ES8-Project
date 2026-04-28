@@ -12,7 +12,7 @@ np.random.seed(42)
 
 
 tolerance = 5e-2
-meanDrift = 3.95e-5 #np.random.uniform(-tolerance, tolerance)
+meanDrift = 0 #np.random.uniform(-tolerance, tolerance)
 
 t0 = 900
 c_std = np.array([0.9271, 0.4163, 0.07483, -0.387, -0.03118])*0.98 #AR-model constants from page 32
@@ -21,22 +21,22 @@ c_temp = np.array([0.4397, 0.3106, 0.1874])
 init_Temp = np.array([0, 1.7e-3, 1.7e-3, 1.7e-3])
 init_Temp = np.transpose(init_Temp)
 
-noiseVar = 3.915e-9
+noiseVar = 3.915e-15
 noiseVarTemp = 6.9e-10
 
 simLength = 365*4 #days
 timeScale = 'Days'
 samplesDay = int(24*3600/t0)
 k_Temp = 5.559e-6
-
+smallSamples = 100
 
 
 def plotData(data):
     # Extract theta and alpha values
     theta_values = [point[0] for point in data]
     alpha_values = [point[1] for point in data]
-    time_steps = np.arange(len(data)) / 96  # Convert samples to days/minutes (96/60 samples per day/minute)
-    
+    time_steps = np.arange(len(data))  # Convert samples to days/minutes (96/60 samples per day/minute)
+
     # Create figure with two subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
     
@@ -82,20 +82,25 @@ def plot_psd(w=None, psd=None):
     """
     if w is None or psd is None:
         # Compute PSD if not provided
-        w = np.linspace(0, np.pi, 1024)
+        w = np.linspace(-np.pi, np.pi, 2048)
         den = np.ones_like(w, dtype=complex)
         
         for k, c_stdk in enumerate(c_std, start=1):
             den -= c_stdk * np.exp(-1j * k * w)
         
-        psd = noiseVar / np.abs(den)**2
+        psdAR5 = noiseVar / np.abs(den)**2
+        den2 = np.ones_like(w, dtype=complex)
+        den2 -= 0.9*np.exp(-1j * w)
+        psdAR1 = noiseVar/np.abs(den2)**2
     
     fig, ax = plt.subplots(figsize=(12, 6))
     
-    ax.semilogy(w, psd, 'b-', linewidth=2)
+    ax.semilogy(w, psdAR5, 'b-', label = "AR5PSD", linewidth=2)
+    ax.semilogy(w, psdAR1, 'r-', label = "AR1PSD", linewidth=2)
     ax.set_xlabel('Normalized Frequency (rad/sample)')
     ax.set_ylabel('Power Spectral Density')
     ax.set_title('Power Spectral Density of AR Clock Drift Model')
+    ax.legend()
     ax.grid(True, which='both', alpha=0.3)
     
     plt.tight_layout()
@@ -150,11 +155,11 @@ def ARModelSimple():
     std_dev = np.sqrt(noiseVar)
     z0 = np.random.normal(0, scale=std_dev)  
     w0 = np.array([0, z0, 0, 0, 0, 0]) 
-    init = np.array([0, meanDrift, meanDrift, meanDrift, meanDrift, meanDrift])*1.05 #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
+    init = np.array([0, meanDrift, meanDrift, meanDrift, meanDrift, meanDrift]) #initial conditions for the AR-model. alpha[0] is the variance for the clock skew see page 33
     init = np.transpose(init)
 
     X = A @ init + np.transpose(w0)
-    z = np.random.normal(0, scale=std_dev, size=simLength*96) #96 15 minuttes in a day 
+    z = np.random.normal(0, scale=std_dev, size=smallSamples) #96 15 minuttes in a day 
     data = [[X[0], X[1]]]
     meanVector = np.array([0, meanDrift, meanDrift, meanDrift, meanDrift, meanDrift])
     meanVector = np.transpose(meanVector)
@@ -240,19 +245,63 @@ def get_model_state_at_time(time_x, data, time_step_seconds=t0):
 def AR1Model():
     VarStd = np.sqrt(noiseVar)
     mean = 0
-    c1 = 0.95
+    c1 = 0.9
     alpha0 = 0
     theta0 = 0
     data = [[theta0, alpha0]]
-    for i in range(samplesDay*simLength):
+    for i in range(smallSamples):
         skew = data[i][1]*c1 + np.random.normal(0, VarStd)
         drift = data[i][0] + t0*(skew + mean)
         data.append([drift, skew])
     return data
 
+def analysis(AR1data, AR5data):
+    timeLagMax = 50
+
+    AR5ACF = np.correlate(AR5data[:, 1], AR5data[:, 1], mode = "full")
+    AR5ACF = AR5ACF[AR5ACF.size//2:]
+    AR5ACF = AR5ACF/AR5ACF[0] #Normalize the ACF
+    ACF5_truncated = AR5ACF[:timeLagMax]
+
+    AR1ACF = np.correlate(AR1data[:, 1], AR1data[:, 1], mode = "full")
+    AR1ACF = AR1ACF[AR1ACF.size//2:]
+    AR1ACF = AR1ACF/AR1ACF[0] #Normalize the ACF
+    ACF1_truncated = AR1ACF[:timeLagMax]
+
+    # Compute PSDs via FFT of truncated ACFs
+    AR5PSD = np.abs(np.fft.fft(ACF5_truncated))**2
+    AR1PSD = np.abs(np.fft.fft(ACF1_truncated))**2
+
+    # Plot ACFs and PSDs on the same figure
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+    
+    lags = np.arange(timeLagMax)
+    ax1.plot(lags, AR5ACF[:timeLagMax], 'b-', linewidth=2, label='AR5 ACF', alpha=0.7)
+    ax1.plot(lags, AR1ACF[:timeLagMax], 'r-', linewidth=2, label='AR1 ACF', alpha=0.7)
+    
+    ax1.set_xlabel('Lag')
+    ax1.set_ylabel('Autocorrelation')
+    ax1.set_title('Autocorrelation Functions normalized: AR5 vs AR1')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3, which='both')
+    
+    # Plot PSDs
+    freqs = np.fft.fftfreq(timeLagMax)
+    ax2.plot(freqs, AR5PSD, 'b-', linewidth=2, label='AR5 PSD', alpha=0.7)
+    ax2.plot(freqs, AR1PSD, 'r-', linewidth=2, label='AR1 PSD', alpha=0.7)
+    
+    ax2.set_xlabel('Frequency')
+    ax2.set_ylabel('Power Spectral Density')
+    ax2.set_title('Power Spectral Densities: AR5 vs AR1')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3, which='both')
+    
+    plt.tight_layout()
+    plt.show()
+
 def main ():
     # Uncomment the following line to plot a single realization with detailed stats
-    AR5data = np.array(ARModelSimple())
+    # AR5data = np.array(ARModelSimple())
     AR1data = np.array(AR1Model())  
     # print(AR5data[:,1])
 
@@ -263,34 +312,11 @@ def main ():
     #Temperature based drift
     # data = tempModel(start = 1) #Write month number
     # plotData(AR5data)
+    plotData(AR1data)
     # plot_psd()
-    analysis(AR1data, AR5data)
+    # analysis(AR1data, AR5data)
     
-def analysis(AR1data, AR5data):
-    AR5ACF = np.correlate(AR5data[:, 1], AR5data[:, 1], mode = "full")
-    AR5ACF = AR5ACF[AR5ACF.size//2:]
-    AR5ACF = AR5ACF/AR5ACF[0] #Normalize the ACF
 
-    AR1ACF = np.correlate(AR1data[:, 1], AR1data[:, 1], mode = "full")
-    AR1ACF = AR1ACF[AR1ACF.size//2:]
-    AR1ACF = AR1ACF/AR1ACF[0] #Normalize the ACF
-
-    # Plot both ACFs on the same figure
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    lags = np.arange(20)
-    ax.plot(lags, AR5ACF[:20], 'b-', linewidth=2, label='AR5 ACF', alpha=0.7)
-    ax.plot(lags, AR1ACF[:20], 'r-', linewidth=2, label='AR1 ACF', alpha=0.7)
-    
-    ax.set_xlabel('Lag')
-    ax.set_ylabel('Autocorrelation')
-    ax.set_title('Autocorrelation Functions normalized: AR5 vs AR1')
-    # ax.set_yscale('log')
-    ax.legend()
-    ax.grid(True, alpha=0.3, which='both')
-    
-    plt.tight_layout()
-    plt.show()
 
 
 
