@@ -1,0 +1,121 @@
+{
+  "gateway_radius_m": 300,
+  "total_nodes": 66080,
+  "total_reached": 44976,
+  "total_nodes_unreached": 21104,
+  "max_hop": {
+    "gid": 20,
+    "init_node_id": 50088,
+    "max_hop": 1283
+  },
+  "max_count": {
+    "gid": 20,
+    "init_node_id": 50088,
+    "count": 25548
+  },
+  "1": {
+    "gateway_id": 1,
+    "total_nodes_reached": 674,
+    "num_initial_nodes": 520
+  },
+  "2": {
+    "gateway_id": 2,
+    "total_nodes_reached": 8762,
+    "num_initial_nodes": 321
+  },
+  "3": {
+    "gateway_id": 3,
+    "total_nodes_reached": 500,
+    "num_initial_nodes": 277
+  },
+  "4": {
+    "gateway_id": 4,
+    "total_nodes_reached": 777,
+    "num_initial_nodes": 745
+  },
+  "5": {
+    "gateway_id": 5,
+    "total_nodes_reached": 952,
+    "num_initial_nodes": 918
+  },
+  "6": {
+    "gateway_id": 6,
+    "total_nodes_reached": 1236,
+    "num_initial_nodes": 1072
+  },
+  "7": {
+    "gateway_id": 7,
+    "total_nodes_reached": 1000,
+    "num_initial_nodes": 1000
+  },
+  "8": {
+    "gateway_id": 8,
+    "total_nodes_reached": 1037,
+    "num_initial_nodes": 971
+  },
+  "9": {
+    "gateway_id": 9,
+    "total_nodes_reached": 1111,
+    "num_initial_nodes": 1111
+  },
+  "10": {
+    "gateway_id": 10,
+    "total_nodes_reached": 1123,
+    "num_initial_nodes": 1123
+  },
+  "11": {
+    "gateway_id": 11,
+    "total_nodes_reached": 1117,
+    "num_initial_nodes": 1117
+  },
+  "12": {
+    "gateway_id": 12,
+    "total_nodes_reached": 587,
+    "num_initial_nodes": 268
+  },
+  "13": {
+    "gateway_id": 13,
+    "total_nodes_reached": 1578,
+    "num_initial_nodes": 1243
+  },
+  "14": {
+    "gateway_id": 14,
+    "total_nodes_reached": 1181,
+    "num_initial_nodes": 1019
+  },
+  "15": {
+    "gateway_id": 15,
+    "total_nodes_reached": 1032,
+    "num_initial_nodes": 1032
+  },
+  "16": {
+    "gateway_id": 16,
+    "total_nodes_reached": 1280,
+    "num_initial_nodes": 1260
+  },
+  "17": {
+    "gateway_id": 17,
+    "total_nodes_reached": 909,
+    "num_initial_nodes": 891
+  },
+  "18": {
+    "gateway_id": 18,
+    "total_nodes_reached": 1225,
+    "num_initial_nodes": 867
+  },
+  "19": {
+    "gateway_id": 19,
+    "total_nodes_reached": 1144,
+    "num_initial_nodes": 615
+  },
+  "20": {
+    "gateway_id": 20,
+    "total_nodes_reached": 26042,
+    "num_initial_nodes": 264
+  },
+  "21": {
+    "gateway_id": 21,
+    "total_nodes_reached": 859,
+    "num_initial_nodes": 587
+  }
+}

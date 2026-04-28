@@ -41,6 +41,7 @@ from generate_svg import generate_svg
 from datetime import datetime
 import os
 import numpy as np
+import tqdm 
 
 # ── Projection constants ──────────────────────────────────────────────────────
 _SCALE       = 733.452594 * 0.2149033923489 #TODO: quicck fix but should be done proper....
@@ -378,41 +379,6 @@ def place_uniform_nodes(chain):
     return pts, spacing_m
 
 
-# from shapely.geometry import LineString
-# from rtree import index
-
-# def find_intersections_with_rtree(paths):
-#     # Create a spatial index using Rtree
-#     idx = index.Index()
-    
-#     # Add all line segments to the spatial index
-#     line_strings = [LineString(path) for path in paths]
-#     for i, line in enumerate(line_strings):
-#         # Insert each line into the Rtree index: (xmin, ymin, xmax, ymax, index)
-#         bbox = line.bounds  # returns (xmin, ymin, xmax, ymax)
-#         idx.insert(i, bbox)
-    
-#     intersection_points = []
-    
-#     # Now, check each pair of line segments using Rtree spatial index
-#     for i, line1 in enumerate(line_strings):
-#         possible_neighbors = list(idx.intersection(line1.bounds))  # Get potential neighbors
-#         print(possible_neighbors)
-#         for j in possible_neighbors:
-#             if i < j:  # Only check each pair once
-#                 line2 = line_strings[j]
-#                 if line1.intersects(line2):
-#                     intersection = line1.intersection(line2)
-#                     if intersection.geom_type == 'Point':
-#                         intersection_points.append((intersection.x, intersection.y))
-#                     elif intersection.geom_type == 'MultiPoint':
-#                         for point in intersection.geoms:
-#                             intersection_points.append((point.x, point.y))
-#                 else: print("nope iner")
-#             else: print("nope i,j")
-    
-#     return intersection_points
-
 def calculate_line_params(p1, p2):
     """
     Given two points p1 and p2, calculate the slope (m) and intercept (b) of the line.
@@ -429,11 +395,13 @@ def calculate_line_params(p1, p2):
         b = y1 - m * x1
     return m, b
 
-def solve_intersection(line1_params, line2_params, tolerance=1e-5):
+def solve_intersection(line1_params, line2_params):
     """
     Given the parameters of two lines, solve for their intersection point (if any).
     Returns the intersection point (x, y), or None if no valid intersection within the segments.
     """
+    EPS = 1e-9
+
     m1, b1 = line1_params
     m2, b2 = line2_params
     
@@ -453,10 +421,12 @@ def solve_intersection(line1_params, line2_params, tolerance=1e-5):
         return x, y
     
     # Otherwise, solve for x where y1 = y2, i.e., m1*x + b1 = m2*x + b2
-    x = (b2 - b1) / (m1 - m2)
-    y = m1 * x + b1
-    
-    return x, y
+    if abs(m1 - m2) < EPS:
+        return None # same line or no intersection
+    else:
+        x = (b2 - b1) / (m1 - m2)
+        y = m1 * x + b1
+        return x, y
 
 def is_within_bounds(x, y, p1, p2, tolerance=1e-5):
     """
@@ -527,7 +497,7 @@ def find_intersections(paths, tolerance=5e-2):
                     line2_params = calculate_line_params(p3, p4)
                     
                     # Find the intersection of the two lines
-                    intersection = solve_intersection(line1_params, line2_params, tolerance)
+                    intersection = solve_intersection(line1_params, line2_params)
                     
                     if intersection is not None:
                         x, y = intersection
@@ -574,6 +544,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
             }
 
     # Step 0: merge nearby intersections
+    print("Merging cross road intersections...")
     raw_int_pts = {iid: v["point"] for iid, v in int_data.items()}
     merged_ints = merge_intersections(raw_int_pts, merge_radius_m)
     n_raw, n_merged = len(raw_int_pts), len(merged_ints)
@@ -590,22 +561,21 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
     # Step 1: parse, stitch, remove parallel duplicate chains, deduplicate vertices
     PARALLEL_TOL_M = 5.0   # chains within this avg distance are parallel duplicates
     road_chains = {}
-    internal_ints = {}  # new dict
-    for rid, info in road_data.items():
+    internal_ints = {}
+    for rid, info in tqdm.tqdm(road_data.items(), 'Parsing and stiching roads'):
         parsed = parse_svg_path(info["path"])        
         raw_chains    = stitch(parsed, STITCH_TOL)
         unique_chains = remove_parallel_chains(raw_chains, PARALLEL_TOL_M)
         road_chains[rid] = [deduplicate_chain(c) for c in unique_chains]
 
-        # road_chains[rid] = [road_chains[rid][i] for i in [0,2,9]]
+        # print(road_chains[rid])
+        
+        internal_ints[rid] = {}
         iid_ctr = 0
         intersections = find_intersections(road_chains[rid], tolerance=4e-2) #TODO: change to meters and use correct scaling
         for iinter in intersections:
             iid_ctr += 1
-            mid = f"int_{rid}_{iid_ctr}"
-            if rid not in internal_ints:
-                internal_ints[rid] = {}
-
+            mid = f"int_{rid}_{iid_ctr}"           
             internal_ints[rid][mid] = iinter
             merged_ints[mid] = {
                 "point": list(iinter[0]),
@@ -617,7 +587,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
 
     # Step 2: snap each merged intersection onto its road chains
     int_on_road = {rid: {} for rid in road_chains}    
-    for mid, minfo in merged_ints.items():
+    for mid, minfo in tqdm.tqdm(merged_ints.items(), 'Snap merged intersections'):
         pt = tuple(minfo["point"])
 
         if minfo.get("is_internal"):
@@ -662,7 +632,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
 
     seg_stats = []   # (arc_m, n, spacing_m) for reporting
 
-    for rid, chains in road_chains.items():
+    for rid, chains in tqdm.tqdm(road_chains.items(), 'Placing nodes on roads'):
         road_int_map = int_on_road[rid]
         internal_int_map = internal_ints[rid]
 
@@ -776,7 +746,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
     # legitimate slightly-short edges caused by road curvature (which are ~95%+).
     RATIO_THRESHOLD = 0.90
     removed_edges = 0
-    for nid, nd in list(nodes.items()):
+    for nid, nd in tqdm.tqdm(list(nodes.items()), 'Post-process — remove cross-sequence spurious edges'):
         for nb_nid in list(nd["neighbours"]):
             nb = nodes.get(nb_nid)
             if nb is None:
@@ -804,6 +774,7 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
               f"{len(orphaned)} orphaned nodes")
 
     # Step 5: write JSON output
+    print("Writing output JSON....")
     out_nodes = {}
     for nid, nd in nodes.items():
         entry = {
@@ -873,11 +844,3 @@ def generate(input_path=INPUT_FILE, output_path=OUTPUT_FILE,
 
 if __name__ == "__main__":
     generate()
-
-# WRONG node placement -> scale is of by x4
-# double check the projection values....
-
-# WRONG OUTPU!
-# - "neighbours" only contain neighbours along same path 
-#       - the direct intersecting nodes should also be neighbours
-# "intersection_id" and "source_intersection_ids" should be removed from the output

@@ -156,6 +156,8 @@ def main():
             # },
         }
 
+    results["visited"] = list(visited)
+
     return results
 
 
