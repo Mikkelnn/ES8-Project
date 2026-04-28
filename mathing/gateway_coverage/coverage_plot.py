@@ -237,6 +237,7 @@ def main() -> None:
 
     rounds = config["rounds"]
     rounds_axis = np.arange(1, rounds + 1)
+    tail_pct = (1.0 - config["reliability_target"]) * 100
 
     fading_samples = samples["fading_samples"]
     shadowing_samples = samples["shadowing_samples"]
@@ -334,7 +335,7 @@ def main() -> None:
     # Save standalone common CDF and histogram plots
     # ------------------------------------------------------------------------
     for stem, sample_set, label_title, xlabel, quantile in common_plot_specs:
-        quantile_label = f"5th pct: {quantile:.2f} dB"
+        quantile_label = f"{tail_pct:.4g}th pct: {quantile:.2f} dB"
 
         fig_cdf = plot_empirical_cdf(
             samples=sample_set,
@@ -487,7 +488,7 @@ def main() -> None:
             title=f"{label_title} Empirical CDF",
             xlabel=xlabel,
             quantile_x=quantile,
-            quantile_label=f"5th pct: {quantile:.2f} dB",
+            quantile_label=f"{tail_pct:.4g}th pct: {quantile:.2f} dB",
         )
 
     for ax, (stem, sample_set, label_title, xlabel, quantile) in zip(common_axes[3:], common_plot_specs):
@@ -498,7 +499,7 @@ def main() -> None:
             xlabel=xlabel,
             mean_value=float(np.mean(sample_set)),
             quantile_value=quantile,
-            quantile_label=f"5th pct: {quantile:.2f} dB",
+            quantile_label=f"{tail_pct:.4g}th pct: {quantile:.2f} dB",
         )
 
     # Surface-specific round plots
