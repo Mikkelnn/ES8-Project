@@ -8,7 +8,7 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-np.random.seed(42)
+seed = 42
 
 
 tolerance = 5e-2
@@ -144,6 +144,7 @@ def plot_multiple_realizations(num_realizations=10):
 
 
 def ARModelSimple():
+    np.random.seed(seed)
     # meanDrift = np.random.uniform(-tolerance, tolerance)
     # print(f"Mean skew: {meanDrift}")
     # meanDrift = 0
@@ -245,6 +246,7 @@ def get_model_state_at_time(time_x, data, time_step_seconds=t0):
     return clock_drift, clock_skew    
         
 def AR1Model():
+    np.random.seed(seed)
     VarStd = np.sqrt(noiseVar*AR1Gain) 
     mean = 0
     c1 = AR1Const
@@ -256,6 +258,62 @@ def AR1Model():
         drift = data[i][0] + t0*(skew + mean)
         data.append([drift, skew])
     return data
+
+def plot_AR1_vs_AR5(AR1_data, AR5_data):
+    """
+    Plot AR1 and AR5 model data on the same plot for direct comparison.
+    
+    Args:
+        AR1_data: AR1 model data (list or array of [theta, alpha] pairs)
+        AR5_data: AR5 model data (list or array of [theta, alpha] pairs)
+    """
+    # Convert to numpy arrays if needed
+    AR1_data = np.array(AR1_data)
+    AR5_data = np.array(AR5_data)
+    
+    # Extract theta and alpha values
+    AR1_theta = AR1_data[:, 0]
+    AR1_alpha = AR1_data[:, 1]
+    AR5_theta = AR5_data[:, 0]
+    AR5_alpha = AR5_data[:, 1]
+    
+    # Create time steps
+    AR1_time = np.arange(len(AR1_data))
+    AR5_time = np.arange(len(AR5_data))
+    
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
+    
+    # Plot theta (clock drift) comparison
+    ax1.plot(AR5_time, AR5_theta, 'b-', linewidth=2, label='AR5 Clock Drift', alpha=0.7)
+    ax1.plot(AR1_time, AR1_theta, 'r--', linewidth=2, label='AR1 Clock Drift', alpha=0.7)
+    ax1.set_xlabel(f'Time ({timeScale})')
+    ax1.set_ylabel('Clock Drift (seconds)')
+    ax1.set_title('Clock Drift Comparison: AR5 vs AR1')
+    ax1.grid(True, alpha=0.3)
+    ax1.legend(loc='best')
+    
+    # Plot alpha (clock skew) comparison
+    ax2.plot(AR5_time, AR5_alpha, 'b-', linewidth=2, label='AR5 Clock Skew', alpha=0.7)
+    ax2.plot(AR1_time, AR1_alpha, 'r--', linewidth=2, label='AR1 Clock Skew', alpha=0.7)
+    ax2.set_xlabel(f'Time ({timeScale})')
+    ax2.set_ylabel('Clock Skew (s/s)')
+    ax2.set_title('Clock Skew Comparison: AR5 vs AR1')
+    ax2.grid(True, alpha=0.3)
+    ax2.legend(loc='best')
+    
+    plt.tight_layout()
+    plt.show()
+    
+    # Print comparison statistics
+    print(f"\n=== Clock Drift (Theta) Comparison ===")
+    print(f"AR5: Min={np.min(AR5_theta):.6e}, Max={np.max(AR5_theta):.6e}, Mean={np.mean(AR5_theta):.6e}, Std={np.std(AR5_theta):.6e}")
+    print(f"AR1: Min={np.min(AR1_theta):.6e}, Max={np.max(AR1_theta):.6e}, Mean={np.mean(AR1_theta):.6e}, Std={np.std(AR1_theta):.6e}")
+    
+    print(f"\n=== Clock Skew (Alpha) Comparison ===")
+    print(f"AR5: Min={np.min(AR5_alpha):.6e}, Max={np.max(AR5_alpha):.6e}, Mean={np.mean(AR5_alpha):.6e}, Std={np.std(AR5_alpha):.6e}")
+    print(f"AR1: Min={np.min(AR1_alpha):.6e}, Max={np.max(AR1_alpha):.6e}, Mean={np.mean(AR1_alpha):.6e}, Std={np.std(AR1_alpha):.6e}")
+
 
 def analysis(AR1data, AR5data):
     timeLagMax = 50
@@ -304,7 +362,7 @@ def analysis(AR1data, AR5data):
 def main ():
     # Uncomment the following line to plot a single realization with detailed stats
     AR5data = np.array(ARModelSimple())
-    # AR1data = np.array(AR1Model())  
+    AR1data = np.array(AR1Model())  
     # print(AR5data[:,1])
 
 
@@ -314,9 +372,10 @@ def main ():
     #Temperature based drift
     # data = tempModel(start = 1) #Write month number
     
-    plotData(AR5data)
+    # plotData(AR5data)
     # plotData(AR1data)
     # plot_psd()
+    plot_AR1_vs_AR5(AR1_data=AR1data, AR5_data=AR5data)
     # analysis(AR1data, AR5data)
     
 
