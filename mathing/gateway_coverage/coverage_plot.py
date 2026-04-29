@@ -28,7 +28,7 @@ def with_ext(filename_stem: str) -> str:
 def save_figure(fig: plt.Figure, filepath: Path, close: bool = True) -> None:
     """Save a matplotlib figure and optionally close it."""
     fig.tight_layout()
-    fig.savefig(filepath, bbox_inches="tight")
+    fig.savefig(filepath, bbox_inches="tight", pad_inches=0)
     if close:
         plt.close(fig)
 
@@ -46,6 +46,8 @@ def save_table_figure(
     """Render and save a standalone table as an image."""
     fig, ax = plt.subplots(figsize=figsize)
     ax.axis("off")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
     table = ax.table(
         cellText=rows,
         colLabels=col_labels,
@@ -55,8 +57,17 @@ def save_table_figure(
     table.auto_set_font_size(False)
     table.set_fontsize(font_size)
     table.scale(*scale)
-    ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
-    save_figure(fig, filepath)
+
+    fig.canvas.draw()
+    table_bbox = table.get_window_extent(renderer=fig.canvas.get_renderer())
+    table_bbox_inches = table_bbox.transformed(fig.dpi_scale_trans.inverted())
+
+    fig.savefig(
+        filepath,
+        bbox_inches=table_bbox_inches,
+        pad_inches=0.02,
+    )
+    plt.close(fig)
 
 
 # ============================================================================
@@ -469,7 +480,6 @@ def main() -> None:
         table.auto_set_font_size(False)
         table.set_fontsize(font_size)
         table.scale(*scale)
-        ax.set_title(title, fontsize=12, fontweight="bold", pad=12)
 
     # Right side common plots
     common_axes = [
