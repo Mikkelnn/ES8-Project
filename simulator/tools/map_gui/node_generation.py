@@ -44,7 +44,7 @@ import numpy as np
 import tqdm 
 
 # ── Configurable ─────────────────────────────────────────────────────────────
-INTERVAL_M     = 5
+INTERVAL_M     = 12.5
 MERGE_RADIUS_M = 12.5   # set 0 to disable
 STITCH_TOL     = 0.05   # SVG units — sub-path endpoint join tolerance
 SNAP_TOL       = 0.05   # SVG units — max intersection-to-chain snap distance
@@ -56,29 +56,35 @@ INPUT_FILE  = str(_CWD / "selected_roads.json")
 PROCESSED_ROADS_JS = _CWD / "processedRoads.js"
 
 
-def _load_scale_from_processed_roads_js(js_path=PROCESSED_ROADS_JS, default_m_to_svg_scale=158.44):
-    """Read metadata.scale from processedRoads.js and fall back to the default scale."""
+def _load_scale_from_processed_roads_js(js_path=PROCESSED_ROADS_JS, m_per_svg_x_default=391.28702430863547, m_per_svg_y_default=702.5701092535716):
+    """Read metadata.svg_dimensions.m_per_svg_x and m_per_svg_y from processedRoads.js and fall back to defaults."""
     if not js_path.exists():
-        return default_m_to_svg_scale
+        return [m_per_svg_x_default, m_per_svg_y_default]
 
     try:
         text = js_path.read_text(encoding="utf-8")
         match = re.search(r"const\s+\w+\s*=\s*(\{.*\});\s*$", text, re.DOTALL)
         if not match:
-            return default_m_to_svg_scale
+            return [m_per_svg_x_default, m_per_svg_y_default]
 
         payload = json.loads(match.group(1))
-        m_svg_scale = payload.get("metadata", {}).get("scale")
-        return float(m_svg_scale) if m_svg_scale is not None else default_m_to_svg_scale
+        metadata = payload.get("metadata", {})
+        svg_dims = metadata.get("svg_dimensions", {})
+        m_per_svg_x = svg_dims.get("m_per_svg_x")
+        m_per_svg_y = svg_dims.get("m_per_svg_y")
+        
+        if m_per_svg_x is not None and m_per_svg_y is not None:
+            return [float(m_per_svg_x), float(m_per_svg_y)]
+        else:
+            return [m_per_svg_x_default, m_per_svg_y_default]
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
-        return default_m_to_svg_scale
+        return [m_per_svg_x_default, m_per_svg_y_default]
 
 
 # ── Projection constants ──────────────────────────────────────────────────────
-_M_to_SVG_SCALE       = _load_scale_from_processed_roads_js()
-#_CENTRE_LAT  = (55.787 + 56.905) / 2
-M_PER_SVG_X  = 111_320.0 / _M_to_SVG_SCALE
-M_PER_SVG_Y  = 111_320.0 / _M_to_SVG_SCALE
+_M_PER_SVG_SCALING    = _load_scale_from_processed_roads_js()
+M_PER_SVG_X  = _M_PER_SVG_SCALING[0]
+M_PER_SVG_Y  = _M_PER_SVG_SCALING[1]
 
 result_dir = _CWD / "results" / datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 os.makedirs(result_dir, exist_ok=True)

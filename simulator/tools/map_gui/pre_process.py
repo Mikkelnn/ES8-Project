@@ -351,10 +351,15 @@ def _build_projector(gdf: gpd.GeoDataFrame,
     usable_h = svg_h - 2 * padding
     span_x   = max_x - min_x or 1e-9
     span_y   = max_y - min_y or 1e-9
-    scale    = min(usable_w / span_x, usable_h / span_y)
+    scale    = min(usable_w / span_x, usable_h / span_y) # units -> (svg_units/ degrees)
 
     offset_x = padding + (usable_w - span_x * scale) / 2
     offset_y = padding + (usable_h - span_y * scale) / 2
+
+    #SVG to meter conversion factor (used in node_generation.py)
+    center_lat  = (min_y + max_y) / 2
+    m_per_svg_x  = 111_320.0 * math.cos(math.radians(center_lat)) / scale
+    m_per_svg_y  = 111_320.0 / scale
 
     def project(lon: float, lat: float) -> tuple:
         x = round(offset_x + (lon - min_x) * scale, 3)
@@ -375,7 +380,9 @@ def _build_projector(gdf: gpd.GeoDataFrame,
             "height": svg_h,
             "used_width": usable_w,
             "used_height": usable_h,
-            "padding": padding
+            "padding": padding,
+            "m_per_svg_x" : m_per_svg_x,
+            "m_per_svg_y" : m_per_svg_y
         },
         "offset": {
             "x": offset_x,
