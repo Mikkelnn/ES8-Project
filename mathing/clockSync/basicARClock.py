@@ -25,11 +25,13 @@ noiseVar = 3.915e-15
 noiseVarTemp = 6.9e-10
 
 simLength = 365*4 #days
-timeScale = 'Days'
+timeScale = 'Samples'
 samplesDay = int(24*3600/t0)
 k_Temp = 5.559e-6
-smallSamples = 100
+smallSamples = 400
 
+AR1Const = 0.9087642375247008
+AR1Gain = 20.970167331917025
 
 def plotData(data):
     # Extract theta and alpha values
@@ -90,8 +92,8 @@ def plot_psd(w=None, psd=None):
         
         psdAR5 = noiseVar / np.abs(den)**2
         den2 = np.ones_like(w, dtype=complex)
-        den2 -= 0.9*np.exp(-1j * w)
-        psdAR1 = noiseVar/np.abs(den2)**2
+        den2 -= AR1Const*np.exp(-1j * w) 
+        psdAR1 = noiseVar* AR1Gain/np.abs(den2)**2
     
     fig, ax = plt.subplots(figsize=(12, 6))
     
@@ -243,9 +245,9 @@ def get_model_state_at_time(time_x, data, time_step_seconds=t0):
     return clock_drift, clock_skew    
         
 def AR1Model():
-    VarStd = np.sqrt(noiseVar)
+    VarStd = np.sqrt(noiseVar*AR1Gain) 
     mean = 0
-    c1 = 0.9
+    c1 = AR1Const
     alpha0 = 0
     theta0 = 0
     data = [[theta0, alpha0]]
@@ -301,8 +303,8 @@ def analysis(AR1data, AR5data):
 
 def main ():
     # Uncomment the following line to plot a single realization with detailed stats
-    # AR5data = np.array(ARModelSimple())
-    AR1data = np.array(AR1Model())  
+    AR5data = np.array(ARModelSimple())
+    # AR1data = np.array(AR1Model())  
     # print(AR5data[:,1])
 
 
@@ -311,8 +313,9 @@ def main ():
 
     #Temperature based drift
     # data = tempModel(start = 1) #Write month number
-    # plotData(AR5data)
-    plotData(AR1data)
+    
+    plotData(AR5data)
+    # plotData(AR1data)
     # plot_psd()
     # analysis(AR1data, AR5data)
     
