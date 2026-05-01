@@ -71,12 +71,17 @@ def global_bfs(graph, gateway_initials):
     # init all sources
     for gid in sorted(gateway_initials.keys()):
         for init in sorted(gateway_initials[gid]):
-            visited.add(init)
-            queue.append((init, gid, init, 0))
+            if init in visited: 
+                gateway_initials[gid].remove(init)  # remove duplicate initial node for stats
+                print(f"Warning: Initial node {init} for gateway {gid} already visited by another gateway, skipping duplicate.")
+            else:
+                # ensure node only added once if multiple gateways have same initial node
+                visited.add(init)
+                queue.append((init, gid, init, 0))
 
-            gateway_total[gid] += 1
-            per_init_count[gid][init] += 1
-            per_init_max_hops[gid][init] = 0
+                gateway_total[gid] += 1
+                per_init_count[gid][init] += 1
+                per_init_max_hops[gid][init] = 0
 
     # BFS
     while queue:

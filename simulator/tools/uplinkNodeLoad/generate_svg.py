@@ -153,42 +153,42 @@ def generate_svg(
     L.append("</defs>")
 
     # Layer 1 — road neighbour edges
-    for rid in road_ids:
-        col   = "#aaaaaa"
-        edges = []
-        for nid, n in nodes.items():
-            if n["road_id"] != rid:
-                continue
-            x1, y1 = n["point"]
-            for nb_nid in n["neighbours"]:
-                if int(nb_nid) < int(nid):
-                    continue
-                nb = nodes.get(nb_nid)
-                if nb is None:
-                    continue
-                x2, y2 = nb["point"]
-                edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" data-nodes="{nid},{nb_nid}"/>')
-        if edges:
-            L.append(f'<g stroke="{col}" stroke-width="{EDGE_W}" opacity="0.40">')
-            L.extend(edges)
-            L.append("</g>")
+    # for rid in road_ids:
+    #     col   = "#aaaaaa"
+    #     edges = []
+    #     for nid, n in nodes.items():
+    #         if n["road_id"] != rid:
+    #             continue
+    #         x1, y1 = n["point"]
+    #         for nb_nid in n["neighbours"]:
+    #             if int(nb_nid) < int(nid):
+    #                 continue
+    #             nb = nodes.get(nb_nid)
+    #             if nb is None:
+    #                 continue
+    #             x2, y2 = nb["point"]
+    #             edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" data-nodes="{nid},{nb_nid}"/>')
+    #     if edges:
+    #         L.append(f'<g stroke="{col}" stroke-width="{EDGE_W}" opacity="0.40">')
+    #         L.extend(edges)
+    #         L.append("</g>")
 
     # Layer 2 — intersection → neighbour edges
-    int_edges = []
-    for nid, n in int_nodes.items():
-        x1, y1 = n["point"]
-        for nb_nid in n["neighbours"]:
-            if int(nb_nid) < int(nid):
-                continue
-            nb = nodes.get(nb_nid)
-            if nb is None:
-                continue
-            x2, y2 = nb["point"]
-            int_edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" data-nodes="{nid},{nb_nid}"/>')
-    if int_edges:
-        L.append(f'<g stroke="#ffffff" stroke-width="{INT_EDGE_W}" opacity="0.55">')
-        L.extend(int_edges)
-        L.append("</g>")
+    # int_edges = []
+    # for nid, n in int_nodes.items():
+    #     x1, y1 = n["point"]
+    #     for nb_nid in n["neighbours"]:
+    #         if int(nb_nid) < int(nid):
+    #             continue
+    #         nb = nodes.get(nb_nid)
+    #         if nb is None:
+    #             continue
+    #         x2, y2 = nb["point"]
+    #         int_edges.append(f'<line x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}" data-nodes="{nid},{nb_nid}"/>')
+    # if int_edges:
+    #     L.append(f'<g stroke="#ffffff" stroke-width="{INT_EDGE_W}" opacity="0.55">')
+    #     L.extend(int_edges)
+    #     L.append("</g>")
 
     # Layer 3 — road sample dots
     for rid in road_ids:
