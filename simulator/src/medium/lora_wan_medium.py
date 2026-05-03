@@ -12,6 +12,7 @@ class LoraWanMedium(BaseMedium):
     def _get_reception_node_ids(self, event):
         if event.node_id in self.node_neighbors:
             node_medium_info = self.node_neighbors[event.node_id]
-            return node_medium_info.neighbors if node_medium_info.is_gateway else node_medium_info.gateways_in_range
+            receivers = node_medium_info.neighbors if node_medium_info.is_gateway else node_medium_info.gateways_in_range            
+            return [(receiver_id, -40) for receiver_id in receivers] # For simplicity, we set rssi to -40 for all receptions in LoRaWAN
         else:
             return []

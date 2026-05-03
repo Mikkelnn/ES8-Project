@@ -42,9 +42,10 @@ class BaseMedium(ABC):
 
         # TODO: what if a transmission is started before a previous transmission from the same node is cancelled?    
         received_node_ids = self._get_reception_node_ids(event)
-        self.ongoing_transmissions[event.node_id] = (event.time_end, received_node_ids)
-        for to_node_id in received_node_ids:
-            self.__add_reception_event_for_node(to_node_id, event)
+        self.ongoing_transmissions[event.node_id] = (event.time_end, [item[0] for item in received_node_ids])
+        for to_node_id, rssi in received_node_ids:
+            reception_event = event.copy(update={"rssi": rssi}) # Create a copy of the event with rssi set
+            self.__add_reception_event_for_node(to_node_id, reception_event)
             self.log.add(Severity.INFO, Area.MEDIUM, current_global_tick, f"Medium {self.type} transmitting from node {event.node_id} to node {to_node_id} with data {event.data} from global tick {event.time_start} to global tick {event.time_end}")
 
     def __housekeep_ongoing_transmissions(self, current_global_tick: int):
@@ -61,7 +62,7 @@ class BaseMedium(ABC):
         self.event_queue.add_event(to_node_id, next_tick)
 
     @abstractmethod
-    def _get_reception_node_ids(self, event: EventNet) -> List[int]:
+    def _get_reception_node_ids(self, event: EventNet) -> List[tuple[int, int]]: # List of (to_node_id, rssi)
         pass
 
     def add_transmission_event(self, event: EventNet):

@@ -55,6 +55,7 @@ class EventNet:
     type: EventNetTypes
     type_medium: MediumTypes
     data: List[Any] = Field(default_factory=list)
+    rssi: int | None = None
 
 class LocalEventTypes(Enum):
     LOCAL_TIME = "LOCAL_TIME"
