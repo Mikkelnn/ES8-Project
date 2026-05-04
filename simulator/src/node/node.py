@@ -23,13 +23,14 @@ class Node(IDevice):
         self.local_event_queue = LocalEventQueue()
         self.accumulated_state = AccumulatedState()
 
-        self.battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=10, second_to_global_tick=second_to_global_tick)
+        self.battery = Battery(capacity_joule=7.9, recharge_rate_joule_per_second=5.4, second_to_global_tick=second_to_global_tick)
         self.clock = Clock(self.node_id, self.local_event_queue, second_to_global_tick)
         self.transceiver = TransceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick, log)
         # self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log) 
         self.protocol = V01(self.node_id, self.local_event_queue, second_to_global_tick, log) 
         self.state = State.WAKE
         self.log = log
+        self.second_to_global_tick = second_to_global_tick
 
     def tick(self, current_global_tick: int) -> int | None:
         self.accumulated_state.reset()
@@ -38,10 +39,10 @@ class Node(IDevice):
             case State.DEAD:
                 pass
             case State.SLEEP:
-                self.accumulated_state.update((0, None)) # Base system usage
+                self.accumulated_state.update((150e-6*self.second_to_global_tick, None)) # Base system usage
                 self.accumulated_state.update(self.clock.tick(current_global_tick))
             case State.WAKE:
-                self.accumulated_state.update((0, None)) # Base system usage
+                self.accumulated_state.update((5.3e-3*self.second_to_global_tick, None)) # Base system usage
                 self.accumulated_state.update(self.clock.tick(current_global_tick))
                 # TODO: Sensor
                 self.accumulated_state.update(self.transceiver.tick(current_global_tick))

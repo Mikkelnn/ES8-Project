@@ -13,8 +13,7 @@ class LoRaD2D(BaseTransceiver):
     def __init__(self, node_id: int, medium_service: MediumService, local_event_queue: LocalEventQueue, second_to_global_tick: float, log: ILogger):
         joules_per_second_consumption_transmit = 0.396
         joules_per_second_consumption_receive = 0.03564
-        joules_per_second_consumption_idle = 0.66E-6
-
+        joules_per_second_consumption_idle = 0 #0.66E-6 moved new estimate into WAKE in node.py
 
         super().__init__(node_id, medium_service, local_event_queue, log, second_to_global_tick, MediumTypes.LORA_D2D, 
                          joules_per_second_consumption_transmit, joules_per_second_consumption_receive, joules_per_second_consumption_idle)

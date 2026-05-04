@@ -3,7 +3,7 @@ from node.Imodule import IModule
 
 
 class Battery(IModule):
-    def __init__(self, capacity_joule, recharge_rate_joule_per_second: int, second_to_global_tick: float):
+    def __init__(self, capacity_joule: float, recharge_rate_joule_per_second: float, second_to_global_tick: float):
         self.capacity = capacity_joule
         self.current_charge = capacity_joule
 
