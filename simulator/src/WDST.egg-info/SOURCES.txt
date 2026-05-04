@@ -36,3 +36,4 @@ src/simulator/global_time.py
 src/simulator/logger.py
 test/test_event_net_queue.py
 test/test_global_time.py
+test/test_lora_d2d_medium.py

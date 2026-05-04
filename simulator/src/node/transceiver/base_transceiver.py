@@ -23,7 +23,7 @@ class BaseTransceiver(IModule):
 
         self.__current_transmission_end_global_tick = 0
         self.__current_reception_start_global_tick: int | None = None
-        self.__receive_queue: List[EventNet] = [] # TODO: simulator should fill this queue....
+        self.__receive_queue: List[EventNet] = []
 
         self.__consuption_per_tick_transmit = joules_per_second_consumption_transmit * second_to_global_tick
         self.__consuption_per_tick_receive = joules_per_second_consumption_receive * second_to_global_tick
