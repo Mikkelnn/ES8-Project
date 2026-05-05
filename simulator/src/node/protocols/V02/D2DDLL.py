@@ -16,22 +16,29 @@ class D2DNeighborInfo:
 class D2DDLL:
     DISCOVERY_TIMEOUT_MS = 60_000 + 10 * 1000
 
-    def __init__(
-        self,
-        node_id: int,
-        local_event_queue: LocalEventQueue,
-        log: ILogger,
-    ):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger,
+        slot_duration: int = 100, slot_count: int = 5):
+
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log
+        self.slot_duration = slot_duration
+        self.slot_count = slot_count
+        self.current_slot = -1
+        self.current_tx_slot = -1
         self.reset(0)
+
+    @property
+    def link_established(self) -> bool:
+        return self.hopcount_to_gateway < 65535
 
     def reset(self, current_global_tick: int) -> None:
         self.hopcount_to_gateway = 65535
         self.known_neighbors: List[D2DNeighborInfo] = []
         self.discovery_started = False
         self.packet_buffer: List[LoRaD2DFrame] = []
+        self.current_slot = -1
+        self.current_tx_slot = -1
 
     def enqueue_payload(self, payload: bytes) -> None:
         self.packet_buffer.append(
@@ -43,18 +50,18 @@ class D2DDLL:
             )
         )
 
-    def tick(
-        self,
-        current_global_tick: int,
-        current_local_clock_info: LocalClockInfo,
-        current_transceiver_states: dict,
-        current_receptions: list,
-        is_d2d_slot: bool,
-        is_tx_slot: bool,
-    ) -> None:
+    def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
+
+        current_transceiver_states = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data
+        current_receptions = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, MediumTypes.LORA_D2D)
+
         self._run_discovery(current_global_tick, current_local_clock_info, current_receptions)
-        if is_d2d_slot:
-            self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states, is_tx_slot)
+        period_finished = self._advance_slot(current_local_clock_info)
+
+        if self.current_slot >= 0:
+            self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states)
+
+        return period_finished
 
     def _run_discovery(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_receptions: list) -> None:
         if self.hopcount_to_gateway < 65535:
@@ -121,13 +128,63 @@ class D2DDLL:
                 )
             self.discovery_started = False
 
+    def _advance_slot(self, current_local_clock_info: LocalClockInfo) -> bool:
+        if self.hopcount_to_gateway == 65535:
+            return False
+
+        timer_1 = current_local_clock_info.timer_1_remaining
+        if self.current_slot == -1:
+            if timer_1 is None or timer_1 == 0:
+                self.current_slot = 0
+                self.current_tx_slot = self._tx_slot_index()
+                self.local_event_queue.add_event_to_next_tick(
+                    type=LocalEventTypes.SET_TIMER,
+                    sub_type=LocalEventSubTypes.TIMER_1,
+                    data=self.slot_duration,
+                )
+                if self.current_slot == self.current_tx_slot:
+                    self.local_event_queue.add_event_to_next_tick(
+                        type=LocalEventTypes.SET_TIMER,
+                        sub_type=LocalEventSubTypes.TIMER_2,
+                        data=10,
+                    )
+            return False
+
+        if timer_1 is None or timer_1 == 0:
+            self.current_slot += 1
+            if self.current_slot < self.slot_count:
+                self.local_event_queue.add_event_to_next_tick(
+                    type=LocalEventTypes.SET_TIMER,
+                    sub_type=LocalEventSubTypes.TIMER_1,
+                    data=self.slot_duration,
+                )
+                if self.current_slot == self.current_tx_slot:
+                    self.local_event_queue.add_event_to_next_tick(
+                        type=LocalEventTypes.SET_TIMER,
+                        sub_type=LocalEventSubTypes.TIMER_2,
+                        data=10,
+                    )
+                return False
+
+            self.current_slot = -1
+            self.current_tx_slot = -1
+            self.local_event_queue.add_event_to_next_tick(
+                type=LocalEventTypes.TRANCEIVER_SET_STATE,
+                sub_type=MediumTypes.LORA_D2D,
+                data=TransceiverState.IDLE,
+            )
+            return True
+
+        return False
+
     def _run_slot(
         self,
         current_global_tick: int,
         current_local_clock_info: LocalClockInfo,
         current_transceiver_states: dict,
-        is_tx_slot: bool,
     ) -> None:
+        is_tx_slot = self.current_slot == self.current_tx_slot
+
         if is_tx_slot:
             if current_transceiver_states[MediumTypes.LORA_D2D] == TransceiverState.RECEIVING:
                 self.local_event_queue.add_event_to_next_tick(
@@ -160,3 +217,6 @@ class D2DDLL:
                     sub_type=MediumTypes.LORA_D2D,
                     data=TransceiverState.RECEIVING,
                 )
+
+    def _tx_slot_index(self) -> int:
+        return self._effective_hopcount() % self.slot_count if self._effective_hopcount() < 65535 else 0

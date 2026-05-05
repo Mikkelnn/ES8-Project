@@ -173,6 +173,9 @@ class LoRaWanPHYPayload(ILength):
             return False
         return bool(self.mac_payload.fctrl_flags & FCtrlDownlink.ACK)
 
+    def is_confirmed_uplink(self) -> bool:
+        return ((self.mhdr >> 5) & 0b111) == MType.CONFIRMED_DATA_UP
+
 
 # =========================================================
 # CONVENIENCE BUILDERS

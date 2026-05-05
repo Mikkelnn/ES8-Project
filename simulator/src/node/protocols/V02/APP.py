@@ -19,14 +19,7 @@ class AppState(Enum):
 
 
 class APP:
-    def __init__(
-        self,
-        node_id: int,
-        local_event_queue: LocalEventQueue,
-        log: ILogger,
-        app_to_dll_tx: list[AppPacket],
-        dll_to_app_rx: list[AppPacket],
-    ):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, app_to_dll_tx: list[AppPacket], dll_to_app_rx: list[AppPacket]):
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log
@@ -49,15 +42,14 @@ class APP:
 
             case AppState.SENSOR:
                 # Simulate sensor data collection
+                self.state = AppState.FORWARDING
                 pass
 
             case AppState.FORWARDING:
                 while self.dll_to_app_rx:
                     packet = self.dll_to_app_rx.pop(0)
                     self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} APP received packet from DLL, payload length={len(packet.payload)}")
-
-            case AppState.DEDUP:
-                pass
+            
 
     def enqueue_payload(self, payload: bytes) -> None:
         self.app_to_dll_tx.append(AppPacket(payload=payload))
