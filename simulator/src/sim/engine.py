@@ -26,7 +26,7 @@ class Simulation:
 	def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
 		self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
 		# make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
-		num_nodes = 4
+		num_nodes = 2
 		node_neighbors = {}
 
 		self.nodes: list[IDevice] = []
@@ -43,8 +43,8 @@ class Simulation:
 		#     node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
 		node_neighbors[1] = NodeMediumInfo(position=(100, 0), neighbors=[2], gateways_in_range=[], is_gateway=True)
 		node_neighbors[2] = NodeMediumInfo(position=(1, 0), neighbors=[3, 4], gateways_in_range=[1])
-		node_neighbors[3] = NodeMediumInfo(position=(2, 0), neighbors=[2, 4, 5], gateways_in_range=[])
-		node_neighbors[4] = NodeMediumInfo(position=(3, 0), neighbors=[2, 3, 5, 6], gateways_in_range=[])
+		# node_neighbors[3] = NodeMediumInfo(position=(2, 0), neighbors=[2, 4, 5], gateways_in_range=[])
+		# node_neighbors[4] = NodeMediumInfo(position=(3, 0), neighbors=[2, 3, 5, 6], gateways_in_range=[])
 		# node_neighbors[5] = NodeMediumInfo(position=(4, 0), neighbors=[3,4,6,7], gateways_in_range=[])
 		# node_neighbors[6] = NodeMediumInfo(position=(5, 0), neighbors=[4,5,7,8], gateways_in_range=[])
 		# node_neighbors[7] = NodeMediumInfo(position=(6, 0), neighbors=[5,6,8,9], gateways_in_range=[])
@@ -58,8 +58,8 @@ class Simulation:
 		#     self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 		self.nodes.append(Gateway(gateway_id=1, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 		self.nodes.append(Node(node_id=2, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-		self.nodes.append(Node(node_id=3, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-		self.nodes.append(Node(node_id=4, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+		# self.nodes.append(Node(node_id=3, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+		# self.nodes.append(Node(node_id=4, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 		# self.nodes.append(Node(node_id=5, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 		# self.nodes.append(Node(node_id=6, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 		# self.nodes.append(Node(node_id=7, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))

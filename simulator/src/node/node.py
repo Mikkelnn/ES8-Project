@@ -9,7 +9,7 @@ from node.battery.battery import Battery
 from node.clock.clock import Clock
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
-from node.protocols.V01 import V01
+from node.protocols.V02.V02 import V02
 from node.transceiver.transceiver_service import TransceiverService
 
 
@@ -29,7 +29,7 @@ class Node(IDevice):
 		self.clock = Clock(self.node_id, self.local_event_queue, second_to_global_tick)
 		self.transceiver = TransceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick, log)
 		# self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log)
-		self.protocol = V01(self.node_id, self.local_event_queue, second_to_global_tick, log)
+		self.protocol = V02(self.node_id, self.local_event_queue, second_to_global_tick, log)
 		self.state = State.WAKE
 		self.log = log
 		self.second_to_global_tick = second_to_global_tick

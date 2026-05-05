@@ -177,8 +177,8 @@ class LoRaWanPHYPayload(ILength):
 			return False
 		return bool(self.mac_payload.fctrl_flags & FCtrlDownlink.ACK)
 
-    def is_confirmed_uplink(self) -> bool:
-        return ((self.mhdr >> 5) & 0b111) == MType.CONFIRMED_DATA_UP
+	def is_confirmed_uplink(self) -> bool:
+		return ((self.mhdr >> 5) & 0b111) == MType.CONFIRMED_DATA_UP
 
 
 # =========================================================
@@ -212,7 +212,4 @@ def make_downlink_ack(dev_addr: int, frame_count: int) -> LoRaWanPHYPayload:
 		fport=None,
 	)
 
-    return LoRaWanPHYPayload(
-        mhdr=build_mhdr(MType.UNCONFIRMED_DATA_DOWN),
-        mac_payload=mac,
-    )
+	return LoRaWanPHYPayload(mhdr=build_mhdr(MType.UNCONFIRMED_DATA_DOWN), mac_payload=mac)
