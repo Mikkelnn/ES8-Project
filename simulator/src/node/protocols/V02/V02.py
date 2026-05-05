@@ -22,17 +22,11 @@ class V02(IModule):
 		self.wan = WANDLL(node_id, local_event_queue, log)
 		self.dll = DLL(node_id, local_event_queue, second_to_global_tick, log, self.d2d, self.wan, self.app_to_dll_tx, self.dll_to_app_rx)
 
-<<<<<<< HEAD
     def tick(self, current_global_tick: int) -> tuple[float, int | None]:
         node_sleep_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP)
         if len(node_sleep_events) == 0:
             self.app.tick(current_global_tick)
             self.dll.tick(current_global_tick)
-=======
-	def tick(self, current_global_tick: int) -> tuple[float, int | None]:
-		self.app.tick(current_global_tick)
-		self.dll.tick(current_global_tick)
->>>>>>> cc04d771ce1064b486f272fca4175391f9bf140d
 
 		return 0, None
 
