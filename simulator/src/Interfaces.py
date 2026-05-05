@@ -10,10 +10,10 @@ class IDevice(ABC):
 		Execute one tick of the device.
 
 		Args:
-		    currentGlobalStep: The current global simulation step.
+			currentGlobalStep: The current global simulation step.
 
 		Returns:
-		    int | None: None if no event scheduled, otherwise the next global tick to evaluate
+			int | None: None if no event scheduled, otherwise the next global tick to evaluate
 		"""
 		...
 

@@ -10,12 +10,12 @@ class IModule(ABC):
 		Execute one tick of the module.
 
 		Args:
-		    currentGlobalStep: The current global simulation step.
+			currentGlobalStep: The current global simulation step.
 
 		Returns:
-		    tuple[ float, int | None]:
-		    T1 (float): Used power during current tick and ticks until T2.
-		    T2 (int | None): None if no event scheduled, otherwise the next global tick to evaluate
+			tuple[ float, int | None]:
+			T1 (float): Used power during current tick and ticks until T2.
+			T2 (int | None): None if no event scheduled, otherwise the next global tick to evaluate
 		"""
 		...
 

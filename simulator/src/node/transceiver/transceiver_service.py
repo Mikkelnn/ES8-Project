@@ -1,3 +1,4 @@
+# type: ignore
 from typing import List
 
 from custom_types import Area, LocalEventTypes, MediumTypes, Severity, TransceiverState
@@ -43,4 +44,4 @@ class TransceiverService(IModule):
 		if MediumTypes.LORA_D2D in transceiver_statuses and MediumTypes.LORA_WAN in transceiver_statuses:
 			if transceiver_statuses[MediumTypes.LORA_D2D] != TransceiverState.IDLE and transceiver_statuses[MediumTypes.LORA_WAN] != TransceiverState.IDLE:
 				message = f"Node {self.node_id} is transmitting/receiving on both LoRaD2D and LoRaWan at the same time, this should not happen!"
-				self.log.add(Severity.WARNING, Area.TRANCEIVER, message)
+				self.log.add(Severity.WARNING, Area.TRANCEIVER, 0, message)

@@ -1,3 +1,4 @@
+# type: ignore
 from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState

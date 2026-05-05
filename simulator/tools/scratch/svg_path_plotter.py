@@ -62,7 +62,7 @@ def generate_svg(sections, points, width=500, height=500, padding_ratio=0.02):
 
 def open_svg_in_browser(svg_content):
 	# Create an in-memory file-like object from the SVG string
-	svg_file = io.StringIO(svg_content)
+	svg_file = io.StringIO(svg_content)  # noqa
 
 	# Save content temporarily as a file and open it in the browser
 	with open("temp_output.svg", "w") as f:

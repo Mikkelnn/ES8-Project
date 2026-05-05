@@ -119,7 +119,7 @@ class LoRaD2DFrame(ILength):
 	destination_node_id: int  # uint32
 	type: LoRaD2DFrameType  # uint8
 	payload: bytes
-	crc: int = b"0\x000\x00"  # uint16
+	crc: bytes = b"0\x000\x00"  # uint16
 	# frame_count?
 	# timestamp?
 	# TTL?

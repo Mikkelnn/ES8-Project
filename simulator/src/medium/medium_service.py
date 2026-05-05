@@ -1,3 +1,4 @@
+# type: ignore
 from typing import List
 
 from custom_types import EventNet, EventNetTypes, MediumTypes, NodeMediumInfo

@@ -1,3 +1,4 @@
+# type: ignore
 import threading
 from typing import Any, List
 

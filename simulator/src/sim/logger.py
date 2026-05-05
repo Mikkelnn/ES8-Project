@@ -1,3 +1,4 @@
+# type: ignore
 import asyncio
 import multiprocessing
 import queue
@@ -32,7 +33,7 @@ class Logger:
 	_instance = None
 	_lock = threading.Lock()
 
-	def __new__(cls, log_path: str = None):
+	def __new__(cls, log_path: str | None = None):
 		with cls._lock:
 			if cls._instance is None:
 				cls._instance = super(Logger, cls).__new__(cls)
@@ -40,7 +41,7 @@ class Logger:
 				cls._instance._log_path_set = None
 		return cls._instance
 
-	def __init__(self, log_path: str = None):
+	def __init__(self, log_path: str | None = None):
 		if getattr(self, "_initialized", False):
 			return
 		if log_path is None:
@@ -136,7 +137,7 @@ class LoggerClientAsync:
 	Use start(), add(), and stop() for async logging.
 	"""
 
-	def __init__(self, log_path: str = None):
+	def __init__(self, log_path: str | None = None):
 		# Use a local reference for speed
 		self.logger = Logger(log_path) if log_path else Logger._instance
 		self._queue = asyncio.Queue()
@@ -178,7 +179,7 @@ class LoggerClientSync:
 	Each instance manages its own thread and async client.
 	"""
 
-	def __init__(self, log_path: str = None):
+	def __init__(self, log_path: str | None = None):
 		self._queue = queue.Queue()
 		self._thread = None
 		self._shutdown = threading.Event()

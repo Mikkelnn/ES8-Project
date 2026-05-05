@@ -1,3 +1,4 @@
+# type: ignore
 from typing import Any, List
 
 from custom_types import Area, Severity
@@ -18,9 +19,9 @@ class SimpleLogger(ILogger):
 		Parameters
 		----------
 		log_path:
-		    Path to the file in which flushed messages will be appended.
+			Path to the file in which flushed messages will be appended.
 		buffer_size:
-		    Number of messages to accumulate before an automatic flush.
+			Number of messages to accumulate before an automatic flush.
 		"""
 
 		self.log_path = log_path
@@ -44,12 +45,12 @@ class SimpleLogger(ILogger):
 		Parameters
 		----------
 		force:
-		    If ``True`` flush regardless of buffer length.
+			If ``True`` flush regardless of buffer length.
 
 		Returns
 		-------
 		bool
-		    ``True`` if a flush occurred, ``False`` otherwise.
+			``True`` if a flush occurred, ``False`` otherwise.
 		"""
 
 		if not (force or len(self._buffer) >= self.buffer_size):

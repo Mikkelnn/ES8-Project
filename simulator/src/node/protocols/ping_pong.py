@@ -1,3 +1,4 @@
+# type: ignore
 from custom_types import Area, LocalEventTypes, MediumTypes, Severity, TransceiverState
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue

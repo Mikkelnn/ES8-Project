@@ -11,7 +11,8 @@ class LoraD2DMedium(BaseMedium):
 	def __init__(self, node_neighbors: dict[int, NodeMediumInfo], event_queue: DeviceEventQueue, log: ILogger):
 		super().__init__(type=MediumTypes.LORA_D2D, event_queue=event_queue, log=log)
 		self.node_neighbors = node_neighbors  # key: node_id, value: List[node_id]
-		self.max_propagation_angle = 45.0  # degrees
+		FIX_PRECISION_FACTOR = 1 / (10**9)
+		self.max_propagation_angle = 45.0 + FIX_PRECISION_FACTOR  # degrees
 		self.max_hop_count = 2
 
 	def _get_reception_node_ids(self, event):
@@ -33,7 +34,7 @@ class LoraD2DMedium(BaseMedium):
 				# On hop >= 2, check deviation angle from incoming direction
 				if hop >= 2 and incoming_dir is not None:
 					deviation = self._calculate_deviation_angle(incoming_dir, self.node_neighbors[neighbor].position, current_info.position)
-					if deviation > self.max_propagation_angle:
+					if deviation >= self.max_propagation_angle:
 						continue
 
 				visited.add(neighbor)
@@ -88,12 +89,12 @@ class LoraD2DMedium(BaseMedium):
 		Estimate RSSI from hop count.
 
 		Args:
-		    hop_count (int): Number of hops (>=1)
-		    base_rssi (float): Estimated RSSI at 1 hop
-		    decay (float): Signal degradation factor per log2 hop
+			hop_count (int): Number of hops (>=1)
+			base_rssi (float): Estimated RSSI at 1 hop
+			decay (float): Signal degradation factor per log2 hop
 
 		Returns:
-		    float: Estimated RSSI in dBm
+			float: Estimated RSSI in dBm
 		"""
 		if hop_count < 1:
 			raise ValueError("hop_count must be >= 1")

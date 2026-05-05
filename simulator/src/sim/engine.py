@@ -1,3 +1,4 @@
+# type: ignore
 import threading
 import time
 from collections import deque

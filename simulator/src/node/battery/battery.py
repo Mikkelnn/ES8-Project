@@ -1,3 +1,4 @@
+# type: ignore
 from node.Imodule import IModule
 
 

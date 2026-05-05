@@ -7,7 +7,7 @@ lint:
 	@status=0; \
 	uv run ruff format . || status=1; \
 	uv run ruff check . --fix || status=1; \
-	uv run ty check . -- --fix || status=1; \
+	uv run ty check . || status=1; \
 	exit $$status
 
 test: install

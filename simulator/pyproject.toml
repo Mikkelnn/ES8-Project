@@ -39,9 +39,12 @@ fix = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
-ignore = []
+ignore = ["E101", "E501"]
 
 [tool.ruff.format]
 indent-style = "tab"
 quote-style = "double"
 line-ending = "auto"
+
+[tool.ty.analysis]
+allowed-unresolved-imports = []

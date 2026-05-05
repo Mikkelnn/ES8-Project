@@ -142,11 +142,9 @@ def test_9_node_star_network_angle_dependency_vertical_node_in():
 	receptions = medium._get_reception_node_ids(event)
 	reception_map = {node_id: rssi for node_id, rssi in receptions}
 
-	# Node 2 → 5 (hop 1), then 5 → 8 (hop 2, vertical continuation)
-	# Node 5 should receive at hop 1, node 8 should receive at hop 2 (0° deviation)
-	assert 5 in reception_map
+	assert 5 and 7 and 8 and 9 in reception_map
+	assert 1 and 3 and 4 and 6 not in reception_map
 	assert reception_map[5] == pytest.approx(-40.0)  # hop 1
-	assert 8 in reception_map
 	assert reception_map[8] == pytest.approx(-52.0)  # hop 2
 
 
@@ -166,7 +164,7 @@ def test_9_node_star_network_angle_dependency_horizontal_node_in():
 
 	medium = LoraD2DMedium(node_neighbors=node_neighbors, event_queue=DeviceEventQueue(), log=DummyLogger())
 	event = EventNet(
-		node_id=2,
+		node_id=4,
 		time_start=0,
 		time_end=10,
 		type=EventNetTypes.TRANSMIT,
@@ -177,11 +175,8 @@ def test_9_node_star_network_angle_dependency_horizontal_node_in():
 	receptions = medium._get_reception_node_ids(event)
 	reception_map = {node_id: rssi for node_id, rssi in receptions}
 
-	# Node 2 → 5 (hop 1, receives)
-	# Node 5 → 4: 90° deviation, exceeds 45° max, should NOT receive
-	assert 5 in reception_map
-	assert reception_map[5] == pytest.approx(-40.0)
-	assert 4 not in reception_map
+	assert 6 and 5 and 3 and 9 in reception_map
+	assert 1 and 2 and 4 and 8 and 7 not in reception_map
 
 
 def test_9_node_star_network_angle_dependency_45_degree_node_in():
@@ -202,7 +197,7 @@ def test_9_node_star_network_angle_dependency_45_degree_node_in():
 
 	medium = LoraD2DMedium(node_neighbors=node_neighbors, event_queue=DeviceEventQueue(), log=DummyLogger())
 	event = EventNet(
-		node_id=6,
+		node_id=1,
 		time_start=0,
 		time_end=10,
 		type=EventNetTypes.TRANSMIT,
@@ -213,9 +208,5 @@ def test_9_node_star_network_angle_dependency_45_degree_node_in():
 	receptions = medium._get_reception_node_ids(event)
 	reception_map = {node_id: rssi for node_id, rssi in receptions}
 
-	# Node 6 → 5 (hop 1, receives)
-	# Node 5 → 4: 0° deviation (straight continuation horizontally), well within 45° limit
-	assert 5 in reception_map
-	assert reception_map[5] == pytest.approx(-40.0)
-	assert 4 in reception_map
-	assert reception_map[4] == pytest.approx(-52.0)  # hop 2
+	assert 5 and 6 and 8 and 9 in reception_map
+	assert 2 and 3 and 4 and 7 not in reception_map

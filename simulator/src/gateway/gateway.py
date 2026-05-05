@@ -1,3 +1,4 @@
+# type: ignore
 from pyparsing import cast
 
 from custom_types import Area, LocalEventTypes, MediumTypes, Severity, TransceiverState

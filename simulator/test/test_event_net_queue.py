@@ -33,10 +33,13 @@ def test_multiple_events():
 
 def multi_event_queue():
 	q = DeviceEventQueue()
+	q.init_tick(0, [1, 2, 3, 4])
+	q.add_event(1, 10)
+	q.add_event(2, 15)
+	q.add_event(3, 30)
+	q.add_event(4, 18)
 	e1 = EventNet(node_id=1, time_start=0, time_end=10, data=["a"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA_D2D)
 	e2 = EventNet(node_id=2, time_start=5, time_end=15, data=["b"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA_D2D)
 	e3 = EventNet(node_id=3, time_start=20, time_end=30, data=["c"], type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA_D2D)
 	e4 = EventNet(node_id=4, time_start=12, time_end=18, data=["d"], type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA_D2D)
-	for e in [e1, e2, e3, e4]:
-		q.push_event_stop(e)
 	return q, [e1, e2, e3, e4]

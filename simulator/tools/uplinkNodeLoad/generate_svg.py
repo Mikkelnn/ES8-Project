@@ -80,8 +80,8 @@ def generate_svg(
 	nodes = data["nodes"]
 	gateways = data.get("gateways", {})
 	meta = data.get("metadata", {})
-	merge_r = meta.get("merge_radius_m", "?")
-	interval = meta.get("target_interval_m", 12.5)
+	# merge_r = meta.get("merge_radius_m", "?")
+	# interval = meta.get("target_interval_m", 12.5)
 	visited = set(data.get("visited"))
 
 	# ── viewBox ───────────────────────────────────────────────────────────────
@@ -209,13 +209,13 @@ def generate_svg(
 			L.append("</g>")
 
 	# Layer 6 — legend
-	lx = vbx + 0.15
-	ly = vby + 0.22
-	ts = 0.17
-	dr = 0.07
-	rh = 0.28
-	bw = 3.8
-	box_h = (len(road_ids) + 5) * rh + 0.25
+	# lx = vbx + 0.15
+	# ly = vby + 0.22
+	# ts = 0.17
+	# dr = 0.07
+	# rh = 0.28
+	# bw = 3.8
+	# box_h = (len(road_ids) + 5) * rh + 0.25
 
 	# L.append('<g id="legend">')
 	# L.append(

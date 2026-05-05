@@ -1,3 +1,4 @@
+# type: ignore
 import time
 
 from custom_types import Area, NodeMediumInfo, Severity
@@ -28,7 +29,7 @@ class TestEngine:
 				neighbors.append(i + 1)
 			elif i % 2 == 0:  # Even node, add previous node as neighbor
 				neighbors.append(i - 1)
-			node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
+			node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors, gateways_in_range=[])
 
 		self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
 

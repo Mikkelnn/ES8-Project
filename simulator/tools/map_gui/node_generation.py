@@ -536,9 +536,9 @@ def find_intersections(paths, tolerance=5e-2):
 
 			# Iterate over all pairs of segments in path1 and path2
 			for k in range(len(path1) - 1):
-				for l in range(len(path2) - 1):
+				for length in range(len(path2) - 1):
 					p1, p2 = path1[k], path1[k + 1]
-					p3, p4 = path2[l], path2[l + 1]
+					p3, p4 = path2[length], path2[length + 1]
 
 					# Calculate line parameters for each segment
 					line1_params = calculate_line_params(p1, p2)

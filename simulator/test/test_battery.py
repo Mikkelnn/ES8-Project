@@ -190,7 +190,6 @@ class TestBatteryEdgeCases:
 	def test_fractional_consumption(self):
 		"""Handle fractional joule consumption."""
 		battery = Battery(capacity_joule=10, recharge_rate_joule_per_second=0, second_to_global_tick=0.001)
-		recharge = 5 * 0.001  # 5 J/s * 0.001 s = 0.005 J/tick
 
 		battery = Battery(capacity_joule=10, recharge_rate_joule_per_second=5, second_to_global_tick=0.001)
 		battery.tick(1, current_consumption_joule=0.002)

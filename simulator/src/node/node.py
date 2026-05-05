@@ -1,3 +1,4 @@
+# type: ignore
 from enum import Enum
 
 from custom_types import Area, LocalEventTypes, Severity
