@@ -116,7 +116,7 @@
           <mxGeometry height="30" width="30" x="230" y="255" as="geometry" />
         </mxCell>
         <mxCell id="U3O8Ygh-_5dkUQyMHGO9-16" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="$$PipeSense$$" vertex="1">
-          <mxGeometry height="30" width="60" x="160" y="255" as="geometry" />
+          <mxGeometry height="30" width="140" x="113" y="255" as="geometry" />
         </mxCell>
         <mxCell id="U3O8Ygh-_5dkUQyMHGO9-17" parent="1" style="text;html=1;whiteSpace=wrap;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;rounded=0;" value="&lt;font style=&quot;font-size: 8px;&quot;&gt;&lt;i&gt;$$E^+_{origin}$$&lt;/i&gt;&lt;/font&gt;" vertex="1">
           <mxGeometry height="30" width="60" x="198" y="285" as="geometry" />
