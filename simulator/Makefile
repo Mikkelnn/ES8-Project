@@ -11,7 +11,7 @@ lint:
 	exit $$status
 
 test: install
-	PYTHONPATH=$(PYTHONPATH) uv run -m pytest ./test -v
+	PYTHONPATH=$(PYTHONPATH) uv run -m pytest ./test -vv
 
 run: install
 	PYTHONPATH=$(PYTHONPATH) uv run python -m main
