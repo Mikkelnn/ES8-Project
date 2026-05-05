@@ -34,11 +34,12 @@ src/node/transceiver/LoRaD2D.py
 src/node/transceiver/LoRaWan.py
 src/node/transceiver/base_transceiver.py
 src/node/transceiver/transceiver_service.py
-src/simulator/__init__.py
-src/simulator/device_event_queue.py
-src/simulator/engine.py
-src/simulator/global_time.py
-src/simulator/logger.py
+src/sim/__init__.py
+src/sim/device_event_queue.py
+src/sim/engine.py
+src/sim/global_time.py
+src/sim/logger.py
+test/test_battery.py
 test/test_event_net_queue.py
 test/test_global_time.py
 test/test_lora_d2d_medium.py

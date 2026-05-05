@@ -31,3 +31,20 @@ dev = [
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.ruff]
+line-length = 320
+target-version = "py313"
+fix = true
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
+ignore = ["E101", "E501"]
+
+[tool.ruff.format]
+indent-style = "tab"
+quote-style = "double"
+line-ending = "auto"
+
+[tool.ty.analysis]
+allowed-unresolved-imports = []

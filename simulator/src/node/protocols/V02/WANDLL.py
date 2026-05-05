@@ -1,9 +1,9 @@
 from enum import Enum
 from typing import List, cast
 
-from custom_types import LoRaWanPHYPayload, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, MediumTypes, TransceiverState, Severity, Area
-from loraWanFrameHelper import make_uplink
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaWanPHYPayload, MediumTypes, Severity, TransceiverState
 from logger.ILogger import ILogger
+from loraWanFrameHelper import make_uplink
 from node.event_local_queue import LocalEventQueue
 from simulator.src.node.protocols.V02.DLL import LinkState
 

@@ -3,7 +3,7 @@ from re import match
 from typing import Any, cast
 from unittest import case
 
-from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes, MediumTypes, TransceiverState, Severity, Area
+from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes, MediumTypes, TransceiverState
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.protocols.V02.APP import AppPacket
@@ -36,7 +36,7 @@ class DLL:
         self.slot_period_ms = 60_000
         self.lora_wan_slot_interleave = 60
 
-        self.reset(0)
+		self.reset(0)
 
     def reset(self, current_global_tick: int) -> None:
         self.state = DLLState.DISCOVERY
@@ -78,13 +78,13 @@ class DLL:
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
        
 
-    def _route_app_packets(self) -> None:
-        while self.app_to_dll_tx:
-            packet = self.app_to_dll_tx.pop(0)
-            if self._effective_hopcount() == 0:
-                self.wan_layer.enqueue_payload(packet.payload)
-            else:
-                self.d2d_layer.enqueue_payload(packet.payload)
+	def _route_app_packets(self) -> None:
+		while self.app_to_dll_tx:
+			packet = self.app_to_dll_tx.pop(0)
+			if self._effective_hopcount() == 0:
+				self.wan_layer.enqueue_payload(packet.payload)
+			else:
+				self.d2d_layer.enqueue_payload(packet.payload)
 
     def _effective_hopcount(self) -> int:
         return 0 if self.wan_layer.link_established else self.d2d_layer.hopcount_to_gateway

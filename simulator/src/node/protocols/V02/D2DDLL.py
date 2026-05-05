@@ -1,20 +1,20 @@
 from dataclasses import dataclass
 from typing import List
 
-from custom_types import LoRaD2DFrame, LoRaD2DFrameType, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, MediumTypes, TransceiverState, Severity, Area
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, Severity, TransceiverState
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 
 
 @dataclass
 class D2DNeighborInfo:
-    neighbor_id: int
-    hopcount_to_gateway: int
-    last_seen: int
+	neighbor_id: int
+	hopcount_to_gateway: int
+	last_seen: int
 
 
 class D2DDLL:
-    DISCOVERY_TIMEOUT_MS = 60_000 + 10 * 1000
+	DISCOVERY_TIMEOUT_MS = 60_000 + 10 * 1000
 
     def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger,
         slot_duration: int = 100, slot_count: int = 5):
@@ -40,15 +40,15 @@ class D2DDLL:
         self.current_slot = -1
         self.current_tx_slot = -1
 
-    def enqueue_payload(self, payload: bytes) -> None:
-        self.packet_buffer.append(
-            LoRaD2DFrame(
-                source_node_id=self.node_id,
-                destination_node_id=0xFFFFFFFF,
-                type=LoRaD2DFrameType.DATA_TO_GW,
-                payload=payload,
-            )
-        )
+	def enqueue_payload(self, payload: bytes) -> None:
+		self.packet_buffer.append(
+			LoRaD2DFrame(
+				source_node_id=self.node_id,
+				destination_node_id=0xFFFFFFFF,
+				type=LoRaD2DFrameType.DATA_TO_GW,
+				payload=payload,
+			)
+		)
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
 
@@ -63,70 +63,70 @@ class D2DDLL:
 
         return period_finished
 
-    def _run_discovery(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_receptions: list) -> None:
-        if self.hopcount_to_gateway < 65535:
-            return
+	def _run_discovery(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_receptions: list) -> None:
+		if self.hopcount_to_gateway < 65535:
+			return
 
-        if not self.discovery_started:
-            self.local_event_queue.add_event_to_next_tick(
-                type=LocalEventTypes.TRANCEIVER_SET_STATE,
-                sub_type=MediumTypes.LORA_D2D,
-                data=TransceiverState.RECEIVING,
-            )
-            self.local_event_queue.add_event_to_next_tick(
-                type=LocalEventTypes.SET_TIMER,
-                sub_type=LocalEventSubTypes.TIMER_1,
-                data=self.DISCOVERY_TIMEOUT_MS,
-            )
-            self.discovery_started = True
-            self.log.add(
-                Severity.INFO,
-                Area.PROTOCOL,
-                current_global_clock if (current_global_clock := current_global_tick) else current_global_tick,
-                f"Node {self.node_id} started D2D discovery",
-            )
+		if not self.discovery_started:
+			self.local_event_queue.add_event_to_next_tick(
+				type=LocalEventTypes.TRANCEIVER_SET_STATE,
+				sub_type=MediumTypes.LORA_D2D,
+				data=TransceiverState.RECEIVING,
+			)
+			self.local_event_queue.add_event_to_next_tick(
+				type=LocalEventTypes.SET_TIMER,
+				sub_type=LocalEventSubTypes.TIMER_1,
+				data=self.DISCOVERY_TIMEOUT_MS,
+			)
+			self.discovery_started = True
+			self.log.add(
+				Severity.INFO,
+				Area.PROTOCOL,
+				current_global_clock if (current_global_clock := current_global_tick) else current_global_tick,
+				f"Node {self.node_id} started D2D discovery",
+			)
 
-        if len(current_receptions) > 0:
-            for reception in current_receptions:
-                reception_data = reception.data
-                if reception_data.type != LoRaD2DFrameType.CURRENT_HOP_COUNT:
-                    continue
-                neighbor_info = D2DNeighborInfo(
-                    neighbor_id=reception_data.source_node_id,
-                    hopcount_to_gateway=int.from_bytes(reception_data.payload, "big"),
-                    last_seen=current_local_clock_info.current_local_time,
-                )
-                existing = next((n for n in self.known_neighbors if n.neighbor_id == neighbor_info.neighbor_id), None)
-                if existing is None:
-                    self.known_neighbors.append(neighbor_info)
-                else:
-                    existing.hopcount_to_gateway = neighbor_info.hopcount_to_gateway
-                    existing.last_seen = neighbor_info.last_seen
+		if len(current_receptions) > 0:
+			for reception in current_receptions:
+				reception_data = reception.data
+				if reception_data.type != LoRaD2DFrameType.CURRENT_HOP_COUNT:
+					continue
+				neighbor_info = D2DNeighborInfo(
+					neighbor_id=reception_data.source_node_id,
+					hopcount_to_gateway=int.from_bytes(reception_data.payload, "big"),
+					last_seen=current_local_clock_info.current_local_time,
+				)
+				existing = next((n for n in self.known_neighbors if n.neighbor_id == neighbor_info.neighbor_id), None)
+				if existing is None:
+					self.known_neighbors.append(neighbor_info)
+				else:
+					existing.hopcount_to_gateway = neighbor_info.hopcount_to_gateway
+					existing.last_seen = neighbor_info.last_seen
 
-            hopcounts = {neighbor.hopcount_to_gateway for neighbor in self.known_neighbors}
-            if len(hopcounts) >= 2:
-                for hopcount in hopcounts:
-                    if (hopcount + 1) in hopcounts:
-                        self.hopcount_to_gateway = hopcount + 2
-                        self.log.add(
-                            Severity.INFO,
-                            Area.PROTOCOL,
-                            current_global_tick,
-                            f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors",
-                        )
-                        break
+			hopcounts = {neighbor.hopcount_to_gateway for neighbor in self.known_neighbors}
+			if len(hopcounts) >= 2:
+				for hopcount in hopcounts:
+					if (hopcount + 1) in hopcounts:
+						self.hopcount_to_gateway = hopcount + 2
+						self.log.add(
+							Severity.INFO,
+							Area.PROTOCOL,
+							current_global_tick,
+							f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors",
+						)
+						break
 
-        timer_1 = current_local_clock_info.timer_1_remaining
-        if timer_1 is not None and timer_1 <= 0 and self.hopcount_to_gateway == 65535:
-            if len(self.known_neighbors) == 1 and self.known_neighbors[0].hopcount_to_gateway == 0:
-                self.hopcount_to_gateway = 1
-                self.log.add(
-                    Severity.INFO,
-                    Area.PROTOCOL,
-                    current_global_tick,
-                    f"Node {self.node_id} set hopcount to gateway 1 based on single neighbor",
-                )
-            self.discovery_started = False
+		timer_1 = current_local_clock_info.timer_1_remaining
+		if timer_1 is not None and timer_1 <= 0 and self.hopcount_to_gateway == 65535:
+			if len(self.known_neighbors) == 1 and self.known_neighbors[0].hopcount_to_gateway == 0:
+				self.hopcount_to_gateway = 1
+				self.log.add(
+					Severity.INFO,
+					Area.PROTOCOL,
+					current_global_tick,
+					f"Node {self.node_id} set hopcount to gateway 1 based on single neighbor",
+				)
+			self.discovery_started = False
 
     def _advance_slot(self, current_local_clock_info: LocalClockInfo) -> bool:
         if self.hopcount_to_gateway == 65535:
@@ -193,15 +193,15 @@ class D2DDLL:
                     data=TransceiverState.IDLE,
                 )
 
-            if len(self.packet_buffer) == 0 and self.hopcount_to_gateway < 65535:
-                self.packet_buffer.append(
-                    LoRaD2DFrame(
-                        source_node_id=self.node_id,
-                        destination_node_id=0xFFFFFFFF,
-                        type=LoRaD2DFrameType.CURRENT_HOP_COUNT,
-                        payload=self.hopcount_to_gateway.to_bytes(2, "big"),
-                    )
-                )
+			if len(self.packet_buffer) == 0 and self.hopcount_to_gateway < 65535:
+				self.packet_buffer.append(
+					LoRaD2DFrame(
+						source_node_id=self.node_id,
+						destination_node_id=0xFFFFFFFF,
+						type=LoRaD2DFrameType.CURRENT_HOP_COUNT,
+						payload=self.hopcount_to_gateway.to_bytes(2, "big"),
+					)
+				)
 
             if len(self.packet_buffer) > 0 and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING:
                 packet = self.packet_buffer.pop(0)
