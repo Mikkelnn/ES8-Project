@@ -3,7 +3,7 @@ from re import match
 from typing import Any, cast
 from unittest import case
 
-from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes, MediumTypes, TransceiverState
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, MediumTypes, Severity, TransceiverState
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.protocols.V02.APP import AppPacket
@@ -28,8 +28,9 @@ class DLL:
         self.app_to_dll_tx = app_to_dll_tx
         self.dll_to_app_rx = dll_to_app_rx
 
-        self.slot_period_ms = 60_000
+        self.slot_period_ms = 60_000 # 1 min slot period
         self.lora_wan_slot_interleave = 60
+        self.d2d_rety_period_ms = 25 * 60_000 # 25 min retry period for D2D allow battery to charge
 
         self.reset(0)
 
@@ -48,12 +49,17 @@ class DLL:
             case DLLState.DISCOVERY:
                 if self.wan_layer.link_state == LinkState.DISCOVERING:
                     self.wan_layer.tick(current_global_tick, current_local_clock_info)
+                elif self.wan_layer.link_state == LinkState.LINK_ESTABLISHED:
+                    self.d2d_layer.set_has_gateway_link()
+                    self.state = DLLState.FORWARDING
                 elif self.wan_layer.link_state == LinkState.NO_LINK:
-                    finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info)
-                    if finished: # TODO: we should handel retry and not just move to forwarding, but for now we just move on
+                    finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info)                                    
+                    if finished and self.d2d_layer.link_established:
                         self.state = DLLState.FORWARDING
-            
-                # do sleep?
+                    elif finished and not self.d2d_layer.link_established:
+                        # sleep before retrying discovery
+                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=self.d2d_rety_period_ms)
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D")
 
             case DLLState.FORWARDING:
                 self._route_app_packets()
