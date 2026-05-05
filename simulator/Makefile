@@ -1,19 +1,17 @@
 .PHONY: lint test run
 
-# PYTHONPATH := $(shell find src -type d | tr '\n' ':')
-
 install:
 	uv pip install -e .
 
-print_path:
-	@echo $(PYTHONPATH)
-
 lint:
-	PYTHONPATH=$(PYTHONPATH) uv run ruff check . --fix
-	PYTHONPATH=$(PYTHONPATH) uv run ty check . -- --fix
+	@status=0; \
+	uv run ruff format . || status=1; \
+	uv run ruff check . --fix || status=1; \
+	uv run ty check . -- --fix || status=1; \
+	exit $$status
 
 test: install
-	PYTHONPATH=$(PYTHONPATH) uv run pytest ./test
+	PYTHONPATH=$(PYTHONPATH) uv run -m pytest ./test -v
 
 run: install
 	PYTHONPATH=$(PYTHONPATH) uv run python -m main

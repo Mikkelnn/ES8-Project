@@ -2,4 +2,4 @@ gateway
 logger
 medium
 node
-simulator
+sim
