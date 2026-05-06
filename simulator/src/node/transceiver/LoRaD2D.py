@@ -1,6 +1,7 @@
 import math
+from typing import List
 
-from custom_types import MediumTypes
+from custom_types import EventNet, EventNetTypes, MediumTypes
 from Interfaces import ILength
 from logger.ILogger import ILogger
 from medium.medium_service import MediumService
@@ -34,3 +35,54 @@ class LoRaD2D(BaseTransceiver):
 
 		# Calculate the transmission time in global ticks based on the size of the data
 		return int(symbol_time_ticks + self.__preamble_time_ticks)
+
+	def _get_successful_receptions(self, current_global_tick: int) -> List[EventNet]:
+		successful_receptions: List[EventNet] = []
+		if self._current_reception_start_global_tick is None:
+			return successful_receptions
+
+		cancellations = [e for e in self._receive_queue if e.type == EventNetTypes.CANCELED]
+		canc_by_node: dict[int, List[EventNet]] = {}
+		for c in cancellations:
+			canc_by_node.setdefault(c.node_id, []).append(c)
+
+		for event in self._receive_queue:
+			if event.type == EventNetTypes.CANCELED:
+				continue
+
+			if event.time_end >= current_global_tick:
+				continue
+
+			if self._current_reception_start_global_tick is not None and self._current_reception_start_global_tick > event.time_start:
+				continue
+
+			if event.node_id in canc_by_node:
+				continue
+
+			overlap_found = False
+			for other in self._receive_queue:
+				if other is event:
+					continue
+				if other.type == EventNetTypes.CANCELED:
+					continue
+
+				other_effective_end = other.time_end
+
+				for c in canc_by_node.get(other.node_id, []):
+					if c.time_end > event.time_start:
+						other_effective_end = min(other_effective_end, c.time_start)
+
+				if other.time_start <= event.time_end and other_effective_end >= event.time_start:
+					overlap_found = True
+					break
+
+			if not overlap_found:
+				successful_receptions.append(event)
+
+		max_time_end = 0
+		for event in successful_receptions:
+			max_time_end = max(max_time_end, event.time_end)
+
+		self._receive_queue = [e for e in self._receive_queue if e.time_start > max_time_end]
+
+		return successful_receptions
