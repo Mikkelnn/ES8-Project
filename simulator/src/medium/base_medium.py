@@ -46,7 +46,7 @@ class BaseMedium(ABC):
 		received_node_ids = self._get_reception_node_ids(event)
 		self.ongoing_transmissions[event.node_id] = (event.time_end, [item[0] for item in received_node_ids])
 		for to_node_id, rssi in received_node_ids:
-			reception_event = replace(event, rssi=rssi)  # Create a copy of the event with rssi set
+			reception_event = replace(event, data=replace(event.data, rssi=rssi)) # Create a copy of the event with rssi set
 			self.__add_reception_event_for_node(to_node_id, reception_event)
 			self.log.add(Severity.INFO, Area.MEDIUM, current_global_tick, f"Medium {self.type} transmitting from node {event.node_id} to node {to_node_id} with data {event.data} from global tick {event.time_start} to global tick {event.time_end}")
 

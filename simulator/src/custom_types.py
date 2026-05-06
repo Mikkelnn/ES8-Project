@@ -4,7 +4,7 @@ from typing import Any, List
 
 from pydantic import Field
 
-from Interfaces import ILength
+from Interfaces import IRSSI, ILength
 from loraWanFrameHelper import LoRaWanPHYPayload
 
 
@@ -64,8 +64,6 @@ class EventNet:
 	type: EventNetTypes
 	type_medium: MediumTypes
 	data: List[Any] = Field(default_factory=list)
-	rssi: int | None = None
-
 
 class LocalEventTypes(Enum):
 	LOCAL_TIME = "LOCAL_TIME"
@@ -116,12 +114,13 @@ class LoRaD2DFrameType(Enum):
 	DATA_FROM_GW = 5
 
 @dataclass
-class LoRaD2DFrame(ILength):
+class LoRaD2DFrame(ILength, IRSSI):
 	source_node_id: int  # uint32
 	destination_node_id: int  # uint32
 	type: LoRaD2DFrameType  # uint8
 	payload: bytes
 	crc: bytes = b"0\x000\x00"  # uint16
+	rssi: int = 0
 	# frame_count?
 	# timestamp?
 	# TTL?

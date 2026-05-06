@@ -23,3 +23,9 @@ class ILength(ABC):
 	def length(self) -> int:
 		"""Returns the length of the data in bytes."""
 		raise NotImplementedError()
+
+class IRSSI(ABC):
+	@property
+	def rssi(self) -> int:
+		"""Returns the RSSI of the received signal."""
+		raise NotImplementedError()

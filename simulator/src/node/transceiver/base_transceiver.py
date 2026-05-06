@@ -49,9 +49,6 @@ class BaseTransceiver(IModule):
 			next_state = state_change[0].data
 			if next_state != self.state:
 				self.__cancel_transmission(current_global_tick)  # If we are changing state, we should not have any ongoing transmission. Just to be sure, cancel any transmission if it exists.
-				self.__cancel_reception(current_global_tick)  # If we are changing state, we should not have any
-				self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self.__node_id} changing state of {self.medium_type} from {self.state} to {next_state}")
-				self.state = next_state
 
 		if self.state == TransceiverState.IDLE:
 			if transmit_data_events:
