@@ -20,7 +20,7 @@ class Gateway(IDevice):
 
 		self.transceiver = TransceiverService(self.gateway_id, medium_service, self.local_event_queue, second_to_global_tick, log)
 		self.second_to_global_tick = second_to_global_tick
-		self.rx_to_node: tuple[int, int] | None = None
+		self.rx_to_nodes: dict[int, int] = {}
 
 	def tick(self, current_global_tick: int) -> int | None:
 		self.accumulated_state.reset()
@@ -31,25 +31,25 @@ class Gateway(IDevice):
 		if tranceiver_statuses[MediumTypes.LORA_WAN] == TransceiverState.IDLE:
 			self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.RECEIVING)
 
-		if self.rx_to_node is not None and current_global_tick >= self.rx_to_node[0]:
-			# The content of the message does not matter in this protocol, so we just send a list with one element.
-			(rx1_tick, dev_addr) = self.rx_to_node
+		nodes_to_respond = [dev_addr for dev_addr, rx_tick in self.rx_to_nodes.items() if current_global_tick >= rx_tick]
+		for dev_addr in nodes_to_respond:
 			frame = make_downlink_ack(dev_addr=dev_addr, frame_count=0)
 			self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
 			self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_WAN, data=frame)
 			self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} sent a response to node {dev_addr} at global tick {current_global_tick}...")
-			self.rx_to_node = None
+			del self.rx_to_nodes[dev_addr]
 
 		# Received data
 		received_data = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, sub_type=MediumTypes.LORA_WAN)
-		if len(received_data) > 0:
-			data = cast(LoRaWanPHYPayload, received_data[0].data)
+		for event in received_data:
+			data = cast(LoRaWanPHYPayload, event.data)
 			self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} received data:", data)
 			rx1_tick = current_global_tick + 1 * (1 / self.second_to_global_tick)  # 1 second after rx as per LoRaWAN specification for rx1
-			self.rx_to_node = (rx1_tick, data.mac_payload.dev_addr)
+			self.rx_to_nodes[data.mac_payload.dev_addr] = rx1_tick
 
-		if self.rx_to_node is not None:
-			self.accumulated_state.update((0, self.rx_to_node[0]))
+		if self.rx_to_nodes:
+			earliest_rx_tick = min(self.rx_to_nodes.values())
+			self.accumulated_state.update((0, earliest_rx_tick))
 
 		# Clear local event bus
 		self.local_event_queue.clear_events()
