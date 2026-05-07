@@ -64,7 +64,7 @@ class D2DDLL:
     def enqueue_payload(self, payload: PayloadHopCnt | PayloadData) -> None:
         msg = LoRaD2DFrame(
             source_node_id=self.node_id,
-            destination_node_id=0xFFFFFFFF,  # TODO: set destination to next hop instead of broadcast
+            destination_node_id={ 0xFFFFFFFF },  # TODO: set destination to next hop instead of broadcast
             type=LoRaD2DFrameType.DATA_TO_GW,
             payload=payload,
         )
@@ -84,7 +84,7 @@ class D2DDLL:
         # add idle packet -> used for discovery
         if not self.tx_buffer and self.link_established:
             hop_cnt = PayloadHopCnt(self.hopcount_to_gateway)
-            msg = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=0xFFFFFFFF, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
+            msg = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ 0xFFFFFFFF }, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
             msg.crc_calc()
             self.tx_buffer.append(msg)
 
@@ -200,26 +200,26 @@ class D2DDLL:
                 self._process_current_hopcount(frame, current_local_clock_info.current_local_time)
 
             case LoRaD2DFrameType.DATA_TO_GW:
-                if frame.destination_node_id == self.node_id:
+                if self.node_id in frame.destination_node_id:
                     self.rx_buffer.append(frame)
 
             case LoRaD2DFrameType.DATA_FROM_GW:
-                if frame.destination_node_id == self.node_id:
+                if self.node_id in frame.destination_node_id:
                     self.rx_buffer.append(frame)
 
             case LoRaD2DFrameType.REQ_HOP_ACK:
-                if frame.destination_node_id == self.node_id:
+                if self.node_id in frame.destination_node_id:
                     self._process_req_hop_ack(frame, current_local_clock_info.current_local_time)
 
             case LoRaD2DFrameType.HOP_ACK:
                 # we have been ACKed,  we can assume discovery complete
-                if frame.destination_node_id == self.node_id:
+                if self.node_id in frame.destination_node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
 
             case LoRaD2DFrameType.CHANGE_HOP_COUNT:
                 # we have been instructed to change our hop count, update our hop count to the instructed hop count
                 # implied ACk, we can assume discovery complete
-                if frame.destination_node_id == self.node_id:
+                if self.node_id in frame.destination_node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
                     frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
                     self.hopcount_to_gateway = frame_hop_cnt.cnt
@@ -267,16 +267,16 @@ class D2DDLL:
             new_hop_count = self.hopcount_to_gateway + 1 + i_relative
             if neighbor.hopcount_to_gateway == new_hop_count:
                 if neighbor.neighbor_id == frame.source_node_id:
-                    ack_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=neighbor.neighbor_id, type=LoRaD2DFrameType.HOP_ACK, payload=new_hop_count.to_bytes(2, "big"))
+                    ack_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ neighbor.neighbor_id }, type=LoRaD2DFrameType.HOP_ACK, payload=PayloadHopCnt(cnt=new_hop_count))
                     ack_frame.crc_calc()
                     self.tx_buffer.append(ack_frame)
 
                 continue
 
             neighbor.hopcount_to_gateway = new_hop_count
-            change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=neighbor.neighbor_id, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=new_hop_count.to_bytes(2, "big"))
+            change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ neighbor.neighbor_id }, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCnt(cnt=new_hop_count))
             change_frame.crc_calc()
-            existing_frame_index = next((i for i, f in enumerate(self.tx_buffer) if f.destination_node_id == neighbor.neighbor_id and f.type in [LoRaD2DFrameType.CHANGE_HOP_COUNT, LoRaD2DFrameType.HOP_ACK]), None)
+            existing_frame_index = next((i for i, f in enumerate(self.tx_buffer) if neighbor.neighbor_id in f.destination_node_id and f.type in [LoRaD2DFrameType.CHANGE_HOP_COUNT, LoRaD2DFrameType.HOP_ACK]), None)
             if existing_frame_index is not None:
                 self.tx_buffer[existing_frame_index] = change_frame
             else:
