@@ -126,6 +126,10 @@ class GUI(QMainWindow):
         # Reverse to show oldest first, newest last
         filtered_logs.reverse()
 
+        scrollbar = self.left_top.verticalScrollBar()
+        at_bottom = scrollbar.value() >= scrollbar.maximum() - 4
+        saved_pos = scrollbar.value()
+
         # Display filtered logs or show message if nothing matches
         if filtered_logs:
             self.left_top.setPlainText("".join(filtered_logs))
@@ -133,6 +137,11 @@ class GUI(QMainWindow):
             self.left_top.setPlainText(f"No logs matching [{chosen_severity}+] with areas: {', '.join(chosen_areas)}\n")
         else:  # No areas selected at all
             self.left_top.setPlainText("No areas selected for filtering\n")
+
+        if at_bottom:
+            scrollbar.setValue(scrollbar.maximum())
+        else:
+            scrollbar.setValue(saved_pos)
 
         # self.engine.log.flush(force=True)
 
