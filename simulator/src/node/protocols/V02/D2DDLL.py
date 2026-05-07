@@ -138,6 +138,7 @@ class D2DDLL:
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
             # We need to retry ACK in new random mini-slot to avoid collisions with other nodes retrying at the same time
             self.offset_for_req_ack = self.rnd.choice(range(self.mini_slot_count)) * (self.slot_duration // self.mini_slot_count)
+            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} sent REQ_HOP_ACK to node {dest_node_id} with hop count {self.hopcount_to_gateway}, with offset {self.offset_for_req_ack}ms")
             # TODO: determine when the next period starts based on known rx timeses
 
         timer_1 = current_local_clock_info.timer_1_remaining
@@ -282,6 +283,5 @@ class D2DDLL:
                 self.tx_buffer.append(change_frame)
 
     def _update_local_hopcount(self, hopcount: int) -> None:
-        if hopcount < self.hopcount_to_gateway:
-            self.hopcount_to_gateway = hopcount
-            self.current_tx_slot = hopcount % self.slot_count
+        self.hopcount_to_gateway = hopcount
+        self.current_tx_slot = hopcount % self.slot_count
