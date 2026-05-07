@@ -54,14 +54,16 @@ class BaseTransceiver(IModule):
 
 		if self.state == TransceiverState.IDLE:
 			if transmit_data_events:
-				# For simplicity, we assume that if multiple transmit events are triggered in the same tick, we only handle one and ignore the rest.
-				# In a more complex implementation, we might want to queue these or handle them in some other way.
-				event = transmit_data_events[0]
-				transmission_duration_ticks = self._calculate_transmission_duration_ticks(event.data)
-				self._current_transmission_end_global_tick = current_global_tick + transmission_duration_ticks
-				self._medium_service.transmit(self._node_id, self.medium_type, event.data, current_global_tick, self._current_transmission_end_global_tick)
+				durations = [self._calculate_transmission_duration_ticks(e.data) for e in transmit_data_events]
+				max_duration = max(durations)
+
+				self._current_transmission_end_global_tick = current_global_tick + max_duration
+
 				self.state = TransceiverState.TRANSMITTING
-				self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} started transmitting on {self.medium_type} with data {event.data} for a duration of {transmission_duration_ticks} ticks (until global tick {self._current_transmission_end_global_tick})")
+
+				for e, duration in zip(transmit_data_events, durations):
+					self._medium_service.transmit(self._node_id, self.medium_type, e.data, current_global_tick, current_global_tick + duration)
+					self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} started transmitting on {self.medium_type} with data {e.data} for a duration of {duration} ticks (until global tick {current_global_tick + duration})")
 
 		if self.state == TransceiverState.TRANSMITTING:
 			# Check if we have finished transmitting

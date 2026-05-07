@@ -41,6 +41,7 @@ src/sim/global_time.py
 src/sim/logger.py
 test/test_battery.py
 test/test_event_net_queue.py
+test/test_gateway.py
 test/test_global_time.py
 test/test_lora_d2d_medium.py
 test/test_transceiver.py
