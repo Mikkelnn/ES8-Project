@@ -56,8 +56,13 @@ class DLL:
 						self.state = DLLState.FORWARDING
 					elif finished and not self.d2d_layer.link_established:
 						# sleep before retrying discovery
-						self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=self.d2d_rety_period_ms)
-						self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D")
+
+                        sleep_ms = self.d2d_rety_period_ms
+                        if self.d2d_layer.discovery_state == D2DDLL.DiscoverStates.WAITING_FOR_ACK:
+                            sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms)
+
+                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D")
 
 			case DLLState.FORWARDING:
 				self._route_app_packets()

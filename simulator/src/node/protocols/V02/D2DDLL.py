@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from random import Random
 from typing import List, cast
 
 from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, Severity, TransceiverState
@@ -32,6 +33,7 @@ class D2DDLL:
         self.log = log
         self.slot_duration = slot_duration
         self.slot_count = slot_count
+        self.mini_slot_count = 3
         self.current_slot = -1
         self.current_tx_slot = -1
         self.reset(0)
@@ -45,6 +47,7 @@ class D2DDLL:
         self.rx_buffer: List[LoRaD2DFrame] = []
         self.current_slot = -1
         self.current_tx_slot = -1
+        self.rnd = Random(self.node_id)
 
     @property
     def link_established(self) -> bool:
@@ -70,7 +73,8 @@ class D2DDLL:
         current_transceiver_states = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data
 
         if not self.link_established:
-            return self._run_discovery(current_global_tick, current_local_clock_info)
+            self._run_discovery(current_global_tick, current_local_clock_info)
+            # TODO: we should estimate next period start, currently relying on ideal clock...
 
 		# add idle packet -> used for discovery
         if not self.tx_buffer and self.link_established:
@@ -81,8 +85,12 @@ class D2DDLL:
 
 		# process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
         self._process_receptions(current_global_tick, current_local_clock_info)
-
-        return period_finished
+        
+        # True if not period_finished and self.discovery_state == DiscoverStates.WAITING_FOR_ACK and period not in progress
+        # True if period_finished and self.link_established
+        discover_wait_next_period = not period_finished and self.discovery_state == DiscoverStates.WAITING_FOR_ACK and self.current_slot == -1
+        default = period_finished and self.link_established
+        return default or discover_wait_next_period
 
     def _run_discovery(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> None:
         if self.link_established:
@@ -120,34 +128,36 @@ class D2DDLL:
             frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=dest_node_id, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=self.hopcount_to_gateway.to_bytes(2, "big"))
             self.tx_buffer.append(frame)
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
+		    # We need to retry ACK in new random mini-slot to avoid collisions with other nodes retrying at the same time
+            self.mini_slot_for_ack = self.rnd.choice(range(self.mini_slot_count))            
             # TODO: somehow signal we need to tx at a random mini slot in the current slot period to avoid collisions with other nodes sending ACKs at the same time
             # determine when the next period starts
         
-        if self.discovery_state == DiscoverStates.WAITING_FOR_ACK:
-            # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing, if we do not receive it before the end of the period we will need to retry in the next period
-            pass
-
-		# Handle case where no ACK is received in next period
-		# We need to retry ACK in new random mini-slot in the next period to avoid collisions with other nodes retrying at the same time
+        timer_1 = current_local_clock_info.timer_1_remaining
+        if self.discovery_state == DiscoverStates.WAITING_FOR_ACK and self.current_slot == self.slot_count - 1 and (timer_1 is None or timer_1 == 0):
+            # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing, 
+            # if we do not receive it before the end of the period we will need to retry in the next period
+            self.discovery_state = DiscoverStates.REQ_ACK
 
     def _advance_slot(self, current_local_clock_info: LocalClockInfo) -> bool:
         if not (self.link_established or self.discovery_state in [DiscoverStates.REQ_ACK, DiscoverStates.WAITING_FOR_ACK]):
             return False
 
         timer_1 = current_local_clock_info.timer_1_remaining
-        if timer_1 is None or timer_1 == 0:
-            self.current_slot += 1
-            if self.current_slot < self.slot_count:
-                self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=self.slot_duration)
-                if self.current_slot == self.current_tx_slot:
-                    self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_2, data=10)
-                return False
+        if not (timer_1 is None or timer_1 == 0):
+            return False
 
-            self.current_slot = -1
-            self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
-            return True
+        self.current_slot += 1
+        if self.current_slot < self.slot_count:
+            self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=self.slot_duration)
+            if self.current_slot == self.current_tx_slot:
+                self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_2, data=10)
+            return False
 
-        return False
+        self.current_slot = -1
+        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
+        return True
+
 
     def _run_slot(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict) -> None:
         if self.current_slot < 0:
