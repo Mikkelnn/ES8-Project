@@ -75,10 +75,6 @@ class D2DDLL:
 
         current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
 
-        if not self.link_established:
-            self._run_discovery(current_global_tick, current_local_clock_info)
-            # TODO: we should estimate next period start, currently relying on ideal clock...
-
         # add idle packet -> used for discovery
         if not self.tx_buffer and self.link_established:
             hop_cnt = PayloadHopCnt(self.hopcount_to_gateway)
@@ -89,6 +85,10 @@ class D2DDLL:
 
         period_finished = self._advance_slot(current_local_clock_info)
         self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states)
+
+        if not self.link_established:
+            self._run_discovery(current_global_tick, current_local_clock_info)
+            # TODO: we should estimate next period start, currently relying on ideal clock...
 
         # process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
         self._process_receptions(current_global_tick, current_local_clock_info)
