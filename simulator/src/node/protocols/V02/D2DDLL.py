@@ -10,10 +10,11 @@ from node.event_local_queue import LocalEventQueue
 
 @dataclass
 class D2DNeighborInfo:
-	neighbor_id: int
-	hopcount_to_gateway: int
-	last_seen: int
-	last_rssi: int
+    neighbor_id: int
+    hopcount_to_gateway: int
+    last_seen: int
+    last_rssi: int
+
 
 class DiscoverStates(Enum):
     NOT_DISCOVERED = 0
@@ -21,6 +22,7 @@ class DiscoverStates(Enum):
     REQ_ACK = 2
     WAITING_FOR_ACK = 3
     DISCOVERED = 4
+
 
 class D2DDLL:
     DISCOVERY_TIMEOUT_MS = 60_000 + 10 * 1000
@@ -37,7 +39,6 @@ class D2DDLL:
         self.current_slot = -1
         self.current_tx_slot = -1
         self.reset(0)
-
 
     def reset(self, current_global_tick: int) -> None:
         self.hopcount_to_gateway = self.MAX_HOPCOUNT
@@ -60,13 +61,13 @@ class D2DDLL:
 
     def enqueue_payload(self, payload: bytes) -> None:
         self.tx_buffer.append(
-			LoRaD2DFrame(
-				source_node_id=self.node_id,
-				destination_node_id=0xFFFFFFFF,  # TODO: set destination to next hop instead of broadcast
-				type=LoRaD2DFrameType.DATA_TO_GW,
-				payload=payload,
-			)
-		)
+            LoRaD2DFrame(
+                source_node_id=self.node_id,
+                destination_node_id=0xFFFFFFFF,  # TODO: set destination to next hop instead of broadcast
+                type=LoRaD2DFrameType.DATA_TO_GW,
+                payload=payload,
+            )
+        )
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
 
@@ -76,16 +77,16 @@ class D2DDLL:
             self._run_discovery(current_global_tick, current_local_clock_info)
             # TODO: we should estimate next period start, currently relying on ideal clock...
 
-		# add idle packet -> used for discovery
+        # add idle packet -> used for discovery
         if not self.tx_buffer and self.link_established:
             self.tx_buffer.append(LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=0xFFFFFFFF, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=self.hopcount_to_gateway.to_bytes(2, "big")))
 
         period_finished = self._advance_slot(current_local_clock_info)
         self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states)
 
-		# process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
+        # process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
         self._process_receptions(current_global_tick, current_local_clock_info)
-        
+
         # True if not period_finished and self.discovery_state == DiscoverStates.WAITING_FOR_ACK and period not in progress
         # True if period_finished and self.link_established
         discover_wait_next_period = not period_finished and self.discovery_state == DiscoverStates.WAITING_FOR_ACK and self.current_slot == -1
@@ -128,14 +129,14 @@ class D2DDLL:
             frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=dest_node_id, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=self.hopcount_to_gateway.to_bytes(2, "big"))
             self.tx_buffer.append(frame)
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
-		    # We need to retry ACK in new random mini-slot to avoid collisions with other nodes retrying at the same time
-            self.mini_slot_for_ack = self.rnd.choice(range(self.mini_slot_count))            
+            # We need to retry ACK in new random mini-slot to avoid collisions with other nodes retrying at the same time
+            self.mini_slot_for_ack = self.rnd.choice(range(self.mini_slot_count))
             # TODO: somehow signal we need to tx at a random mini slot in the current slot period to avoid collisions with other nodes sending ACKs at the same time
             # determine when the next period starts
-        
+
         timer_1 = current_local_clock_info.timer_1_remaining
         if self.discovery_state == DiscoverStates.WAITING_FOR_ACK and self.current_slot == self.slot_count - 1 and (timer_1 is None or timer_1 == 0):
-            # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing, 
+            # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing,
             # if we do not receive it before the end of the period we will need to retry in the next period
             self.discovery_state = DiscoverStates.REQ_ACK
 
@@ -158,7 +159,6 @@ class D2DDLL:
         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
         return True
 
-
     def _run_slot(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict) -> None:
         if self.current_slot < 0:
             return
@@ -175,7 +175,7 @@ class D2DDLL:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
 
         if self.tx_buffer and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING and timer_2 is not None and timer_2 <= 0:
-			# TODO: determine if tiem allow for packet tx other wise wait until next slot
+            # TODO: determine if tiem allow for packet tx other wise wait until next slot
             packet = self.tx_buffer.pop(0)
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
 
@@ -184,7 +184,7 @@ class D2DDLL:
         if not current_receptions:
             return
 
-		# we process each packet as it is received so only one packet is there ata a time
+        # we process each packet as it is received so only one packet is there ata a time
         frame = cast(LoRaD2DFrame, current_receptions[0].data)
         match frame.type:
             case LoRaD2DFrameType.CURRENT_HOP_COUNT:
@@ -213,7 +213,7 @@ class D2DDLL:
                 if frame.destination_node_id == self.node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
                     self.hopcount_to_gateway = int.from_bytes(frame.payload, "big")
-        
+
         # update last seen for neighbor
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing:
@@ -229,11 +229,11 @@ class D2DDLL:
             self.known_neighbors.append(neighbor_info)
 
     def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
-                
+
         # TODO: handle edge case where we have more neighbors than slots...
 
         validate_hopcount = int.from_bytes(frame.payload, "big")
-        
+
         # find requesting node in known neighbors and update hop count if needed
         neighbor = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if neighbor is None:
@@ -257,10 +257,10 @@ class D2DDLL:
                     self.tx_buffer.append(ack_frame)
 
                 continue
-            
+
             neighbor.hopcount_to_gateway = new_hop_count
             change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=neighbor.neighbor_id, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=new_hop_count.to_bytes(2, "big"))
-            existing_frame_index = next((i for i, f in enumerate(self.tx_buffer) if f.destination_node_id == neighbor.neighbor_id and f.type in [LoRaD2DFrameType.CHANGE_HOP_COUNT, LoRaD2DFrameType.HOP_ACK] ), None)
+            existing_frame_index = next((i for i, f in enumerate(self.tx_buffer) if f.destination_node_id == neighbor.neighbor_id and f.type in [LoRaD2DFrameType.CHANGE_HOP_COUNT, LoRaD2DFrameType.HOP_ACK]), None)
             if existing_frame_index is not None:
                 self.tx_buffer[existing_frame_index] = change_frame
             else:
