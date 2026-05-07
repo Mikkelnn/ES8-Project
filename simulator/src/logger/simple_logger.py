@@ -1,4 +1,5 @@
 # type: ignore
+import inspect
 from typing import Any, List
 
 from custom_types import Area, Severity
@@ -12,6 +13,8 @@ class SimpleLogger(ILogger):
     flushed it is written directly to disk and discarded.  A special "start"
     message is written the first time a flush occurs.
     """
+
+    _log_caller_filename = True
 
     def __init__(self, log_path: str, buffer_size: int = 10) -> None:
         """Create a logger.
@@ -29,8 +32,24 @@ class SimpleLogger(ILogger):
         self._buffer: List[str] = []
         self._first_flush_done = False
 
+    @classmethod
+    def enable_caller_tracking(cls, enabled: bool = True) -> None:
+        """Enable/disable automatic caller filename tracking in logs."""
+        cls._log_caller_filename = enabled
+
     def add(self, severity: Severity, area: Area, global_time: int, info: str, data: Any = None) -> None:
-        formatted = f"[{severity.value}] ({area.value}) @ {global_time}: {info}, {data if data else ''}"
+        caller_filename = ""
+        if self._log_caller_filename:
+            frame = inspect.currentframe()
+            if frame is not None:
+                caller_frame = frame.f_back
+                if caller_frame is not None:
+                    caller_filename = inspect.getframeinfo(caller_frame).filename
+
+        if caller_filename:
+            formatted = f"[{severity.value}] ({area.value}) [{caller_filename}] @ {global_time}: {info}, {data if data else ''}"
+        else:
+            formatted = f"[{severity.value}] ({area.value}) @ {global_time}: {info}, {data if data else ''}"
         self._buffer.append(formatted + "\n")
 
     def get(self) -> List[str]:

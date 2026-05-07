@@ -21,6 +21,8 @@ Requires-Dist: pyarrow>=23.0.1
 Requires-Dist: networkx>=3.6.1
 Requires-Dist: tqdm>=4.67.3
 Requires-Dist: memray>=1.19.3
+Requires-Dist: crc>=7.1.0
+Requires-Dist: pytest-xdist>=3.8.0
 
 ## Imports
 correct: `from simulator.x.y.z import module`

@@ -3,7 +3,7 @@ from enum import Enum
 from random import Random
 from typing import List, cast
 
-from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, Severity, TransceiverState
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, PayloadData, PayloadHopCnt, Severity, TransceiverState
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 
@@ -61,15 +61,17 @@ class D2DDLL:
             self.hopcount_to_gateway = 0
             self.discovery_state = DiscoverStates.DISCOVERED
 
-    def enqueue_payload(self, payload: bytes) -> None:
-        self.tx_buffer.append(
-            LoRaD2DFrame(
-                source_node_id=self.node_id,
-                destination_node_id=0xFFFFFFFF,  # TODO: set destination to next hop instead of broadcast
-                type=LoRaD2DFrameType.DATA_TO_GW,
-                payload=payload,
-            )
+    def enqueue_payload(self, payload: PayloadHopCnt | PayloadData) -> None:
+        msg = LoRaD2DFrame(
+            source_node_id=self.node_id,
+            destination_node_id=0xFFFFFFFF,  # TODO: set destination to next hop instead of broadcast
+            type=LoRaD2DFrameType.DATA_TO_GW,
+            payload=payload,
         )
+
+        msg.crc_calc()
+
+        self.tx_buffer.append(msg)
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
 
@@ -81,7 +83,10 @@ class D2DDLL:
 
         # add idle packet -> used for discovery
         if not self.tx_buffer and self.link_established:
-            self.tx_buffer.append(LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=0xFFFFFFFF, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=self.hopcount_to_gateway.to_bytes(2, "big")))
+            hop_cnt = PayloadHopCnt(self.hopcount_to_gateway)
+            msg = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=0xFFFFFFFF, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
+            msg.crc_calc()
+            self.tx_buffer.append(msg)
 
         period_finished = self._advance_slot(current_local_clock_info)
         self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states)
@@ -129,6 +134,7 @@ class D2DDLL:
             # dest node should be the lowest hop count node known
             dest_node_id = min(self.known_neighbors, key=lambda x: x.hopcount_to_gateway).neighbor_id
             frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=dest_node_id, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=self.hopcount_to_gateway.to_bytes(2, "big"))
+            frame.crc_calc()
             self.tx_buffer.append(frame)
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
             # We need to retry ACK in new random mini-slot to avoid collisions with other nodes retrying at the same time
@@ -203,7 +209,7 @@ class D2DDLL:
 
             case LoRaD2DFrameType.REQ_HOP_ACK:
                 if frame.destination_node_id == self.node_id:
-                    self._process_req_hop_ack(frame)
+                    self._process_req_hop_ack(frame, current_local_clock_info.current_local_time)
 
             case LoRaD2DFrameType.HOP_ACK:
                 # we have been ACKed,  we can assume discovery complete
@@ -215,8 +221,8 @@ class D2DDLL:
                 # implied ACk, we can assume discovery complete
                 if frame.destination_node_id == self.node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
-                    self.hopcount_to_gateway = int.from_bytes(frame.payload, "big")
-                    # TODO: if alredy DISCOVERED, we need to intruct nodes behind us but somehow instruct in current assigned slot, then change to new assigned...
+                    frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
+                    self.hopcount_to_gateway = frame_hop_cnt.cnt
 
         # update last seen for neighbor
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
@@ -225,7 +231,9 @@ class D2DDLL:
             existing.last_rssi = frame.rssi
 
     def _process_current_hopcount(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
-        hopcount = int.from_bytes(frame.payload, "big")
+        frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
+
+        hopcount = frame_hop_cnt.cnt
 
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing is None:
@@ -236,7 +244,9 @@ class D2DDLL:
 
         # TODO: handle edge case where we have more neighbors than slots...
 
-        validate_hopcount = int.from_bytes(frame.payload, "big")
+        frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
+
+        validate_hopcount = frame_hop_cnt.cnt
 
         # find requesting node in known neighbors and update hop count if needed
         neighbor = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
@@ -258,12 +268,14 @@ class D2DDLL:
             if neighbor.hopcount_to_gateway == new_hop_count:
                 if neighbor.neighbor_id == frame.source_node_id:
                     ack_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=neighbor.neighbor_id, type=LoRaD2DFrameType.HOP_ACK, payload=new_hop_count.to_bytes(2, "big"))
+                    ack_frame.crc_calc()
                     self.tx_buffer.append(ack_frame)
 
                 continue
 
             neighbor.hopcount_to_gateway = new_hop_count
             change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=neighbor.neighbor_id, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=new_hop_count.to_bytes(2, "big"))
+            change_frame.crc_calc()
             existing_frame_index = next((i for i, f in enumerate(self.tx_buffer) if f.destination_node_id == neighbor.neighbor_id and f.type in [LoRaD2DFrameType.CHANGE_HOP_COUNT, LoRaD2DFrameType.HOP_ACK]), None)
             if existing_frame_index is not None:
                 self.tx_buffer[existing_frame_index] = change_frame

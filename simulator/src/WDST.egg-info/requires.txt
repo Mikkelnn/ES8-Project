@@ -15,3 +15,5 @@ pyarrow>=23.0.1
 networkx>=3.6.1
 tqdm>=4.67.3
 memray>=1.19.3
+crc>=7.1.0
+pytest-xdist>=3.8.0

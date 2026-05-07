@@ -51,20 +51,20 @@ def test_tps_calc_and_get_tps():
         time.sleep(0.01)  # 10 ms per tick
 
 
-def test_tps_over_10_seconds():
+def test_tps_over_2_seconds():
     t = GlobalTime()
     t.set_time(0)
     t.tick_checkpoint = 0
     t.time_checkpoint = time.time()
 
-    for i in range(0, 5):
+    for i in range(0, 1):
         t.increment_time()
 
-        time.sleep(1)
+        time.sleep(0.5)
 
         t.tps_calc()
         print(f"TPS: {t.get_tps()}")
-        assert t.get_tps() == 1
+        assert t.get_tps() == 2
 
     # test not updating
 

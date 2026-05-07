@@ -1,11 +1,23 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Any, List
+import random
 
-from pydantic import Field
+from crc import Calculator, Configuration
 
 from Interfaces import IRSSI, ILength
 from loraWanFrameHelper import LoRaWanPHYPayload
+
+config = Configuration(
+    width=16,
+    polynomial=0x1021,
+    init_value=0xFFFF,
+    final_xor_value=0xFFFF,
+    reverse_input=True,
+    reverse_output=True,
+)
+
+calculator = Calculator(config, optimized=True)
 
 
 # Define allowed severities
@@ -63,7 +75,7 @@ class EventNet:
     time_end: int
     type: EventNetTypes
     type_medium: MediumTypes
-    data: List[Any] = Field(default_factory=list)
+    data: List[Any] = field(default_factory=list)
 
 
 class LocalEventTypes(Enum):
@@ -116,21 +128,86 @@ class LoRaD2DFrameType(IntEnum):
 
 
 @dataclass
+class Data:
+    @staticmethod
+    def __rand() -> int:
+        return random.randint(0, 30)
+
+    @property
+    def length(self) -> int:
+        # sensor1 (2) + sensor2 (2)
+        return 2 + 2
+
+    def to_bytes(self) -> bytes:
+        return self.sensor1.to_bytes(2, "big", signed=False) + self.sensor2.to_bytes(2, "big", signed=False)
+
+    sensor1: int = field(default_factory=__rand)  # uint16
+    sensor2: int = field(default_factory=__rand)  # uint16
+
+
+@dataclass
+class PayloadData:
+    length_payload: int  # uint16
+    id: Set[int]  # uint32
+    time: float  # float32
+    data: Data  # Dynamic
+
+    @property
+    def length(self) -> int:
+        # Length (2) + Id (4 bytes per node) + time (4) + data (Dynamic)       (RSSI sent, but not counted, since IRL measured via radio, not in packet)
+        return 2 + len(self.id) * 4 + 4 + self.data.length
+
+    def to_bytes(self) -> bytes:
+        id_bytes = b"".join(int(item).to_bytes(4, "big", signed=False) for item in sorted(self.id))
+        return self.length_payload.to_bytes(2, "big", signed=False) + id_bytes + int(self.time).to_bytes(4, "big", signed=False) + self.data.to_bytes()
+
+
+@dataclass
+class PayloadHopCnt:
+    cnt: int  # uint16
+
+    @property
+    def length(self) -> int:
+        # Length (2)
+        return 2
+
+    def to_bytes(self) -> bytes:
+        return self.cnt.to_bytes(2, "big", signed=False)
+
+
+@dataclass
 class LoRaD2DFrame(ILength, IRSSI):
     source_node_id: int  # uint32
-    destination_node_id: int  # uint32
+    destination_node_id: Set[int]  # uint32
     type: LoRaD2DFrameType  # uint8
-    payload: bytes
-    crc: bytes = b"0\x000\x00"  # uint16
-    rssi: int = 0
+    payload: PayloadData | PayloadHopCnt
+    rssi: int = 0  # uint32
+    crc: int = 0  # uint16
     # frame_count?
     # timestamp?
     # TTL?
 
     @property
     def length(self) -> int:
-        # Source (4) + Destination (4) + Type (1) + Payload + CRC (2)
-        return 4 + 4 + 1 + len(self.payload) + 2
+        # Source (4) + Destination (4 bytes per node) + Type (1) + Payload (Dynamic) + CRC (2)       (RSSI sent, but not counted, since IRL measured via radio, not in packet)
+        return 4 + len(self.destination_node_id) * 4 + 1 + self.payload.length + 2
+
+    def to_crc_bytes(self) -> bytes:
+        data = bytearray()
+
+        data += self.source_node_id.to_bytes(4, "big")
+
+        for destination in sorted(self.destination_node_id):
+            data += destination.to_bytes(4, "big")
+
+        data += self.type.value.to_bytes(1, "big")
+
+        data += self.payload.to_bytes()
+
+        return bytes(data)
+
+    def crc_calc(self) -> None:
+        self.crc = calculator.checksum(self.to_crc_bytes())
 
 
 @dataclass

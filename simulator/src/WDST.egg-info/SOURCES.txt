@@ -40,6 +40,7 @@ src/sim/engine.py
 src/sim/global_time.py
 src/sim/logger.py
 test/test_battery.py
+test/test_custom_types.py
 test/test_event_net_queue.py
 test/test_gateway.py
 test/test_global_time.py
