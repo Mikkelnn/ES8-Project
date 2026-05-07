@@ -5,7 +5,7 @@ from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.protocols.V02.APP import AppPacket
-from node.protocols.V02.D2DDLL import D2DDLL
+from node.protocols.V02.D2DDLL import D2DDLL, DiscoverStates
 from node.protocols.V02.WANDLL import WANDLL, LinkState
 
 
@@ -54,15 +54,22 @@ class DLL:
                     finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info)
                     if finished and self.d2d_layer.link_established:
                         self.state = DLLState.FORWARDING
+                        sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms) # TODO: do right...
+                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery with D2D route to gateway, sleeping until next slot period")
+
                     elif finished and not self.d2d_layer.link_established:
                         # sleep before retrying discovery
+                        if self.d2d_layer.discovery_state == DiscoverStates.WAITING_FOR_ACK:
+                            sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms) # TODO: do right...
+                            self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
+                            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery waiting for ACK without finding route, sleeping until next slot period to retry with D2D")
+                        else:
+                            self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=self.d2d_rety_period_ms)
+                            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D")
 
-                        sleep_ms = self.d2d_rety_period_ms
-                        if self.d2d_layer.discovery_state == D2DDLL.DiscoverStates.WAITING_FOR_ACK:
-                            sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms)
-
-                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
-                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D")
+                        
+                        
 
             case DLLState.FORWARDING:
                 self._route_app_packets()

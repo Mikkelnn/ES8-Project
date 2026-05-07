@@ -48,6 +48,8 @@ class D2DDLL:
         self.rx_buffer: List[LoRaD2DFrame] = []
         self.current_slot = -1
         self.current_tx_slot = -1
+        self.offset_for_req_ack = 0
+        self.tx_start_offset = 10
         self.rnd = Random(self.node_id)
 
     @property
@@ -130,9 +132,8 @@ class D2DDLL:
             self.tx_buffer.append(frame)
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
             # We need to retry ACK in new random mini-slot to avoid collisions with other nodes retrying at the same time
-            self.mini_slot_for_ack = self.rnd.choice(range(self.mini_slot_count))
-            # TODO: somehow signal we need to tx at a random mini slot in the current slot period to avoid collisions with other nodes sending ACKs at the same time
-            # determine when the next period starts
+            self.offset_for_req_ack = self.rnd.choice(range(self.mini_slot_count)) * (self.slot_duration // self.mini_slot_count)
+            # TODO: determine when the next period starts based on known rx timeses
 
         timer_1 = current_local_clock_info.timer_1_remaining
         if self.discovery_state == DiscoverStates.WAITING_FOR_ACK and self.current_slot == self.slot_count - 1 and (timer_1 is None or timer_1 == 0):
@@ -152,7 +153,8 @@ class D2DDLL:
         if self.current_slot < self.slot_count:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=self.slot_duration)
             if self.current_slot == self.current_tx_slot:
-                self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_2, data=10)
+                offset = self.offset_for_req_ack if self.discovery_state == DiscoverStates.WAITING_FOR_ACK else self.tx_start_offset
+                self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_2, data=offset)
             return False
 
         self.current_slot = -1
@@ -176,6 +178,7 @@ class D2DDLL:
 
         if self.tx_buffer and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING and timer_2 is not None and timer_2 <= 0:
             # TODO: determine if tiem allow for packet tx other wise wait until next slot
+            self.tx_buffer.sort(key=lambda f: f.type) # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
             packet = self.tx_buffer.pop(0)
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
 
@@ -213,6 +216,7 @@ class D2DDLL:
                 if frame.destination_node_id == self.node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
                     self.hopcount_to_gateway = int.from_bytes(frame.payload, "big")
+                    # TODO: if alredy DISCOVERED, we need to intruct nodes behind us but somehow instruct in current assigned slot, then change to new assigned...
 
         # update last seen for neighbor
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
