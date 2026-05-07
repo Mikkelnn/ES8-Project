@@ -136,9 +136,8 @@ class Simulation:
                     except Exception:
                         pass
                 self.log.flush()
-                # TPS calculation every second
                 now = time.time()
-                if self.tps_value is not None and now - last_tps_calc > 1.0:
+                if self.tps_value is not None and now - last_tps_calc > 0.1:
                     self.global_time.tps_calc()
                     tps = self.global_time.get_tps()
                     self.tps_value.value = int(tps) if tps is not None else 0
@@ -226,22 +225,22 @@ class Engine:
     def pause(self):
         with self.lock:
             self.status.value = SimState.PAUSED.value
+        self.tps_from_sim.value = 0
         self._clear_log_queue()  # Clear pending logs to make pause feel instant
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine paused", data=None)
 
     def stop(self):
         with self.lock:
             self.status.value = SimState.STOPPED.value
-        self._clear_log_queue()  # Clear pending logs to make stop feel instant
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine stopped", data=None)
-        # Non-blocking: poll for process exit
+        self._clear_log_queue()
         if self.sim_process is not None:
-
-            def poll_exit():
+            self.sim_process.terminate()
+            self.sim_process.join(timeout=3)
+            if self.sim_process.is_alive():
+                self.sim_process.kill()
                 self.sim_process.join()
-                self.sim_process = None
-
-            threading.Thread(target=poll_exit, daemon=True).start()
+            self.sim_process = None
 
 
 if __name__ == "__main__":

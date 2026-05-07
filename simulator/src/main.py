@@ -28,7 +28,7 @@ from custom_types import Area, Severity, SimState
 from sim.engine import GUI_LOG_DISPLAY_LINES, Engine
 from sim.global_time import GlobalTime
 
-REFRESH_RATE_MS = 200
+REFRESH_RATE_MS = 50
 
 
 class GUI(QMainWindow):
@@ -156,7 +156,7 @@ class GUI(QMainWindow):
         latest_tick = getattr(self, "_latest_tick", None)
 
         # EWMA smoothing
-        alpha = 0.2
+        alpha = 0.5
         if self._ewma_tps is None or self._ewma_tps == 0:
             # Initialize with current TPS
             self._ewma_tps = tps if tps > 0 else 0.0
@@ -191,6 +191,9 @@ class GUI(QMainWindow):
 
     def start_engine(self):
         """Start new simulation or continue paused one."""
+        if self._sim_state == SimState.RUNNING:
+            return
+
         state = self.collect_input_state()
 
         # Determine if we should start fresh or continue
@@ -213,9 +216,8 @@ class GUI(QMainWindow):
             # Resume the existing simulation
             self.engine.start_continue()
         else:
-            # START NEW simulation
+            # START NEW simulation (engine already prepared by stop or init)
             self.lock_inputs(True)
-            self.create_new_engine()
             self._sim_state = SimState.RUNNING
             self._latest_tick = 0
 
@@ -239,18 +241,25 @@ class GUI(QMainWindow):
         if self._sim_state == SimState.RUNNING:
             self.engine.pause()
             self._sim_state = SimState.PAUSED
+            self._ewma_tps = 0.0
             self.unlock_inputs()
             self.refresh_log_display()
 
     def stop_engine(self):
-        """Stop current simulation - next start will be a NEW simulation."""
+        """Stop current simulation - prepares fresh engine for next run."""
         if self._sim_state in (SimState.RUNNING, SimState.PAUSED):
             self.engine.stop()
-            self._sim_state = SimState.STOPPED
             self._latest_tick = 0
             self._target_tick = None
+            self._ewma_tps = 0.0
+            self.create_new_engine()  # new result folder ready immediately
             self.unlock_inputs()
             self.refresh_log_display()
+
+    def closeEvent(self, event):
+        if self._sim_state in (SimState.RUNNING, SimState.PAUSED):
+            self.engine.stop()
+        event.accept()
 
     def __init__(self):
         # Ensure QApplication is constructed before any QWidget
@@ -286,10 +295,10 @@ class GUI(QMainWindow):
 
     def init_ui(self):
         # Initialize engine and state before any UI updates
-        self.engine = Engine()
         self._sim_state = SimState.STOPPED
         self._latest_tick = 0
         self._target_tick = None
+        self.create_new_engine()
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         layout = QHBoxLayout(central_widget)
