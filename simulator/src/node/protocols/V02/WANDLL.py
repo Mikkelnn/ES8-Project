@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import List, cast
 
-from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaWanPHYPayload, MediumTypes, PayloadData, PayloadHopCnt, Severity, TransceiverState
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaWanPHYPayload, MediumTypes, PayloadData, Severity, TransceiverState
 from logger.ILogger import ILogger
 from loraWanFrameHelper import make_uplink
 from node.event_local_queue import LocalEventQueue
@@ -35,7 +35,7 @@ class WANDLL:
         self.link_state = LinkState.DISCOVERING
         self.transmit_state = TransmitState.IDLE
 
-    def enqueue_payload(self, payload: PayloadData | PayloadHopCnt) -> None:
+    def enqueue_payload(self, payload: PayloadData) -> None:
         self._tx_buffer.append(make_uplink(dev_addr=self.node_id, frame_count=0, payload=payload.to_bytes(), confirmed=False))
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
