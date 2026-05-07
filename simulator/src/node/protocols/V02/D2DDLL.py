@@ -62,7 +62,7 @@ class D2DDLL:
     def enqueue_payload(self, payload: PayloadHopCnt | PayloadData) -> None:
         msg = LoRaD2DFrame(
             source_node_id=self.node_id,
-            destination_node_id={ 0xFFFFFFFF },  # TODO: set destination to next hop instead of broadcast
+            destination_node_id={0xFFFFFFFF},  # TODO: set destination to next hop instead of broadcast
             type=LoRaD2DFrameType.DATA_TO_GW,
             payload=payload,
         )
@@ -82,7 +82,7 @@ class D2DDLL:
         # add idle packet -> used for discovery
         if not self.tx_buffer and self.link_established:
             hop_cnt = PayloadHopCnt(self.hopcount_to_gateway)
-            msg = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ 0xFFFFFFFF }, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
+            msg = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={0xFFFFFFFF}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
             msg.crc_calc()
             self.tx_buffer.append(msg)
             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} added idle packet with hop count {self.hopcount_to_gateway}")
@@ -132,7 +132,7 @@ class D2DDLL:
             # we have selected a hop count, we need to request ACK from neighbors with that hop
             # dest node should be the lowest hop count node known
             dest_node_id = min(self.known_neighbors, key=lambda x: x.hopcount_to_gateway).neighbor_id
-            frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ dest_node_id }, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=PayloadHopCnt(cnt=self.hopcount_to_gateway))
+            frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={dest_node_id}, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=PayloadHopCnt(cnt=self.hopcount_to_gateway))
             frame.crc_calc()
             self.tx_buffer.append(frame)
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
@@ -266,14 +266,14 @@ class D2DDLL:
             new_hop_count = self.hopcount_to_gateway + 1 + i_relative
             if neighbor.hopcount_to_gateway == new_hop_count:
                 if neighbor.neighbor_id == frame.source_node_id:
-                    ack_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ neighbor.neighbor_id }, type=LoRaD2DFrameType.HOP_ACK, payload=PayloadHopCnt(cnt=new_hop_count))
+                    ack_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.HOP_ACK, payload=PayloadHopCnt(cnt=new_hop_count))
                     ack_frame.crc_calc()
                     self.tx_buffer.append(ack_frame)
 
                 continue
 
             neighbor.hopcount_to_gateway = new_hop_count
-            change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ neighbor.neighbor_id }, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCnt(cnt=new_hop_count))
+            change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCnt(cnt=new_hop_count))
             change_frame.crc_calc()
             existing_frame_index = next((i for i, f in enumerate(self.tx_buffer) if neighbor.neighbor_id in f.destination_node_id and f.type in [LoRaD2DFrameType.CHANGE_HOP_COUNT, LoRaD2DFrameType.HOP_ACK]), None)
             if existing_frame_index is not None:
