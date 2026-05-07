@@ -73,7 +73,7 @@ class D2DDLL:
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
 
-        current_transceiver_states = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data
+        current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
 
         if not self.link_established:
             self._run_discovery(current_global_tick, current_local_clock_info)
@@ -166,7 +166,7 @@ class D2DDLL:
         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
         return True
 
-    def _run_slot(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict) -> None:
+    def _run_slot(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict[MediumTypes, TransceiverState]) -> None:
         if self.current_slot < 0:
             return
 

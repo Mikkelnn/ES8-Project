@@ -40,7 +40,7 @@ class WANDLL:
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
         """Returns True if the current slot period is finished and we can move on to the next slot, False if we are still in the current slot period"""
-        current_transceiver_states = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data
+        current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
 
         match self.link_state:
             case LinkState.DISCOVERING:
@@ -75,7 +75,7 @@ class WANDLL:
             self.link_state = LinkState.NO_LINK
             self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} failed to connect to gateway via WAN, moving on to D2D")
 
-    def _run_wan_forwarding(self, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict) -> bool:
+    def _run_wan_forwarding(self, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict[MediumTypes, TransceiverState]) -> bool:
         """Returns True if the current slot period is finished and we can move on to the next slot, False if we are still in the current slot period"""
         match self.transmit_state:
             case TransmitState.IDLE:
