@@ -60,10 +60,10 @@ class DLL:
 
                     elif finished and not self.d2d_layer.link_established:
                         # sleep before retrying discovery
-                        if self.d2d_layer.discovery_state == DiscoverStates.WAITING_FOR_ACK:
+                        if self.d2d_layer.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]:
                             sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms)  # TODO: do right...
                             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
-                            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery waiting for ACK without finding route, sleeping until next slot period to retry with D2D")
+                            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery waiting for ACK, sleeping until next slot period to retry with D2D")
                         else:
                             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=self.d2d_rety_period_ms)
                             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D")
@@ -81,9 +81,12 @@ class DLL:
                     finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info)
 
                 if finished:
-                    self._increment_hop_count()
-                    sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
+                    # sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
+                    sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms) # TODO: do right... use above but fix DISCOVERY sleep
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
+                    self.current_period_start_time = None
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished {'WAN' if self.slot_period_counter == 0 else 'D2D'} forwarding period, sleeping until next slot period ({sleep_ms} ms)")
+                    self._increment_hop_count()
 
     def _route_app_packets(self) -> None:
         while self.app_to_dll_tx:
@@ -94,7 +97,7 @@ class DLL:
                 self.d2d_layer.enqueue_payload(packet.payload)
 
     def _effective_hopcount(self) -> int:
-        return 0 if self.wan_layer.link_established else self.d2d_layer.hopcount_to_gateway
+        return 0 if self.wan_layer.link_state == LinkState.LINK_ESTABLISHED else self.d2d_layer.hopcount_to_gateway
 
     def _increment_hop_count(self) -> None:
         self.slot_period_counter += 1
