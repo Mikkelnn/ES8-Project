@@ -128,7 +128,7 @@ class LoRaD2DFrameType(IntEnum):
 
 
 @dataclass
-class Data:
+class Data(ILength):
     @staticmethod
     def __rand() -> int:
         return random.randint(0, 30)
@@ -146,7 +146,7 @@ class Data:
 
 
 @dataclass
-class PayloadData:
+class PayloadData(ILength):
     length_payload: int  # uint16
     id: Set[int]  # uint32
     time: float  # float32
@@ -163,7 +163,7 @@ class PayloadData:
 
 
 @dataclass
-class PayloadHopCnt:
+class PayloadHopCnt(ILength):
     cnt: int  # uint16
 
     @property

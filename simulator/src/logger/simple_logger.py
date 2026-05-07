@@ -14,7 +14,7 @@ class SimpleLogger(ILogger):
     message is written the first time a flush occurs.
     """
 
-    _log_caller_filename = True
+    _log_caller_filename = False
 
     def __init__(self, log_path: str, buffer_size: int = 10) -> None:
         """Create a logger.

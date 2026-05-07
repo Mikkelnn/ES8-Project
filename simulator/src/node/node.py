@@ -72,6 +72,7 @@ class Node(IDevice):
             self.protocol.reset(current_global_tick)
             self.local_event_queue.reset(current_global_tick)
             self.state = State.DEAD
+            self.log.add(Severity.CRITICAL, Area.NODE, current_global_tick, f"Node {self.node_id} DIED")
 
         # deterrmine if we just came alive in this tick
         if self.state == State.DEAD and not self.battery.is_dead():
