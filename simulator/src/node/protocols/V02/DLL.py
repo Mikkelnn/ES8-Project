@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import cast
 
-from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
+from custom_types import Area, LocalClockInfo, LocalEventTypes, PayloadData, Severity
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.protocols.V02.APP import AppPacket
@@ -89,12 +89,12 @@ class DLL:
         while self.app_to_dll_tx:
             packet = self.app_to_dll_tx.pop(0)
             if self._effective_hopcount() == 0:
-                self.wan_layer.enqueue_payload(packet.payload)
+                self.wan_layer.enqueue_payload(cast(PayloadData, packet.payload))
             else:
-                self.d2d_layer.enqueue_payload(packet.payload)
+                self.d2d_layer.enqueue_payload(cast(PayloadData, packet.payload))
 
     def _effective_hopcount(self) -> int:
-        return 0 if self.wan_layer.link_established else self.d2d_layer.hopcount_to_gateway
+        return self.d2d_layer.hopcount_to_gateway
 
     def _increment_hop_count(self) -> None:
         self.slot_period_counter += 1

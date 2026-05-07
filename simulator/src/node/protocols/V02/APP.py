@@ -6,12 +6,6 @@ from custom_types import Area, LocalEventTypes, Severity
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 
-
-@dataclass
-class AppPacket:
-    payload: bytes
-
-
 class AppState(Enum):
     INITIAL_SLEEP = 0
     SENSOR = 1

@@ -3,4 +3,3 @@ logger
 medium
 node
 sim
-simulator
