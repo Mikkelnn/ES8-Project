@@ -113,6 +113,7 @@ class LoRaD2DFrameType(Enum):
 	REQ_HOP_ACK = 4  # Request for hop count ACK, used by junction nodes to request ACK for a hop count
 	DATA_FROM_GW = 5
 
+
 @dataclass
 class LoRaD2DFrame(ILength, IRSSI):
 	source_node_id: int  # uint32

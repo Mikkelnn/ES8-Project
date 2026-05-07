@@ -57,29 +57,29 @@ class D2DDLL:
 
     def enqueue_payload(self, payload: bytes) -> None:
         self.tx_buffer.append(
-            LoRaD2DFrame(
-                source_node_id=self.node_id,
-                destination_node_id=0xFFFFFFFF, # TODO: set destination to next hop instead of broadcast
-                type=LoRaD2DFrameType.DATA_TO_GW,
-                payload=payload,
-            )
-        )
+			LoRaD2DFrame(
+				source_node_id=self.node_id,
+				destination_node_id=0xFFFFFFFF,  # TODO: set destination to next hop instead of broadcast
+				type=LoRaD2DFrameType.DATA_TO_GW,
+				payload=payload,
+			)
+		)
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
 
         current_transceiver_states = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data
 
         if not self.link_established:
-           return self._run_discovery(current_global_tick, current_local_clock_info)
-        
-        # add idle packet -> used for discovery
+            return self._run_discovery(current_global_tick, current_local_clock_info)
+
+		# add idle packet -> used for discovery
         if not self.tx_buffer and self.link_established:
             self.tx_buffer.append(LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=0xFFFFFFFF, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=self.hopcount_to_gateway.to_bytes(2, "big")))
 
         period_finished = self._advance_slot(current_local_clock_info)
         self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states)
 
-        # process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
+		# process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
         self._process_receptions(current_global_tick, current_local_clock_info)
 
         return period_finished
@@ -127,8 +127,8 @@ class D2DDLL:
             # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing, if we do not receive it before the end of the period we will need to retry in the next period
             pass
 
-        # Handle case where no ACK is received in next period
-        # We need to retry ACK in new random mini-slot in the next period to avoid collisions with other nodes retrying at the same time
+		# Handle case where no ACK is received in next period
+		# We need to retry ACK in new random mini-slot in the next period to avoid collisions with other nodes retrying at the same time
 
     def _advance_slot(self, current_local_clock_info: LocalClockInfo) -> bool:
         if not (self.link_established or self.discovery_state in [DiscoverStates.REQ_ACK, DiscoverStates.WAITING_FOR_ACK]):
@@ -158,23 +158,23 @@ class D2DDLL:
 
         if not is_tx_slot:
             if current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.RECEIVING:
-                self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.RECEIVING)            
+                self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.RECEIVING)
             return
 
         if current_transceiver_states[MediumTypes.LORA_D2D] == TransceiverState.RECEIVING:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
 
         if self.tx_buffer and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING and timer_2 is not None and timer_2 <= 0:
-            # TODO: determine if tiem allow for packet tx other wise wait until next slot
+			# TODO: determine if tiem allow for packet tx other wise wait until next slot
             packet = self.tx_buffer.pop(0)
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
-            
+
     def _process_receptions(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> None:
         current_receptions = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, MediumTypes.LORA_D2D)
         if not current_receptions:
             return
 
-        # we process each packet as it is received so only one packet is there ata a time
+		# we process each packet as it is received so only one packet is there ata a time
         frame = cast(LoRaD2DFrame, current_receptions[0].data)
         match frame.type:
             case LoRaD2DFrameType.CURRENT_HOP_COUNT:

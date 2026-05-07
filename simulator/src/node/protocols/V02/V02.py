@@ -1,3 +1,4 @@
+from custom_types import LocalEventTypes
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.Imodule import IModule
@@ -5,7 +6,6 @@ from node.protocols.V02.APP import APP, AppPacket
 from node.protocols.V02.D2DDLL import D2DDLL
 from node.protocols.V02.DLL import DLL
 from node.protocols.V02.WANDLL import WANDLL
-from custom_types import LocalEventTypes
 
 
 class V02(IModule):
