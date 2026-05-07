@@ -184,7 +184,7 @@ class D2DDLL:
 
         if self.tx_buffer and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING and timer_2 is not None and timer_2 <= 0:
             # TODO: determine if tiem allow for packet tx other wise wait until next slot
-            self.tx_buffer.sort(key=lambda f: f.type) # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
+            self.tx_buffer.sort(key=lambda f: f.type)  # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
             packet = self.tx_buffer.pop(0)
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
 

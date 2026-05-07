@@ -178,7 +178,7 @@ class TestLoRaD2DFrame:
         assert len(result) == 11
         assert result[0:4] == b"\x00\x00\x00\x01"  # source
         assert result[4:8] == b"\x00\x00\x00\x02"  # destination
-        assert result[8] == 1  # type value
+        assert result[8] == 5  # type value (CURRENT_HOP_COUNT = 5)
         assert result[9:11] == b"\x00\x01"  # hop count
 
     def test_to_crc_bytes_multiple_destinations_sorted(self):

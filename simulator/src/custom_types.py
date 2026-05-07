@@ -1,7 +1,7 @@
+import random
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Any, List, Set
-import random
 
 from crc import Calculator, Configuration
 
