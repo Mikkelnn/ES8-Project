@@ -1,10 +1,9 @@
 from enum import Enum
 from typing import cast
 
-from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
+from custom_types import Area, LocalClockInfo, LocalEventTypes, PayloadData, Severity
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
-from node.protocols.V02.APP import AppPacket
 from node.protocols.V02.D2DDLL import D2DDLL, DiscoverStates
 from node.protocols.V02.WANDLL import WANDLL, LinkState
 
@@ -15,7 +14,7 @@ class DLLState(Enum):
 
 
 class DLL:
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float, log: ILogger, d2d_layer: D2DDLL, wan_layer: WANDLL, app_to_dll_tx: list[AppPacket], dll_to_app_rx: list[AppPacket]):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float, log: ILogger, d2d_layer: D2DDLL, wan_layer: WANDLL, app_to_dll_tx: list[PayloadData], dll_to_app_rx: list[PayloadData]):
 
         self.node_id = node_id
         self.local_event_queue = local_event_queue
@@ -92,12 +91,12 @@ class DLL:
         while self.app_to_dll_tx:
             packet = self.app_to_dll_tx.pop(0)
             if self._effective_hopcount() == 0:
-                self.wan_layer.enqueue_payload(packet.payload)
+                self.wan_layer.enqueue_payload(packet)
             else:
-                self.d2d_layer.enqueue_payload(packet.payload)
+                self.d2d_layer.enqueue_payload(packet)
 
     def _effective_hopcount(self) -> int:
-        return 0 if self.wan_layer.link_state == LinkState.LINK_ESTABLISHED else self.d2d_layer.hopcount_to_gateway
+        return self.d2d_layer.hopcount_to_gateway
 
     def _increment_hop_count(self) -> None:
         self.slot_period_counter += 1

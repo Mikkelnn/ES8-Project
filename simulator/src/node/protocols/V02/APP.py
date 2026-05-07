@@ -1,15 +1,9 @@
-from dataclasses import dataclass
 from enum import Enum
 from random import Random
 
-from custom_types import Area, LocalEventTypes, Severity
+from custom_types import Area, LocalEventTypes, PayloadData, Severity
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
-
-
-@dataclass
-class AppPacket:
-    payload: bytes
 
 
 class AppState(Enum):
@@ -20,7 +14,7 @@ class AppState(Enum):
 
 
 class APP:
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, app_to_dll_tx: list[AppPacket], dll_to_app_rx: list[AppPacket]):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, app_to_dll_tx: list[PayloadData], dll_to_app_rx: list[PayloadData]):
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log
@@ -28,6 +22,7 @@ class APP:
         self.random = Random(self.node_id)
         self.app_to_dll_tx = app_to_dll_tx
         self.dll_to_app_rx = dll_to_app_rx
+        self.payload_data = PayloadData(id={self.node_id})
 
     def tick(self, current_global_tick: int) -> None:
         match self.state:
@@ -42,17 +37,19 @@ class APP:
                 self.state = AppState.SENSOR
 
             case AppState.SENSOR:
-                # Simulate sensor data collection
                 self.state = AppState.FORWARDING
-                pass
+                self.payload_data.data.sensor1 = self.random.randint(0, 30)
+                self.payload_data.data.sensor2 = self.random.randint(0, 30)
+                self.payload_data.time = 0  # TODO set to local clock
+                self.payload_data.length_calc()  # Now payload is ready to send
 
             case AppState.FORWARDING:
                 while self.dll_to_app_rx:
                     packet = self.dll_to_app_rx.pop(0)
-                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} APP received packet from DLL, payload length={len(packet.payload)}")
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} APP received packet from DLL, payload length={packet.length}")
 
-    def enqueue_payload(self, payload: bytes) -> None:
-        self.app_to_dll_tx.append(AppPacket(payload=payload))
+    def enqueue_payload(self, payload: PayloadData) -> None:
+        self.app_to_dll_tx.append(payload)
 
     def reset(self, current_global_tick: int) -> None:
         self.state = AppState.INITIAL_SLEEP

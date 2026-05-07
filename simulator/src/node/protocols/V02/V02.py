@@ -1,8 +1,8 @@
-from custom_types import LocalEventTypes
+from custom_types import LocalEventTypes, PayloadData
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.Imodule import IModule
-from node.protocols.V02.APP import APP, AppPacket
+from node.protocols.V02.APP import APP
 from node.protocols.V02.D2DDLL import D2DDLL
 from node.protocols.V02.DLL import DLL
 from node.protocols.V02.WANDLL import WANDLL
@@ -15,8 +15,8 @@ class V02(IModule):
         self.second_to_global_tick = second_to_global_tick
         self.log = log
 
-        self.app_to_dll_tx: list[AppPacket] = []
-        self.dll_to_app_rx: list[AppPacket] = []
+        self.app_to_dll_tx: list[PayloadData] = []
+        self.dll_to_app_rx: list[PayloadData] = []
 
         self.app = APP(node_id, local_event_queue, log, self.app_to_dll_tx, self.dll_to_app_rx)
         self.d2d = D2DDLL(node_id, local_event_queue, log)

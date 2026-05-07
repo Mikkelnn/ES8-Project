@@ -82,7 +82,9 @@ class BaseTransceiver(IModule):
                 self._local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.medium_type)
                 self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} successfully received data {event.data} on {self.medium_type} from node {event.node_id}")
 
-        self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} transceiver {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self._receive_queue]}")
+        self.log.add(
+            Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} transceiver {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self._receive_queue]}"
+        )  # TODO maybe remove, since "heavy" write all time.
 
         match self.state:
             case TransceiverState.IDLE:
@@ -119,11 +121,9 @@ class BaseTransceiver(IModule):
         self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} cancelled reception on {self.medium_type}")
 
     def _housekeep_receive_queue(self, current_global_tick):
-        # If the event is still ongoing, we keep it in the receive queue.
-        # If it has ended and we are not currently receiving, we remove it from the receive queue.
-        for event in reversed(self._receive_queue):  # Iterate in reverse to safely remove items from the list while iterating
-            if event.time_end <= current_global_tick and self._current_reception_start_global_tick is None:
-                self._receive_queue.remove(event)
+        if self._current_reception_start_global_tick is not None:
+            return
+        self._receive_queue = [e for e in self._receive_queue if e.time_end > current_global_tick]
 
     @abstractmethod
     def _get_successful_receptions(self, current_global_tick) -> List[EventNet]:

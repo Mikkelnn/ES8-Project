@@ -1,5 +1,4 @@
 # type: ignore
-import threading
 import time
 from collections import deque
 from ctypes import c_int
@@ -84,42 +83,35 @@ class Simulation:
         current_time = 0
         total_evaluated = 0
         last_tps_calc = time.time()
+        log_push_counter = 0
+        LOG_PUSH_INTERVAL = 100
 
         try:
             while len(self.event_queue.events):
-                # Check status on EVERY tick for immediate pause response
-                sim_state = SimState.RUNNING.value
-                if self.status is not None and self.lock is not None:
-                    with self.lock:
-                        sim_state = self.status.value
+                sim_state = self.status.value  # c_int read is atomic, no lock needed
 
                 if sim_state == SimState.PAUSED.value:
                     self.log.flush(force=True)
 
                 while sim_state == SimState.PAUSED.value:
                     time.sleep(0.05)
-                    with self.lock:
-                        sim_state = self.status.value
+                    sim_state = self.status.value
 
                 if sim_state == SimState.STOPPED.value:
                     break
 
                 (current_time, node_ids) = self.event_queue.get_next_events()
 
-                # Check if we've exceeded stop_tick BEFORE processing
                 if current_time > stop_tick:
-                    # Update shared tick to exactly stop_tick (not beyond)
                     if self.current_tick_value is not None:
                         self.current_tick_value.value = int(stop_tick)
                     break
 
                 self.global_time.set_time(current_time)
 
-                # Update shared current tick value
                 if self.current_tick_value is not None:
                     self.current_tick_value.value = int(current_time)
 
-                # Tick all nodes, do this in parallel if needed
                 node_start_time = time.time()
                 for node_id in node_ids:
                     next_evaluation = self.nodes[node_id - 1].tick(current_time)
@@ -131,17 +123,19 @@ class Simulation:
                 propagation_time += time.time() - propagation_start_time
                 total_evaluated += 1
 
-                if self.log_queue is not None:
+                self.log.flush()
+                log_push_counter += 1
+                if log_push_counter >= LOG_PUSH_INTERVAL and self.log_queue is not None:
+                    log_push_counter = 0
                     try:
                         lines = self.log.get()
-                        if lines:  # Only send if we have logs
-                            self.log_queue.put(lines[-GUI_LOG_DISPLAY_LINES:])
+                        if lines:
+                            self.log_queue.put_nowait(lines[-GUI_LOG_DISPLAY_LINES:])
                     except Exception:
-                        pass
-                self.log.flush()
-                # TPS calculation every second
+                        pass  # queue full — drop batch, GUI will get next one
+
                 now = time.time()
-                if self.tps_value is not None and now - last_tps_calc > 1.0:
+                if self.tps_value is not None and now - last_tps_calc > 0.1:
                     self.global_time.tps_calc()
                     tps = self.global_time.get_tps()
                     self.tps_value.value = int(tps) if tps is not None else 0
@@ -170,7 +164,7 @@ class Engine:
         self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
         self.current_tick = Value(c_int, 0)
-        self.log_queue = Queue()
+        self.log_queue = Queue(maxsize=2)
         self.lock = Lock()
         self.amount_of_processes = 1
         self.sim_process = None
@@ -194,15 +188,18 @@ class Engine:
         return self.current_tick.value
 
     def get_log(self, lines=None):
-        # Drain queue and add to circular buffer
+        # Drain entire queue but only keep the latest batch for display
+        # so GUI always shows fresh logs instead of processing stale backlog
+        latest_batch = None
         while not self.log_queue.empty():
             try:
-                new_logs = self.log_queue.get_nowait()
-                self._log_buffer.extend(new_logs)
+                latest_batch = self.log_queue.get_nowait()
             except Exception:
                 break
 
-        # Return last N lines from buffer
+        if latest_batch:
+            self._log_buffer.extend(latest_batch)
+
         n_lines = lines if lines is not None else self.log_lines
         return list(self._log_buffer)[-n_lines:] if self._log_buffer else []
 
@@ -229,22 +226,22 @@ class Engine:
     def pause(self):
         with self.lock:
             self.status.value = SimState.PAUSED.value
+        self.tps_from_sim.value = 0
         self._clear_log_queue()  # Clear pending logs to make pause feel instant
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine paused", data=None)
 
     def stop(self):
         with self.lock:
             self.status.value = SimState.STOPPED.value
-        self._clear_log_queue()  # Clear pending logs to make stop feel instant
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine stopped", data=None)
-        # Non-blocking: poll for process exit
+        self._clear_log_queue()
         if self.sim_process is not None:
-
-            def poll_exit():
+            self.sim_process.terminate()
+            self.sim_process.join(timeout=3)
+            if self.sim_process.is_alive():
+                self.sim_process.kill()
                 self.sim_process.join()
-                self.sim_process = None
-
-            threading.Thread(target=poll_exit, daemon=True).start()
+            self.sim_process = None
 
 
 if __name__ == "__main__":

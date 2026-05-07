@@ -1,4 +1,3 @@
-import random
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Any, List, Set
@@ -129,10 +128,6 @@ class LoRaD2DFrameType(IntEnum):
 
 @dataclass
 class Data(ILength):
-    @staticmethod
-    def __rand() -> int:
-        return random.randint(0, 30)
-
     @property
     def length(self) -> int:
         # sensor1 (2) + sensor2 (2)
@@ -141,21 +136,25 @@ class Data(ILength):
     def to_bytes(self) -> bytes:
         return self.sensor1.to_bytes(2, "big", signed=False) + self.sensor2.to_bytes(2, "big", signed=False)
 
-    sensor1: int = field(default_factory=__rand)  # uint16
-    sensor2: int = field(default_factory=__rand)  # uint16
+    sensor1: int = 0
+    sensor2: int = 0
 
 
 @dataclass
 class PayloadData(ILength):
-    length_payload: int  # uint16
     id: Set[int]  # uint32
-    time: float  # float32
-    data: Data  # Dynamic
+    length_payload: int = 0  # uint16
+    time: float = 0.0  # float32
+    data: Data = field(default_factory=Data)  # Dynamic
 
     @property
     def length(self) -> int:
         # Length (2) + Id (4 bytes per node) + time (4) + data (Dynamic)       (RSSI sent, but not counted, since IRL measured via radio, not in packet)
         return 2 + len(self.id) * 4 + 4 + self.data.length
+
+    def length_calc(self):
+        # Length (2) + Id (4 bytes per node) + time (4) + data (Dynamic)       (RSSI sent, but not counted, since IRL measured via radio, not in packet)
+        self.length_payload = 2 + len(self.id) * 4 + 4 + self.data.length
 
     def to_bytes(self) -> bytes:
         id_bytes = b"".join(int(item).to_bytes(4, "big", signed=False) for item in sorted(self.id))
