@@ -36,8 +36,6 @@ class D2DDLL:
         self.slot_duration = slot_duration
         self.slot_count = slot_count
         self.mini_slot_count = 3
-        self.current_slot = -1
-        self.current_tx_slot = -1
         self.reset(0)
 
     def reset(self, current_global_tick: int) -> None:
@@ -58,7 +56,7 @@ class D2DDLL:
 
     def set_has_gateway_link(self) -> None:
         if not self.link_established:
-            self.hopcount_to_gateway = 0
+            self._update_local_hopcount(0)
             self.discovery_state = DiscoverStates.DISCOVERED
 
     def enqueue_payload(self, payload: PayloadHopCnt | PayloadData) -> None:
@@ -87,6 +85,7 @@ class D2DDLL:
             msg = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ 0xFFFFFFFF }, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
             msg.crc_calc()
             self.tx_buffer.append(msg)
+            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} added idle packet with hop count {self.hopcount_to_gateway}")
 
         period_finished = self._advance_slot(current_local_clock_info)
         self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states)
@@ -115,7 +114,7 @@ class D2DDLL:
             if len(hopcounts) >= 2:
                 for hopcount in hopcounts:
                     if (hopcount + 1) in hopcounts:
-                        self.hopcount_to_gateway = hopcount + 2
+                        self._update_local_hopcount(hopcount + 2)
                         self.discovery_state = DiscoverStates.REQ_ACK
                         self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors")
                         break
@@ -123,7 +122,7 @@ class D2DDLL:
             timer_1 = current_local_clock_info.timer_1_remaining
             if timer_1 is not None and timer_1 <= 0 and not self.link_established:
                 if len(self.known_neighbors) == 1 and self.known_neighbors[0].hopcount_to_gateway == 0:
-                    self.hopcount_to_gateway = 1
+                    self._update_local_hopcount(1)
                     self.discovery_state = DiscoverStates.REQ_ACK
                     self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway 1 based on single neighbor")
                 else:
@@ -133,7 +132,7 @@ class D2DDLL:
             # we have selected a hop count, we need to request ACK from neighbors with that hop
             # dest node should be the lowest hop count node known
             dest_node_id = min(self.known_neighbors, key=lambda x: x.hopcount_to_gateway).neighbor_id
-            frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id=dest_node_id, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=self.hopcount_to_gateway.to_bytes(2, "big"))
+            frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={ dest_node_id }, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=PayloadHopCnt(cnt=self.hopcount_to_gateway))
             frame.crc_calc()
             self.tx_buffer.append(frame)
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
@@ -222,7 +221,7 @@ class D2DDLL:
                 if self.node_id in frame.destination_node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
                     frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
-                    self.hopcount_to_gateway = frame_hop_cnt.cnt
+                    self._update_local_hopcount(frame_hop_cnt.cnt)
 
         # update last seen for neighbor
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
@@ -237,7 +236,7 @@ class D2DDLL:
 
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing is None:
-            neighbor_info = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=hopcount, last_seen=current_local_time)
+            neighbor_info = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=hopcount, last_seen=current_local_time, last_rssi=frame.rssi)
             self.known_neighbors.append(neighbor_info)
 
     def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
@@ -281,3 +280,8 @@ class D2DDLL:
                 self.tx_buffer[existing_frame_index] = change_frame
             else:
                 self.tx_buffer.append(change_frame)
+
+    def _update_local_hopcount(self, hopcount: int) -> None:
+        if hopcount < self.hopcount_to_gateway:
+            self.hopcount_to_gateway = hopcount
+            self.current_tx_slot = hopcount % self.slot_count
