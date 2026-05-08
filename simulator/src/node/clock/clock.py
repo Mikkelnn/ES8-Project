@@ -3,6 +3,8 @@ from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
 from node.Imodule import IModule
+from numpy import random as rnd
+import numpy as np
 
 
 # log = Logger()
@@ -25,11 +27,33 @@ class Clock(IModule):
         self.timer_1_end_local_time: int | None = None
         self.timer_2_end_local_time: int | None = None
 
+        self.global_time_last: int = 0
+        self.localtime: int = 0
+        self.scheduled_global_tick: int | None = None
+        self.earliest_next_local_time: int | None = None
+        
+        self.trend: float = rnd.uniform(-5e-2, 5e-2)
+        self.noise_std: float = np.sqrt(20.970167331917025 * 3.915e-9)
+        self.ar_constant: float = 0.9087642375247008
+        self.random_vector: np.ndarray = rnd.normal(loc = 0, scale = self.noise_std, size = 100)
+        self.alpha: float = self.random_vector[0]
+        self.random_vector = self.random_vector[1:]
+
     def tick(self, current_global_tick: int) -> float | None:
-        self.accumulated_state.reset()
 
         # calculate the local time from global, this is an ideal clock
-        local_time = int(current_global_tick / self.global_ticks_per_local_time_increment)  # TODO: chyange from ideal linear
+        if self.scheduled_global_tick != None and current_global_tick == self.scheduled_global_tick :
+            self.localtime = self.earliest_next_local_time
+        else:
+            self.localtime = int((1 + self.alpha + self.trend) * (current_global_tick-self.global_time_last) + self.localtime)
+        self.global_time_last = current_global_tick
+
+        #calculate next clock skew
+        self.alpha = self.ar_constant * self.alpha + self.random_vector[0]
+        if self.random_vector.size() == 1:
+            self.random_vector = rnd.normal(loc = 0, scale = self.noise_std, size = 100)
+        else:
+            self.random_vector = self.random_vector[1:]
 
         # update timers
         set_timers = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SET_TIMER)
@@ -38,48 +62,54 @@ class Clock(IModule):
             timer_duration = set_timer.data
             match timer_type:
                 case LocalEventSubTypes.TIMER_1:
-                    self.timer_1_end_local_time = local_time + timer_duration - 1  # account for the 1tick delay from request
+                    self.timer_1_end_local_time = self.localtime + timer_duration - 1  # account for the 1tick delay from request
                 case LocalEventSubTypes.TIMER_2:
-                    self.timer_2_end_local_time = local_time + timer_duration - 1
+                    self.timer_2_end_local_time = self.localtime + timer_duration - 1
 
         # Puplish tick event to local event bus
-        local_clock_info = LocalClockInfo(current_local_time=local_time, timer_1_remaining=max(0, self.timer_1_end_local_time - local_time) if self.timer_1_end_local_time is not None else None, timer_2_remaining=max(0, self.timer_2_end_local_time - local_time) if self.timer_2_end_local_time is not None else None)
+        local_clock_info = LocalClockInfo(current_local_time=self.localtime, timer_1_remaining=max(0, self.timer_1_end_local_time - self.localtime) if self.timer_1_end_local_time is not None else None, timer_2_remaining=max(0, self.timer_2_end_local_time - self.localtime) if self.timer_2_end_local_time is not None else None)
         self.local_event_queue.add_event_to_current_tick(LocalEventTypes.LOCAL_TIME, local_clock_info)
 
         sleep_request = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP_FOR)
         if len(sleep_request) > 0:
             sleep_milliseconds = sleep_request[0].data
             # We subtract 2 ticks to ensure we wake up a bit before the sleep time, this is to account for delays in the processing of events.
-            self.sleep_until_local_time = local_time + sleep_milliseconds - 2  # static 2 as 1 tick corresponds to 1 ms
+            self.sleep_until_local_time = self.localtime + sleep_milliseconds - 2  # static 2 as 1 tick corresponds to 1 ms
             self.local_event_queue.add_event_to_current_tick(LocalEventTypes.NODE_SLEEP, None)
 
         if self.sleep_until_local_time is not None:
-            # determine next tick to evaluate.
-            self.global_tick_for_wake_up = self.sleep_until_local_time * self.global_ticks_per_local_time_increment  # TODO: chyange from ideal linear
-
-            if local_time >= self.sleep_until_local_time:
+            if self.localtime >= self.sleep_until_local_time:
                 self.sleep_until_local_time = None
                 self.global_tick_for_wake_up = None
                 self.local_event_queue.add_event_to_current_tick(LocalEventTypes.NODE_WAKE_UP, None)
-            else:
-                self.accumulated_state.update((0, self.global_tick_for_wake_up))
 
         # determine next global_tick for times if present
         if self.timer_1_end_local_time is not None:
-            global_tick_for_timer_1 = self.timer_1_end_local_time * self.global_ticks_per_local_time_increment  # TODO: change from ideal linear
-            if local_time >= self.timer_1_end_local_time:
+            if self.localtime >= self.timer_1_end_local_time:
                 self.timer_1_end_local_time = None
-            else:
-                self.accumulated_state.update((0, global_tick_for_timer_1))
 
         if self.timer_2_end_local_time is not None:
-            global_tick_for_timer_2 = self.timer_2_end_local_time * self.global_ticks_per_local_time_increment  # TODO: change from ideal linear
-            if local_time >= self.timer_2_end_local_time:
+            if self.localtime >= self.timer_2_end_local_time:
                 self.timer_2_end_local_time = None
-            else:
-                self.accumulated_state.update((0, global_tick_for_timer_2))
 
-        return self.accumulated_state.get_accumulated()  # Power consumption for this tick
+        self.earliest_next_local_time = None
+        if self.earliest_next_local_time == None or (self.sleep_until_local_time is not None and self.sleep_until_local_time < self.earliest_next_local_time):
+            self.earliest_next_local_time = self.sleep_until_local_time
+        
+        if self.earliest_next_local_time == None or (self.timer_1_end_local_time is not None and self.timer_1_end_local_time < self.earliest_next_local_time):
+            self.earliest_next_local_time = self.timer_1_end_local_time
+        
+        if self.earliest_next_local_time == None or (self.timer_2_end_local_time is not None and self.timer_2_end_local_time < self.earliest_next_local_time):
+            self.earliest_next_local_time = self.timer_2_end_local_time
+
+        # get global time for: self.earliest_next_local_time
+        if self.earliest_next_local_time == None:
+            self.scheduled_global_tick = None
+        else:
+            deltaLocal = self.earliest_next_local_time - self.localtime
+            self.scheduled_global_tick = int(current_global_tick + deltaLocal/(1+self.alpha + self.trend))
+
+        return self.scheduled_global_tick  # Power consumption for this tick
 
     def reset(self, current_global_tick: int) -> None:
         self.timer_1_end_local_time = None
