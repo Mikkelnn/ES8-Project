@@ -29,7 +29,7 @@ class D2DDLL:
     DISCOVERY_TIMEOUT_MS = (60 + 10) * 1000
     MAX_HOPCOUNT = 65535
 
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 100, slot_count: int = 5):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 100, slot_count: int = 17):
 
         self.node_id = node_id
         self.local_event_queue = local_event_queue
@@ -62,9 +62,28 @@ class D2DDLL:
             self.discovery_state = DiscoverStates.DISCOVERED
 
     def enqueue_payload(self, payload: PayloadHopCnt | PayloadData) -> None:
+
+        destination_node_ids = set()
+        if isinstance(payload, PayloadData):
+            # get the two nodeids with lowest lower hopcount than own hop count
+            for n in self.known_neighbors:
+                if n.hopcount_to_gateway > self.hopcount_to_gateway or len(destination_node_ids) >= 2:
+                    break
+                destination_node_ids.add(n.neighbor_id)
+        elif isinstance(payload, MegaSync):
+            # get all nodeids with higher hopcount than own hop count
+            for n in self.known_neighbors:
+                if n.hopcount_to_gateway < self.hopcount_to_gateway:
+                    continue
+
+                destination_node_ids.add(n.neighbor_id)
+        else:
+            self.log.add(Severity.CRITICAL, Area.PROTOCOL, 0, "Node got unknown payload for routing....")
+            return
+
         msg = LoRaD2DFrame(
             source_node_id=self.node_id,
-            destination_node_id={0xFFFFFFFF},  # TODO: set destination to next hop instead of broadcast
+            destination_node_id=destination_node_ids,
             type=LoRaD2DFrameType.DATA_TO_GW,
             payload=payload,
         )
@@ -96,11 +115,6 @@ class D2DDLL:
                 period_finished = True # signal wait for next period
             # TODO: we should estimate next period start, currently relying on ideal clock...
 
-        # True if not period_finished and self.discovery_state == DiscoverStates.WAITING_FOR_ACK and period not in progress
-        # True if period_finished and self.link_established
-        # discover_wait_next_period = not period_finished and self.discovery_state == DiscoverStates.WAITING_FOR_ACK and self.current_slot == -1
-        # default = period_finished and self.link_established
-        # return default or discover_wait_next_period
         return period_finished
 
     def _run_discovery(self, current_global_tick: int, period_finished: bool, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict[MediumTypes, TransceiverState]) -> bool:
