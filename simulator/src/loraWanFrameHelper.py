@@ -3,6 +3,7 @@ from enum import IntEnum, IntFlag
 from typing import Optional
 
 from Interfaces import ILength
+from payload_types import MegaSync, MegaSyncReq, PayloadData
 
 # =========================================================
 # ENUMS
@@ -50,11 +51,9 @@ class MACPayload:
     dev_addr: int
     fctrl_flags: IntFlag
     fcnt: int
+    frm_payload: MegaSync | MegaSyncReq | PayloadData  # Optional
     fopts: bytes = field(default_factory=bytes)
-
-    # Optional
-    fport: Optional[int] = None
-    frm_payload: bytes = field(default_factory=bytes)
+    fport: Optional[int] = None  # Optional
 
     # ---- Derived ----
 
@@ -74,7 +73,7 @@ class MACPayload:
         if self.frm_payload:
             length += 1  # FPort
 
-        length += len(self.frm_payload)
+        length += self.frm_payload.length
         return length
 
     # alias (as requested)
@@ -186,7 +185,7 @@ class LoRaWanPHYPayload(ILength):
 # =========================================================
 
 
-def make_uplink(dev_addr: int, frame_count: int, payload: bytes, confirmed: bool) -> LoRaWanPHYPayload:
+def make_uplink(dev_addr: int, frame_count: int, payload: MegaSyncReq | MegaSync | PayloadData, confirmed: bool) -> LoRaWanPHYPayload:
     mtype = MType.CONFIRMED_DATA_UP if confirmed else MType.UNCONFIRMED_DATA_UP
 
     mac = MACPayload(
@@ -203,12 +202,12 @@ def make_uplink(dev_addr: int, frame_count: int, payload: bytes, confirmed: bool
     )
 
 
-def make_downlink_ack(dev_addr: int, frame_count: int) -> LoRaWanPHYPayload:
+def make_downlink_ack(dev_addr: int, frame_count: int, payload: MegaSync) -> LoRaWanPHYPayload:
     mac = MACPayload(
         dev_addr=dev_addr,
         fctrl_flags=FCtrlDownlink.ACK,
         fcnt=frame_count,
-        frm_payload=b"",
+        frm_payload=payload,
         fport=None,
     )
 

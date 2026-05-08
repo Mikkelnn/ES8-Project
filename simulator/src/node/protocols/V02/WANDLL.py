@@ -1,10 +1,11 @@
 from enum import Enum
 from typing import List, cast
 
-from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaWanPHYPayload, MediumTypes, PayloadData, Severity, TransceiverState
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaWanPHYPayload, MediumTypes, Severity, TransceiverState
 from logger.ILogger import ILogger
-from loraWanFrameHelper import make_uplink
+from loraWanFrameHelper import MACPayload, make_uplink
 from node.event_local_queue import LocalEventQueue
+from payload_types import MegaSync, MegaSyncReq, PayloadData
 
 
 class LinkState(Enum):
@@ -35,8 +36,16 @@ class WANDLL:
         self.link_state = LinkState.DISCOVERING
         self.transmit_state = TransmitState.IDLE
 
-    def enqueue_payload(self, payload: PayloadData) -> None:
-        self._tx_buffer.append(make_uplink(dev_addr=self.node_id, frame_count=0, payload=payload.to_bytes(), confirmed=False))
+    def enqueue_payload(self, payload: MegaSyncReq | MegaSync | PayloadData) -> None:
+        self._tx_buffer.append(make_uplink(dev_addr=self.node_id, frame_count=0, payload=payload, confirmed=False))
+
+    def dequeue_payload(self) -> list[MACPayload]:
+
+        queue = []
+        while self._rx_buffer:
+            queue.append(self._rx_buffer.pop(0))
+
+        return queue
 
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
         """Returns True if the current slot period is finished and we can move on to the next slot, False if we are still in the current slot period"""
@@ -61,7 +70,8 @@ class WANDLL:
     def _run_gateway_connect(self, current_global_tick: int) -> None:
 
         if self.transmit_state == TransmitState.IDLE and not self._connect_attempted:
-            frame = make_uplink(dev_addr=self.node_id, frame_count=0, payload=b"", confirmed=True)  # TODO: request GPS time ?
+            msr = MegaSyncReq()
+            frame = make_uplink(dev_addr=self.node_id, frame_count=0, payload=msr, confirmed=True)
             self._tx_buffer.append(frame)
             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} attempts gateway connect via WAN")
             self._connect_attempted = True

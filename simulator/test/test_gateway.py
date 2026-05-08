@@ -18,7 +18,9 @@ class TestGatewayMultipleNodes:
 
     def _create_payload(self, dev_addr: int) -> LoRaWanPHYPayload:
         """Helper to create LoRaWAN uplink payload."""
-        mac = MACPayload(dev_addr=dev_addr, fctrl_flags=FCtrlUplink(0), fcnt=0, frm_payload=b"test")
+        from custom_types import MegaSync
+
+        mac = MACPayload(dev_addr=dev_addr, fctrl_flags=FCtrlUplink(0), fcnt=0, frm_payload=MegaSync(), fport=1)
         return LoRaWanPHYPayload(mhdr=build_mhdr(MType.UNCONFIRMED_DATA_UP), mac_payload=mac)
 
     def test_single_node_baseline(self):

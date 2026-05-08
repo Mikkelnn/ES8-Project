@@ -1,4 +1,6 @@
-from custom_types import LocalEventTypes, PayloadData
+from typing import Any
+
+from custom_types import LocalEventTypes
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.Imodule import IModule
@@ -15,8 +17,8 @@ class V02(IModule):
         self.second_to_global_tick = second_to_global_tick
         self.log = log
 
-        self.app_to_dll_tx: list[PayloadData] = []
-        self.dll_to_app_rx: list[PayloadData] = []
+        self.app_to_dll_tx: list[Any] = []  # This is loose, but had problems making uints for this fit bith APP and DLL
+        self.dll_to_app_rx: list[Any] = []
 
         self.app = APP(node_id, local_event_queue, log, self.app_to_dll_tx, self.dll_to_app_rx)
         self.d2d = D2DDLL(node_id, local_event_queue, log)

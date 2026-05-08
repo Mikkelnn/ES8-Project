@@ -1,11 +1,13 @@
 from enum import Enum
 from typing import cast
 
-from custom_types import Area, LocalClockInfo, LocalEventTypes, PayloadData, Severity
+from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
 from logger.ILogger import ILogger
+from loraWanFrameHelper import MACPayload
 from node.event_local_queue import LocalEventQueue
 from node.protocols.V02.D2DDLL import D2DDLL, DiscoverStates
 from node.protocols.V02.WANDLL import WANDLL, LinkState
+from payload_types import MegaSync, MegaSyncReq, PayloadData
 
 
 class DLLState(Enum):
@@ -14,7 +16,7 @@ class DLLState(Enum):
 
 
 class DLL:
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float, log: ILogger, d2d_layer: D2DDLL, wan_layer: WANDLL, app_to_dll_tx: list[PayloadData], dll_to_app_rx: list[PayloadData]):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float, log: ILogger, d2d_layer: D2DDLL, wan_layer: WANDLL, app_to_dll_tx: list[PayloadData | MegaSyncReq], dll_to_app_rx: list[MACPayload | PayloadData | MegaSync]):
 
         self.node_id = node_id
         self.local_event_queue = local_event_queue
@@ -68,8 +70,6 @@ class DLL:
                             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D")
 
             case DLLState.FORWARDING:
-                self._route_app_packets()
-
                 if self.current_period_start_time is None:
                     self.current_period_start_time = current_local_clock_info.current_local_time
 
@@ -81,19 +81,42 @@ class DLL:
 
                 if finished:
                     # sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
-                    sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms) # TODO: do right... use above but fix DISCOVERY sleep
+                    sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms)  # TODO: do right... use above but fix DISCOVERY sleep
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                     self.current_period_start_time = None
                     self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished {'WAN' if self.slot_period_counter == 0 else 'D2D'} forwarding period, sleeping until next slot period ({sleep_ms} ms)")
                     self._increment_hop_count()
 
-    def _route_app_packets(self) -> None:
+                self._route_app_packets(current_global_tick)
+
+    def _route_app_packets(self, current_global_tick: int) -> None:
         while self.app_to_dll_tx:
             packet = self.app_to_dll_tx.pop(0)
             if self._effective_hopcount() == 0:
                 self.wan_layer.enqueue_payload(packet)
             else:
-                self.d2d_layer.enqueue_payload(packet)
+                if isinstance(packet, PayloadData):
+                    self.d2d_layer.enqueue_payload(packet)
+                else:
+                    self.log.add(Severity.ERROR, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} tried to enqueue MegaSyncReq, when not hopcount 0")
+
+        while self.dll_to_app_rx:
+            if self._effective_hopcount() == 0:
+                queue = self.wan_layer.dequeue_payload()
+                while queue:
+                    msg = queue.pop(0)
+                    if isinstance(msg.frm_payload, MegaSync):
+                        self._megasync_handle(cast(MegaSync, msg))
+                    else:
+                        self.dll_to_app_rx.append(msg)
+            else:
+                queue = self.d2d_layer.dequeue_payload()
+                while queue:
+                    msg = queue.pop(0)
+                    if isinstance(msg, MegaSync):
+                        self._megasync_handle(msg)
+                    else:
+                        self.dll_to_app_rx.append(msg)
 
     def _effective_hopcount(self) -> int:
         return self.d2d_layer.hopcount_to_gateway
@@ -102,3 +125,7 @@ class DLL:
         self.slot_period_counter += 1
         if self.slot_period_counter >= self.lora_wan_slot_interleave:
             self.slot_period_counter = 0
+
+    def _megasync_handle(self, msg: MegaSync):
+        self.d2d_layer.enqueue_payload(msg)
+        return msg  # TODO actually sync node from this

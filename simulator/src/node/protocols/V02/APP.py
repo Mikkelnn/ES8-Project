@@ -1,9 +1,11 @@
 from enum import Enum
 from random import Random
 
-from custom_types import Area, LocalEventTypes, PayloadData, Severity
+from custom_types import Area, LocalEventTypes, Severity
 from logger.ILogger import ILogger
+from loraWanFrameHelper import MACPayload
 from node.event_local_queue import LocalEventQueue
+from payload_types import PayloadData
 
 
 class AppState(Enum):
@@ -14,7 +16,7 @@ class AppState(Enum):
 
 
 class APP:
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, app_to_dll_tx: list[PayloadData], dll_to_app_rx: list[PayloadData]):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, app_to_dll_tx: list[PayloadData], dll_to_app_rx: list[PayloadData | MACPayload]):
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log

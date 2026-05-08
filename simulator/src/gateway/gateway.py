@@ -9,6 +9,7 @@ from medium.medium_service import MediumService
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
 from node.transceiver.transceiver_service import TransceiverService
+from payload_types import MegaSync
 
 
 class Gateway(IDevice):
@@ -33,7 +34,7 @@ class Gateway(IDevice):
 
         nodes_to_respond = [dev_addr for dev_addr, rx_tick in self.rx_to_nodes.items() if current_global_tick >= rx_tick]
         for dev_addr in nodes_to_respond:
-            frame = make_downlink_ack(dev_addr=dev_addr, frame_count=0)
+            frame = make_downlink_ack(dev_addr=dev_addr, frame_count=0, payload=MegaSync())
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_WAN, data=frame)
             self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} sent a response to node {dev_addr} at global tick {current_global_tick}...")

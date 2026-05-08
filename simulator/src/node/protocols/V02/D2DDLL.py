@@ -3,9 +3,10 @@ from enum import Enum
 from random import Random
 from typing import List, cast
 
-from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, PayloadData, PayloadHopCnt, Severity, TransceiverState
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, Severity, TransceiverState
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
+from payload_types import MegaSync, PayloadData, PayloadHopCnt
 
 
 @dataclass
@@ -61,7 +62,7 @@ class D2DDLL:
             self._update_local_hopcount(0)
             self.discovery_state = DiscoverStates.DISCOVERED
 
-    def enqueue_payload(self, payload: PayloadHopCnt | PayloadData) -> None:
+    def enqueue_payload(self, payload: PayloadHopCnt | PayloadData | MegaSync) -> None:
 
         destination_node_ids = set()
         if isinstance(payload, PayloadData):
@@ -92,6 +93,16 @@ class D2DDLL:
 
         self.tx_buffer.append(msg)
 
+    def dequeue_payload(self) -> list[PayloadData | MegaSync]:  # TODO maybe hop count shall return too???
+
+        queue = []
+        while self.rx_buffer:
+            msg = self.rx_buffer.pop(0).payload
+            if isinstance(msg, PayloadData) or isinstance(msg, MegaSync):
+                queue.append(msg)  # TODO Hop cnt messages are dropped.
+
+        return queue
+
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> bool:
 
         current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
@@ -112,7 +123,7 @@ class D2DDLL:
 
         if not self.link_established:
             if self._run_discovery(current_global_tick, period_finished, current_local_clock_info, current_transceiver_states):
-                period_finished = True # signal wait for next period
+                period_finished = True  # signal wait for next period
             # TODO: we should estimate next period start, currently relying on ideal clock...
 
         return period_finished
@@ -150,13 +161,13 @@ class D2DDLL:
 
         if self.discovery_state == DiscoverStates.WAIT_REQ_ACK_SENT and period_finished:
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
-            return True # signal wait for next period
+            return True  # signal wait for next period
 
         if self.discovery_state == DiscoverStates.WAITING_FOR_ACK and period_finished:
             # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing,
             # if we do not receive it before the end of the period we will need to retry in the next period
             self.discovery_state = DiscoverStates.REQ_ACK
-        
+
         if self.discovery_state == DiscoverStates.REQ_ACK:
             if current_transceiver_states[MediumTypes.LORA_D2D] == TransceiverState.RECEIVING:
                 self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
@@ -173,7 +184,7 @@ class D2DDLL:
             # self.discovery_state = DiscoverStates.WAITING_FOR_ACK
             self.discovery_state = DiscoverStates.WAIT_REQ_ACK_SENT
             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} sent REQ_HOP_ACK to node {dest_node_id} with hop count {self.hopcount_to_gateway}, with offset {self.offset_for_req_ack}ms")
-            return True # signal wait for next period
+            return True  # signal wait for next period
             # TODO: determine when the next period starts based on known rx timeses
 
         return False
@@ -215,7 +226,7 @@ class D2DDLL:
         if current_transceiver_states[MediumTypes.LORA_D2D] == TransceiverState.RECEIVING:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
 
-        if self.tx_buffer and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING and ((timer_2 is not None and timer_2 <= 0) or self.tx_offset_done): # ((timer_2 is not None and timer_2 <= 0) or self.tx_offset_done)
+        if self.tx_buffer and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING and ((timer_2 is not None and timer_2 <= 0) or self.tx_offset_done):  # ((timer_2 is not None and timer_2 <= 0) or self.tx_offset_done)
             self.tx_offset_done = True
             # TODO: determine if tiem allow for packet tx other wise wait until next slot
             self.tx_buffer.sort(key=lambda f: f.type)  # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
@@ -227,7 +238,7 @@ class D2DDLL:
         if not current_receptions:
             return
 
-        # we process each packet as it is received so only one packet is there ata a time
+        # we process each packet as it is received so only one packet is there at a time
         frame = cast(LoRaD2DFrame, current_receptions[0].data)
         match frame.type:
             case LoRaD2DFrameType.CURRENT_HOP_COUNT:
@@ -259,7 +270,6 @@ class D2DDLL:
                     frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
                     self._update_local_hopcount(frame_hop_cnt.cnt)
                     self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} discovery complete with hop count {self.hopcount_to_gateway}")
-
 
         # update last seen for neighbor
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)

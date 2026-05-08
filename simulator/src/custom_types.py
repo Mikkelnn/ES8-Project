@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
 from typing import Any, List, Set
@@ -6,6 +8,7 @@ from crc import Calculator, Configuration
 
 from Interfaces import IRSSI, ILength
 from loraWanFrameHelper import LoRaWanPHYPayload
+from payload_types import MegaSync, PayloadData, PayloadHopCnt
 
 config = Configuration(
     width=16,
@@ -127,59 +130,11 @@ class LoRaD2DFrameType(IntEnum):
 
 
 @dataclass
-class Data(ILength):
-    @property
-    def length(self) -> int:
-        # sensor1 (2) + sensor2 (2)
-        return 2 + 2
-
-    def to_bytes(self) -> bytes:
-        return self.sensor1.to_bytes(2, "big", signed=False) + self.sensor2.to_bytes(2, "big", signed=False)
-
-    sensor1: int = 0
-    sensor2: int = 0
-
-
-@dataclass
-class PayloadData(ILength):
-    id: Set[int]  # uint32
-    length_payload: int = 0  # uint16
-    time: float = 0.0  # float32
-    data: Data = field(default_factory=Data)  # Dynamic
-
-    @property
-    def length(self) -> int:
-        # Length (2) + Id (4 bytes per node) + time (4) + data (Dynamic)       (RSSI sent, but not counted, since IRL measured via radio, not in packet)
-        return 2 + len(self.id) * 4 + 4 + self.data.length
-
-    def length_calc(self):
-        # Length (2) + Id (4 bytes per node) + time (4) + data (Dynamic)       (RSSI sent, but not counted, since IRL measured via radio, not in packet)
-        self.length_payload = 2 + len(self.id) * 4 + 4 + self.data.length
-
-    def to_bytes(self) -> bytes:
-        id_bytes = b"".join(int(item).to_bytes(4, "big", signed=False) for item in sorted(self.id))
-        return self.length_payload.to_bytes(2, "big", signed=False) + id_bytes + int(self.time).to_bytes(4, "big", signed=False) + self.data.to_bytes()
-
-
-@dataclass
-class PayloadHopCnt(ILength):
-    cnt: int  # uint16
-
-    @property
-    def length(self) -> int:
-        # Length (2)
-        return 2
-
-    def to_bytes(self) -> bytes:
-        return self.cnt.to_bytes(2, "big", signed=False)
-
-
-@dataclass
 class LoRaD2DFrame(ILength, IRSSI):
     source_node_id: int  # uint32
     destination_node_id: Set[int]  # uint32
     type: LoRaD2DFrameType  # uint8
-    payload: PayloadData | PayloadHopCnt
+    payload: PayloadData | PayloadHopCnt | MegaSync
     rssi: int = 0  # uint32
     crc: int = 0  # uint16
     # frame_count?

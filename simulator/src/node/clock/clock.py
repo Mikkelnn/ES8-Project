@@ -1,10 +1,11 @@
 # type: ignore
+import numpy as np
+from numpy import random as rnd
+
 from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
 from node.Imodule import IModule
-from numpy import random as rnd
-import numpy as np
 
 
 # log = Logger()
@@ -31,27 +32,27 @@ class Clock(IModule):
         self.localtime: int = 0
         self.scheduled_global_tick: int | None = None
         self.earliest_next_local_time: int | None = None
-        
+
         self.trend: float = rnd.uniform(-5e-2, 5e-2)
         self.noise_std: float = np.sqrt(20.970167331917025 * 3.915e-9)
         self.ar_constant: float = 0.9087642375247008
-        self.random_vector: np.ndarray = rnd.normal(loc = 0, scale = self.noise_std, size = 100)
+        self.random_vector: np.ndarray = rnd.normal(loc=0, scale=self.noise_std, size=100)
         self.alpha: float = self.random_vector[0]
         self.random_vector = self.random_vector[1:]
 
     def tick(self, current_global_tick: int) -> float | None:
 
         # calculate the local time from global, this is an ideal clock
-        if self.scheduled_global_tick != None and current_global_tick == self.scheduled_global_tick :
+        if self.scheduled_global_tick != None and current_global_tick == self.scheduled_global_tick:
             self.localtime = self.earliest_next_local_time
         else:
-            self.localtime = int((1 + self.alpha + self.trend) * (current_global_tick-self.global_time_last) + self.localtime)
+            self.localtime = int((1 + self.alpha + self.trend) * (current_global_tick - self.global_time_last) + self.localtime)
         self.global_time_last = current_global_tick
 
-        #calculate next clock skew
+        # calculate next clock skew
         self.alpha = self.ar_constant * self.alpha + self.random_vector[0]
         if self.random_vector.size() == 1:
-            self.random_vector = rnd.normal(loc = 0, scale = self.noise_std, size = 100)
+            self.random_vector = rnd.normal(loc=0, scale=self.noise_std, size=100)
         else:
             self.random_vector = self.random_vector[1:]
 
@@ -67,7 +68,9 @@ class Clock(IModule):
                     self.timer_2_end_local_time = self.localtime + timer_duration - 1
 
         # Puplish tick event to local event bus
-        local_clock_info = LocalClockInfo(current_local_time=self.localtime, timer_1_remaining=max(0, self.timer_1_end_local_time - self.localtime) if self.timer_1_end_local_time is not None else None, timer_2_remaining=max(0, self.timer_2_end_local_time - self.localtime) if self.timer_2_end_local_time is not None else None)
+        local_clock_info = LocalClockInfo(
+            current_local_time=self.localtime, timer_1_remaining=max(0, self.timer_1_end_local_time - self.localtime) if self.timer_1_end_local_time is not None else None, timer_2_remaining=max(0, self.timer_2_end_local_time - self.localtime) if self.timer_2_end_local_time is not None else None
+        )
         self.local_event_queue.add_event_to_current_tick(LocalEventTypes.LOCAL_TIME, local_clock_info)
 
         sleep_request = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP_FOR)
@@ -95,10 +98,10 @@ class Clock(IModule):
         self.earliest_next_local_time = None
         if self.earliest_next_local_time == None or (self.sleep_until_local_time is not None and self.sleep_until_local_time < self.earliest_next_local_time):
             self.earliest_next_local_time = self.sleep_until_local_time
-        
+
         if self.earliest_next_local_time == None or (self.timer_1_end_local_time is not None and self.timer_1_end_local_time < self.earliest_next_local_time):
             self.earliest_next_local_time = self.timer_1_end_local_time
-        
+
         if self.earliest_next_local_time == None or (self.timer_2_end_local_time is not None and self.timer_2_end_local_time < self.earliest_next_local_time):
             self.earliest_next_local_time = self.timer_2_end_local_time
 
@@ -107,7 +110,7 @@ class Clock(IModule):
             self.scheduled_global_tick = None
         else:
             deltaLocal = self.earliest_next_local_time - self.localtime
-            self.scheduled_global_tick = int(current_global_tick + deltaLocal/(1+self.alpha + self.trend))
+            self.scheduled_global_tick = int(current_global_tick + deltaLocal / (1 + self.alpha + self.trend))
 
         return self.scheduled_global_tick  # Power consumption for this tick
 

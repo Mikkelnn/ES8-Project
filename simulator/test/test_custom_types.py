@@ -1,9 +1,11 @@
 import time
 
 from custom_types import (
-    Data,
     LoRaD2DFrame,
     LoRaD2DFrameType,
+)
+from payload_types import (
+    Data,
     PayloadData,
     PayloadHopCnt,
 )

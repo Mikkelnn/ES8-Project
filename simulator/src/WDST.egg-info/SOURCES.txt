@@ -22,6 +22,7 @@ src/node/event_local_queue.py
 src/node/node.py
 src/node/battery/battery.py
 src/node/clock/clock.py
+src/node/clock/clockIdeal.py
 src/node/helpers/accumulated_state.py
 src/node/protocols/V01.py
 src/node/protocols/ping_pong.py
@@ -40,6 +41,7 @@ src/sim/engine.py
 src/sim/global_time.py
 src/sim/logger.py
 test/test_battery.py
+test/test_clock.py
 test/test_custom_types.py
 test/test_event_net_queue.py
 test/test_gateway.py
