@@ -122,11 +122,10 @@ class LogMessage:
 
 class LoRaD2DFrameType(IntEnum):
     REQ_HOP_ACK = 0  # Request for hop count ACK, used by junction nodes to request ACK for a hop count
-    CHANGE_HOP_COUNT = 1  # used by junction nodes to instruct other nodes to change thair hop count to the gateway, used when if multiple nodes have same hop count, they will be assigend a new uniuqe hop count ensuring no collisions.
-    HOP_ACK = 2  # ACK for use hop count, used by junction nodes to ACK the count from a closer node
-    DATA_FROM_GW = 3
-    DATA_TO_GW = 4
-    CURRENT_HOP_COUNT = 5  # sent as nodes hopcount changes and as idle packets to maintain updated hop count information in the network
+    CHANGE_HOP_COUNT = 1  # used to set hopcount and tx slot
+    DATA_FROM_GW = 2
+    DATA_TO_GW = 3
+    CURRENT_HOP_COUNT = 4  # sent as nodes hopcount changes and as idle packets to maintain updated hop count information in the network
 
 
 @dataclass
