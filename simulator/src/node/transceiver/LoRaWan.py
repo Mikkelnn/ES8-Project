@@ -1,4 +1,3 @@
-import math
 from typing import List
 
 from custom_types import EventNet, EventNetTypes, MediumTypes
@@ -24,7 +23,7 @@ class LoRaWan(BaseTransceiver):
         self.__preamble_length = 8  # Preamble length in symbols
 
         self.__calculator = LoRaTxDurationCalculator(second_to_global_tick, self.__sf, self.__bandwidth, self.__coding_rate, self.__preamble_length)
-        
+
     def _calculate_transmission_duration_ticks(self, data: ILength) -> int:
         return self.__calculator.get_duration(data.length)
 

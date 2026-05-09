@@ -1,9 +1,11 @@
 # type: ignore
 import json
+import os
 import time
-from collections import deque
+from collections import defaultdict, deque
 from ctypes import c_int
-from multiprocessing import Lock, Process, Queue, Value
+from multiprocessing import Lock, Pipe, Process, Queue, Value
+from multiprocessing.connection import wait as mp_wait
 from pathlib import Path
 
 from custom_types import Area, LocalEventTypes, MediumTypes, NodeMediumInfo, Severity, SimState
@@ -24,9 +26,146 @@ global_time = GlobalTime()
 # Constant for number of log lines to display in GUI
 GUI_LOG_DISPLAY_LINES = 75
 
+_SECOND_TO_GLOBAL_TICK = 0.001
+
+
+# ── Worker-side proxy classes ──────────────────────────────────────────────────
+
+
+class CollectingMediumService:
+    """Proxy MediumService used inside worker processes.
+    Collects transmit/cancel calls as plain tuples; serves pre-loaded incoming
+    EventNet objects so node.transceiver.tick() can read them normally.
+    """
+
+    def __init__(self):
+        self._incoming: dict = defaultdict(list)   # node_id → List[EventNet]
+        self._transmissions: list = []
+        self._cancellations: list = []
+
+    def set_incoming(self, node_id: int, events: list) -> None:
+        self._incoming[node_id].extend(events)
+
+    # Called by TransceiverService inside node.tick()
+    def transmit(self, from_node_id: int, medium_type, data, time_start: int, time_end: int) -> None:
+        self._transmissions.append((from_node_id, medium_type, data, time_start, time_end))
+
+    def cancel_transmission(self, from_node_id: int, medium_type, time_start: int, time_end: int) -> None:
+        self._cancellations.append((from_node_id, medium_type, time_start, time_end))
+
+    def receive(self, to_node_id: int, medium_type) -> list:
+        node_events = self._incoming.get(to_node_id, [])
+        matching = [e for e in node_events if e.type_medium == medium_type]
+        remaining = [e for e in node_events if e.type_medium != medium_type]
+        if remaining:
+            self._incoming[to_node_id] = remaining
+        else:
+            self._incoming.pop(to_node_id, None)
+        return matching
+
+    def drain_transmissions(self) -> list:
+        out = self._transmissions[:]
+        self._transmissions.clear()
+        return out
+
+    def drain_cancellations(self) -> list:
+        out = self._cancellations[:]
+        self._cancellations.clear()
+        return out
+
+
+class CollectingLogger:
+    """Proxy ILogger for worker processes — accumulates formatted strings."""
+
+    def __init__(self):
+        self._entries: list = []
+
+    def add(self, severity, area, global_time: int, info: str, data=None) -> None:
+        self._entries.append(f"[{severity.value}] ({area.value}) @ {global_time}: {info}, {data if data else ''}\n")
+
+    def flush(self, force: bool = False) -> bool:
+        return False
+
+    def get(self) -> list:
+        return self._entries[:]
+
+    def drain_entries(self) -> list:
+        out = self._entries[:]
+        self._entries.clear()
+        return out
+
+
+# ── Worker process entry point ─────────────────────────────────────────────────
+
+_WORKER_STOP = "STOP"
+
+
+def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
+    """Runs inside each worker Process.
+    Initialises a node subset with proxy medium/logger, then loops:
+      receive task → tick active nodes → send results.
+    """
+    # Local imports so this function works with both fork and spawn.
+    from gateway.gateway import Gateway
+    from node.node import Node
+    from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
+    from custom_types import LocalEventTypes, MediumTypes
+    from payload_types import MegaSync, PayloadData, PayloadHopCnt
+
+    medium = CollectingMediumService()
+    log = CollectingLogger()
+    nodes: dict = {}
+
+    for nid in node_ids:
+        info = node_neighbors[nid]
+        if info.is_gateway:
+            nodes[nid] = Gateway(gateway_id=nid, second_to_global_tick=_SECOND_TO_GLOBAL_TICK, medium_service=medium, log=log)
+        else:
+            nodes[nid] = Node(node_id=nid, second_to_global_tick=_SECOND_TO_GLOBAL_TICK, medium_service=medium, log=log)
+
+    while True:
+        task = conn.recv()
+        if task == _WORKER_STOP:
+            break
+
+        current_time, active_ids, incoming, injection_tasks = task
+
+        # Pre-load incoming media events so transceiver.tick() can pop them
+        for nid, events in incoming:
+            medium.set_incoming(nid, events)
+
+        # Apply injection tasks directly to node-local state
+        for inj in injection_tasks:
+            nid = inj["node_id"]
+            payload = inj["payload"]
+            node = nodes.get(nid)
+            if node is None:
+                continue
+            if isinstance(payload, PayloadData) and hasattr(node, "protocol") and hasattr(node.protocol, "app"):
+                node.protocol.app.enqueue_payload(payload)
+                log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadData into Node {nid}")
+            elif isinstance(payload, MegaSync) and hasattr(node, "local_event_queue"):
+                wan_frame = LoRaWanPHYPayload(mhdr=96, mac_payload=MACPayload(dev_addr=nid, fctrl_flags=0, fcnt=0, frm_payload=payload))
+                node.local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, wan_frame, sub_type=MediumTypes.LORA_WAN)
+                log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: MegaSync into Node {nid}")
+            elif isinstance(payload, PayloadHopCnt) and hasattr(node, "protocol") and hasattr(node.protocol, "d2d"):
+                node.protocol.d2d.enqueue_payload(payload)
+                log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadHopCnt into Node {nid}")
+
+        # Tick each active node
+        next_ticks = []
+        for nid in active_ids:
+            node = nodes.get(nid)
+            if node is not None:
+                next_ticks.append((nid, node.tick(current_time)))
+
+        conn.send((next_ticks, medium.drain_transmissions(), medium.drain_cancellations(), log.drain_entries()))
+
 
 class NetworkTopologyLoader:
     """Load network topology from node_outputs.json file."""
+
+    LORA_WAN_RADIUS_M = 300.0
 
     @staticmethod
     def from_json(json_path: str) -> dict[int, NodeMediumInfo]:
@@ -39,16 +178,32 @@ class NetworkTopologyLoader:
         gateways_data = data.get("gateways", {})
         gateway_ids = set(int(gw_id) for gw_id in gateways_data.keys())
 
+        meta = data.get("metadata", {})
+        m_per_svg_x = meta.get("m_per_svg_x", 391.287)
+        m_per_svg_y = meta.get("m_per_svg_y", 702.570)
+        radius_m = NetworkTopologyLoader.LORA_WAN_RADIUS_M
+
+        gw_positions = {int(gw_id): tuple(gw["point"]) for gw_id, gw in gateways_data.items()}
+
         for node_id_str, node_info in nodes_data.items():
             node_id = int(node_id_str)
             position = tuple(node_info["point"])
             neighbors = [int(n) for n in node_info.get("neighbours", [])]
             is_gw = node_id in gateway_ids
 
+            gateways_in_range = []
+            if not is_gw:
+                px, py = position
+                for gw_id, (gx, gy) in gw_positions.items():
+                    dx = (px - gx) * m_per_svg_x
+                    dy = (py - gy) * m_per_svg_y
+                    if (dx * dx + dy * dy) ** 0.5 <= radius_m:
+                        gateways_in_range.append(gw_id)
+
             node_neighbors[node_id] = NodeMediumInfo(
                 position=position,
                 neighbors=neighbors,
-                gateways_in_range=[],
+                gateways_in_range=gateways_in_range,
                 is_gateway=is_gw,
             )
 
@@ -63,7 +218,6 @@ class NetworkTopologyLoader:
 class Simulation:
     def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None, injection_tasks=None, node_neighbors=None):
         self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
-        self.nodes: list[IDevice] = []
         self.global_time = GlobalTime()
         self.injection_tasks = injection_tasks or []
         self.completed_injections = set()
@@ -76,7 +230,31 @@ class Simulation:
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
 
         self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
-        self._build_nodes(node_neighbors)
+
+        # Cap workers to physical cores — hyperthreads don't help CPU-bound Python
+        logical_cpus = os.cpu_count() or 4
+        phys_cores = max(1, logical_cpus // 2)
+        n_workers = max(1, min(phys_cores, num_nodes))
+
+        sorted_ids = sorted(node_neighbors.keys())
+        partitions: list[list[int]] = [[] for _ in range(n_workers)]
+        self._node_to_worker: dict[int, int] = {}
+        for i, nid in enumerate(sorted_ids):
+            w = i % n_workers
+            partitions[w].append(nid)
+            self._node_to_worker[nid] = w
+
+        # Start one persistent Process per partition, connected via duplex Pipe
+        self._workers: list[tuple] = []  # (parent_conn, Process)
+        for w_ids in partitions:
+            parent_conn, child_conn = Pipe(duplex=True)
+            p = Process(target=_worker_run_loop, args=(w_ids, node_neighbors, child_conn), daemon=True)
+            p.start()
+            child_conn.close()  # Only the child needs its end
+            self._workers.append((parent_conn, p))
+
+        # Pending incoming EventNets for nodes that haven't woken yet
+        self._pending_incoming: dict[int, list] = defaultdict(list)
 
         self.status = status
         self.lock = lock
@@ -85,54 +263,6 @@ class Simulation:
         self.log_lines = log_lines
         self.current_tick_value = current_tick_value
 
-    def _build_nodes(self, node_neighbors: dict[int, NodeMediumInfo]) -> None:
-        for node_id in sorted(node_neighbors.keys()):
-            node_info = node_neighbors[node_id]
-            if node_info.is_gateway:
-                self.nodes.append(Gateway(gateway_id=node_id, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-            else:
-                self.nodes.append(Node(node_id=node_id, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-
-    def _inject_data(self, node_id: int, current_time: int, payload_data):
-
-        node = self.nodes[node_id - 1]
-        if not hasattr(node, "protocol"):
-            self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} protocol not available")
-            return
-
-        # Check if node is awake (can receive)
-        if hasattr(node, "state"):
-            from node.node import State
-
-            if node.state == State.SLEEP:
-                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION SKIPPED: Node {node_id} is sleeping")
-                return
-
-        if isinstance(payload_data, PayloadData):
-            # PayloadData generated locally by APP layer
-            if hasattr(node.protocol, "app"):
-                node.protocol.app.enqueue_payload(payload_data)
-                self.log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadData into Node {node_id}, payload_id={payload_data.id}, sensor1={payload_data.data.sensor1}, sensor2={payload_data.data.sensor2}")
-            else:
-                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} app not available")
-        elif isinstance(payload_data, MegaSync):
-            # MegaSync received via WAN transceiver (from gateway)
-            if hasattr(node, "local_event_queue"):
-                wan_frame = LoRaWanPHYPayload(mhdr=96, mac_payload=MACPayload(dev_addr=node_id, fctrl_flags=0, fcnt=0, frm_payload=payload_data))
-                node.local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, wan_frame, sub_type=MediumTypes.LORA_WAN)
-                self.log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: MegaSync into Node {node_id} (via WAN), time={payload_data.time}, total_handle_time={payload_data.total_handle_time}")
-            else:
-                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} event queue not available")
-        elif isinstance(payload_data, PayloadHopCnt):
-            # PayloadHopCnt received via D2D
-            if hasattr(node.protocol, "d2d"):
-                node.protocol.d2d.enqueue_payload(payload_data)
-                self.log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadHopCnt into Node {node_id}, cnt={payload_data.cnt}")
-            else:
-                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} d2d not available")
-        else:
-            self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Unknown payload type '{type(payload_data).__name__}'")
-
     def run_for(self, stop_tick):
         stopwatch_start_time = time.time()
         propagation_time = 0
@@ -140,8 +270,6 @@ class Simulation:
         current_time = 0
         total_evaluated = 0
         last_tps_calc = time.time()
-        log_push_counter = 0
-        LOG_PUSH_INTERVAL = 100
 
         try:
             while len(self.event_queue.events):
@@ -170,31 +298,77 @@ class Simulation:
                     self.current_tick_value.value = int(current_time)
 
                 node_start_time = time.time()
-                for node_id in node_ids:
-                    next_evaluation = self.nodes[node_id - 1].tick(current_time)
-                    self.event_queue.add_event(node_id, next_evaluation)
-                node_tick_time += time.time() - node_start_time
 
+                # Build per-worker batches: active nodes + pending incoming for active nodes
+                n_w = len(self._workers)
+                w_active: list[list] = [[] for _ in range(n_w)]
+                w_incoming: list[list] = [[] for _ in range(n_w)]
+                w_injections: list[list] = [[] for _ in range(n_w)]
+                dispatched: set[int] = set()
+
+                for nid in node_ids:
+                    w = self._node_to_worker.get(nid)
+                    if w is not None:
+                        w_active[w].append(nid)
+                        dispatched.add(w)
+                        # Include pending incoming only when the node is being ticked
+                        if nid in self._pending_incoming:
+                            w_incoming[w].append((nid, self._pending_incoming.pop(nid)))
+
+                # Route injection tasks to the owning worker
                 for idx, task in enumerate(self.injection_tasks):
                     if idx not in self.completed_injections and current_time >= task["tick"]:
-                        self._inject_data(task["node_id"], current_time, task["payload"])
+                        w = self._node_to_worker.get(task["node_id"])
+                        if w is not None:
+                            w_injections[w].append(task)
+                            dispatched.add(w)
                         self.completed_injections.add(idx)
+
+                # Dispatch tasks only to workers that have work this tick
+                conn_to_worker: dict = {}
+                for w in dispatched:
+                    conn = self._workers[w][0]
+                    conn.send((current_time, w_active[w], w_incoming[w], w_injections[w]))
+                    conn_to_worker[conn] = w
+
+                # Collect results as they arrive — overlaps with remaining worker runtime
+                pending = list(conn_to_worker.keys())
+                while pending:
+                    ready = mp_wait(pending, timeout=60)
+                    if not ready:
+                        raise TimeoutError("Worker timed out after 60s")
+                    for conn in ready:
+                        next_ticks, transmissions, cancellations, logs = conn.recv()
+                        for nid, nt in next_ticks:
+                            self.event_queue.add_event(nid, nt)
+                        for tx in transmissions:
+                            self.medium_service.transmit(*tx)
+                        for cx in cancellations:
+                            self.medium_service.cancel_transmission(*cx)
+                        self.log._buffer.extend(logs)
+                        pending.remove(conn)
+
+                node_tick_time += time.time() - node_start_time
 
                 propagation_start_time = time.time()
                 self.medium_service.propagate_mediums(current_time)
                 propagation_time += time.time() - propagation_start_time
+
+                # Store media deliveries so receiving nodes get them on their next wakeup
+                for medium_obj in self.medium_service._mediums_by_type.values():
+                    for nid, events in medium_obj.node_receptions.items():
+                        self._pending_incoming[nid].extend(events)
+                    medium_obj.node_receptions.clear()
                 total_evaluated += 1
 
-                self.log.flush()
-                log_push_counter += 1
-                if log_push_counter >= LOG_PUSH_INTERVAL and self.log_queue is not None:
-                    log_push_counter = 0
+                if self.log_queue is not None:
                     try:
                         lines = self.log.get()
                         if lines:
                             self.log_queue.put_nowait(lines[-GUI_LOG_DISPLAY_LINES:])
                     except Exception:
                         pass  # queue full — drop batch, GUI will get next one
+                self.log.flush()
 
                 now = time.time()
                 if self.tps_value is not None and now - last_tps_calc > 0.1:
@@ -203,16 +377,34 @@ class Simulation:
                     self.tps_value.value = int(tps) if tps is not None else 0
                     last_tps_calc = now
         except Exception as e:
-            print(f"Simulation error: {e}")
+            import traceback
+            print(f"Simulation error: {e}\n{traceback.format_exc()}")
             self.log.add(Severity.ERROR, Area.SIMULATOR, self.global_time.get_time(), f"Simulation error: {e}", data=None)
+        finally:
+            self._stop_workers()
 
         elapsed_time = time.time() - stopwatch_start_time
-
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
+        num_nodes = len(self._node_to_worker)
+        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {num_nodes} nodes")
         self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total node tick time: {node_tick_time:.2f} seconds")
         self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total propagation time: {propagation_time:.2f} seconds")
         self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total log time: {(elapsed_time - (propagation_time + node_tick_time)):.2f} seconds")
         self.log.flush(force=True)
+
+    def _stop_workers(self) -> None:
+        for conn, _ in self._workers:
+            try:
+                conn.send(_WORKER_STOP)
+            except Exception:
+                pass
+        for conn, p in self._workers:
+            p.join(timeout=3)
+            if p.is_alive():
+                p.terminate()
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def run(self):
         self.run_for(float("inf"))

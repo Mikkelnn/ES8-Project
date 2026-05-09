@@ -52,8 +52,8 @@ class PayloadData(ILength):
 @dataclass
 class PayloadHopCnt(ILength):
     cnt: int  # uint16
-    current_period_idx: bytes # uint8
-    use_slot: bytes # uint8
+    current_period_idx: int = 0  # uint8
+    use_slot: int = 0  # uint8
 
     @property
     def length(self) -> int:

@@ -41,7 +41,7 @@ class D2DDLL:
         self.slot_duration = slot_duration
         self.slot_count = slot_count
         self.mini_slot_count = 3
-        self.duration_calculator = LoRaTxDurationCalculator(second_to_global_tick=0.001) # in ms
+        self.duration_calculator = LoRaTxDurationCalculator(second_to_global_tick=0.001)  # in ms
         self.reset(0)
 
     def reset(self, current_global_tick: int) -> None:
@@ -57,7 +57,7 @@ class D2DDLL:
         self.tx_offset_done = False
         self.rnd = Random(self.node_id)
         self.slot_period_start = 0
-        
+
     @property
     def link_established(self) -> bool:
         return self.hopcount_to_gateway < self.MAX_HOPCOUNT and self.discovery_state == DiscoverStates.DISCOVERED
@@ -213,7 +213,7 @@ class D2DDLL:
         if self.current_slot == -1:
             self.slot_period_start = current_local_clock_info.current_local_time
 
-        self.current_slot += 1        
+        self.current_slot += 1
         if self.current_slot < self.slot_count:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=self.slot_duration)
             if self.current_slot == self.own_tx_slot:
@@ -248,7 +248,7 @@ class D2DDLL:
             self.tx_buffer.sort(key=lambda f: f.type)  # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
             # determine if time allow for packet tx
             if self.duration_calculator.get_duration(self.tx_buffer[0].length) > slot_end_in - self.tx_start_edn_buffer:
-                return 
+                return
 
             packet = self.tx_buffer.pop(0)
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
@@ -287,7 +287,7 @@ class D2DDLL:
                 # implied ACk, we can assume discovery complete
                 if self.node_id in frame.destination_node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
-                    frame_hop_cnt = cast(PayloadHopCnt, frame.payload)                    
+                    frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
                     self._update_local_hopcount(frame_hop_cnt.cnt)
                     self.own_tx_slot = frame_hop_cnt.use_slot
                     self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} discovery complete with hop count {self.hopcount_to_gateway}")
@@ -308,12 +308,7 @@ class D2DDLL:
 
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing is None:
-            neighbor_info = D2DNeighborInfo(
-                neighbor_id=frame.source_node_id, 
-                hopcount_to_gateway=frame_hop_cnt.cnt, 
-                last_seen=current_local_time, 
-                last_rssi=frame.rssi,
-                in_slot=frame_hop_cnt.use_slot)
+            neighbor_info = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=frame_hop_cnt.cnt, last_seen=current_local_time, last_rssi=frame.rssi, in_slot=frame_hop_cnt.use_slot)
             self.known_neighbors.append(neighbor_info)
         else:
             existing.hopcount_to_gateway = frame_hop_cnt.cnt
@@ -358,10 +353,10 @@ class D2DDLL:
         for neighbor in of_interest:
             if abs(prev_rssi - neighbor.last_rssi) > rssi_threshold:
                 prev_rssi = neighbor.last_rssi
-                current_hop += 1 # increment by one for each "layer"
+                current_hop += 1  # increment by one for each "layer"
 
             if neighbor.hopcount_to_gateway == current_hop:
-                continue # no chaange
+                continue  # no chaange
 
             neighbor.hopcount_to_gateway = current_hop
             in_slot = get_slot_for_neighbor(neighbor)
@@ -377,9 +372,7 @@ class D2DDLL:
         # multiple can have same hop count... if the RSSI are within 3dB of each other
         # if more the lower rsssi have +1 hopcount
         # we need to find tx slot available
-        
-
 
     def _update_local_hopcount(self, hopcount: int) -> None:
         self.hopcount_to_gateway = hopcount
-        self.own_tx_slot = 1 # default zero is reserved for REQ_ACK unit 17 slots are needed
+        self.own_tx_slot = 1  # default zero is reserved for REQ_ACK unit 17 slots are needed
