@@ -25,7 +25,7 @@ class Clock(IModule):
         self.timer_1_end_local_time: int | None = None
         self.timer_2_end_local_time: int | None = None
 
-    def tick(self, current_global_tick: int) -> float | None:
+    def tick(self, current_global_tick: int) -> tuple[float, int | None]:
         self.accumulated_state.reset()
 
         # calculate the local time from global, this is an ideal clock
