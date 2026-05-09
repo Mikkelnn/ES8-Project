@@ -30,7 +30,7 @@ class D2DDLL:
     DISCOVERY_TIMEOUT_MS = (60 + 10) * 1000
     MAX_HOPCOUNT = 65535
 
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 100, slot_count: int = 17):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 100, slot_count: int = 5):
 
         self.node_id = node_id
         self.local_event_queue = local_event_queue
@@ -82,6 +82,9 @@ class D2DDLL:
             self.log.add(Severity.CRITICAL, Area.PROTOCOL, 0, "Node got unknown payload for routing....")
             return
 
+        if len(destination_node_ids) == 0:
+            self.log.add(Severity.CRITICAL, Area.PROTOCOL, 0, "Node have no destinations for payload.... dropped")
+
         msg = LoRaD2DFrame(
             source_node_id=self.node_id,
             destination_node_id=destination_node_ids,
@@ -93,13 +96,13 @@ class D2DDLL:
 
         self.tx_buffer.append(msg)
 
-    def dequeue_payload(self) -> list[PayloadData | MegaSync]:  # TODO maybe hop count shall return too???
+    def dequeue_payload(self) -> list[PayloadData | MegaSync]:
 
         queue = []
         while self.rx_buffer:
             msg = self.rx_buffer.pop(0).payload
             if isinstance(msg, PayloadData) or isinstance(msg, MegaSync):
-                queue.append(msg)  # TODO Hop cnt messages are dropped.
+                queue.append(msg)  # Hop cnt messages are dropped.
 
         return queue
 
