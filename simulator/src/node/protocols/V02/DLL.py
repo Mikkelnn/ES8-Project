@@ -52,17 +52,23 @@ class DLL:
                     self.d2d_layer.set_has_gateway_link()
                     self.state = DLLState.FORWARDING
                 elif self.wan_layer.link_state == LinkState.NO_LINK:
-                    finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info)
+                    finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info, self.slot_period_counter)
                     if finished and self.d2d_layer.link_established:
                         self.state = DLLState.FORWARDING
-                        sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms)  # TODO: do right...
+                        self.slot_period_counter = self.d2d_layer.slot_period_counter
+                        self._increment_slot_period_counter()
+                        sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms                        
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                         self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery with D2D route to gateway, sleeping until next slot period")
 
                     elif finished and not self.d2d_layer.link_established:
                         # sleep before retrying discovery
                         if self.d2d_layer.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]:
-                            sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms)  # TODO: do right...
+                            sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms
+                            if self.d2d_layer.slot_period_counter + 1 >= self.lora_wan_slot_interleave:
+                                # sleep next period as it is LORA WAN -> no D2D
+                                sleep_ms + self.slot_period_ms
+
                             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery waiting for ACK, sleeping until next slot period to retry with D2D")
                         else:
@@ -80,12 +86,11 @@ class DLL:
                     finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info)
 
                 if finished:
-                    # sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
-                    sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time % self.slot_period_ms)  # TODO: do right... use above but fix DISCOVERY sleep
+                    sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                     self.current_period_start_time = None
                     self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished {'WAN' if self.slot_period_counter == 0 else 'D2D'} forwarding period, sleeping until next slot period ({sleep_ms} ms)")
-                    self._increment_hop_count()
+                    self._increment_slot_period_counter()
 
                 self._route_app_packets(current_global_tick)
 
@@ -121,7 +126,7 @@ class DLL:
     def _effective_hopcount(self) -> int:
         return self.d2d_layer.hopcount_to_gateway
 
-    def _increment_hop_count(self) -> None:
+    def _increment_slot_period_counter(self) -> None:
         self.slot_period_counter += 1
         if self.slot_period_counter >= self.lora_wan_slot_interleave:
             self.slot_period_counter = 0

@@ -50,18 +50,46 @@ class PayloadData(ILength):
 
 
 @dataclass
-class PayloadHopCnt(ILength):
+class PayloadHopCntSimple(ILength):
+    """Simple hop count payload for REQ_HOP_ACK frames - only cnt (2 bytes total)"""
     cnt: int  # uint16
-    current_period_idx: bytes # uint8
-    use_slot: bytes # uint8
 
     @property
     def length(self) -> int:
-        # Length (2)
-        return 2 + 1 + 1
+        return 2
 
     def to_bytes(self) -> bytes:
         return self.cnt.to_bytes(2, "big", signed=False)
+
+
+@dataclass
+class PayloadHopCntMid(ILength):
+    """Mid hop count payload for CHANGE_HOP_COUNT ACK responses - cnt and slot (3 bytes total)"""
+    cnt: int  # uint16
+    use_slot: int # uint8
+
+    @property
+    def length(self) -> int:
+        return 2 + 1
+
+    def to_bytes(self) -> bytes:
+        return self.cnt.to_bytes(2, "big", signed=False) + self.use_slot.to_bytes(1, "big", signed=False)
+
+
+@dataclass
+class PayloadHopCntFull(ILength):
+    """Full hop count payload for CURRENT_HOP_COUNT and REDISCOVER frames (8 bytes total)"""
+    cnt: int  # uint16
+    slot_period_counter: int # uint8
+    use_slot: int # uint8
+    time_offset_from_period_start: int # uint16
+
+    @property
+    def length(self) -> int:
+        return 2 + 1 + 1 + 2
+
+    def to_bytes(self) -> bytes:
+        return self.cnt.to_bytes(2, "big", signed=False) + self.slot_period_counter.to_bytes(1, "big", signed=False) + self.use_slot.to_bytes(1, "big", signed=False) + self.time_offset_from_period_start.to_bytes(2, "big", signed=False)
 
 
 @dataclass

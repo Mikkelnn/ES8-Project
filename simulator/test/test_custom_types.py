@@ -7,7 +7,9 @@ from custom_types import (
 from payload_types import (
     Data,
     PayloadData,
-    PayloadHopCnt,
+    PayloadHopCntSimple,
+    PayloadHopCntMid,
+    PayloadHopCntFull,
 )
 
 
@@ -50,17 +52,17 @@ class TestDataClass:
         assert result == b"\x01\x02\x03\x04"
 
 
-class TestPayloadHopCnt:
-    """Test hop count payload class"""
+class TestPayloadHopCntSimple:
+    """Test simple hop count payload class (for REQ_HOP_ACK frames)"""
 
     def test_length_property(self):
         """Test length property returns 2 (uint16)"""
-        payload = PayloadHopCnt(cnt=5)
+        payload = PayloadHopCntSimple(cnt=5)
         assert payload.length == 2
 
     def test_to_bytes_basic(self):
         """Test to_bytes serialization"""
-        payload = PayloadHopCnt(cnt=0x0102)
+        payload = PayloadHopCntSimple(cnt=0x0102)
         result = payload.to_bytes()
 
         assert len(result) == 2
@@ -68,17 +70,48 @@ class TestPayloadHopCnt:
 
     def test_to_bytes_zero(self):
         """Test to_bytes with zero value"""
-        payload = PayloadHopCnt(cnt=0)
+        payload = PayloadHopCntSimple(cnt=0)
         result = payload.to_bytes()
 
         assert result == b"\x00\x00"
 
     def test_to_bytes_max_value(self):
         """Test to_bytes with max uint16"""
-        payload = PayloadHopCnt(cnt=0xFFFF)
+        payload = PayloadHopCntSimple(cnt=0xFFFF)
         result = payload.to_bytes()
 
         assert result == b"\xff\xff"
+
+
+class TestPayloadHopCntMid:
+    """Test mid hop count payload class (for CHANGE_HOP_COUNT ACK frames)"""
+
+    def test_length_property(self):
+        """Test length property returns 3 (cnt + slot)"""
+        payload = PayloadHopCntMid(cnt=5, use_slot=1)
+        assert payload.length == 3
+
+    def test_to_bytes_basic(self):
+        """Test to_bytes serialization"""
+        payload = PayloadHopCntMid(cnt=0x0102, use_slot=0x03)
+        result = payload.to_bytes()
+
+        assert len(result) == 3
+        assert result == b"\x01\x02\x03"
+
+    def test_to_bytes_zero(self):
+        """Test to_bytes with zero values"""
+        payload = PayloadHopCntMid(cnt=0, use_slot=0)
+        result = payload.to_bytes()
+
+        assert result == b"\x00\x00\x00"
+
+    def test_to_bytes_max_values(self):
+        """Test to_bytes with max values"""
+        payload = PayloadHopCntMid(cnt=0xFFFF, use_slot=0xFF)
+        result = payload.to_bytes()
+
+        assert result == b"\xff\xff\xff"
 
 
 class TestPayloadData:
@@ -161,17 +194,17 @@ class TestLoRaD2DFrame:
         assert frame.length == expected
 
     def test_length_with_hop_count_payload(self):
-        """Test frame length with hop count payload"""
-        hop_payload = PayloadHopCnt(cnt=5)
+        """Test frame length with full hop count payload"""
+        hop_payload = PayloadHopCntFull(cnt=5, slot_period_counter=0, use_slot=1, time_offset_from_period_start=0)
         frame = LoRaD2DFrame(source_node_id=10, destination_node_id={3}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_payload)
 
-        # source (4) + destinations (4*1) + type (1) + payload.length (2) + crc (2)
-        expected = 4 + 4 + 1 + 2 + 2
+        # source (4) + destinations (4*1) + type (1) + payload.length (8) + crc (2)
+        expected = 4 + 4 + 1 + 8 + 2
         assert frame.length == expected
 
     def test_to_crc_bytes_serialization(self):
         """Test to_crc_bytes creates correct byte sequence"""
-        hop_payload = PayloadHopCnt(cnt=0x0001)
+        hop_payload = PayloadHopCntFull(cnt=0x0001, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0)
         frame = LoRaD2DFrame(source_node_id=0x00000001, destination_node_id={0x00000002}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_payload)
 
         result = frame.to_crc_bytes()
@@ -185,7 +218,7 @@ class TestLoRaD2DFrame:
 
     def test_to_crc_bytes_multiple_destinations_sorted(self):
         """Test to_crc_bytes sorts destinations"""
-        hop_payload = PayloadHopCnt(cnt=1)
+        hop_payload = PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0)
         frame = LoRaD2DFrame(
             source_node_id=1,
             destination_node_id={3, 1, 2},  # Unsorted
@@ -203,7 +236,7 @@ class TestLoRaD2DFrame:
 
     def test_crc_calculation(self):
         """Test CRC is calculated and stored"""
-        hop_payload = PayloadHopCnt(cnt=1)
+        hop_payload = PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0)
         frame = LoRaD2DFrame(
             source_node_id=1,
             destination_node_id={2},
@@ -218,13 +251,13 @@ class TestLoRaD2DFrame:
 
     def test_crc_reproducible(self):
         """Test same frame produces same CRC"""
-        hop_payload = PayloadHopCnt(cnt=1)
+        hop_payload = PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0)
         frame1 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_payload, crc=0)
         frame1.crc_calc()
         crc1 = frame1.crc
 
         # Create identical frame
-        hop_payload2 = PayloadHopCnt(cnt=1)
+        hop_payload2 = PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0)
         frame2 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_payload2, crc=0)
         frame2.crc_calc()
         crc2 = frame2.crc
@@ -233,14 +266,14 @@ class TestLoRaD2DFrame:
 
     def test_crc_changes_with_different_Data(self):
         """Test different payloads produce different CRCs"""
-        frame1 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=PayloadHopCnt(cnt=1), crc=0)
+        frame1 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0), crc=0)
         frame1.crc_calc()
 
         frame2 = LoRaD2DFrame(
             source_node_id=1,
             destination_node_id={2},
             type=LoRaD2DFrameType.CURRENT_HOP_COUNT,
-            payload=PayloadHopCnt(cnt=2),  # Different value
+            payload=PayloadHopCntFull(cnt=2, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0),  # Different value
             crc=0,
         )
         frame2.crc_calc()
@@ -249,14 +282,14 @@ class TestLoRaD2DFrame:
 
     def test_crc_changes_with_different_source(self):
         """Test different source produces different CRC"""
-        frame1 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=PayloadHopCnt(cnt=1), crc=0)
+        frame1 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0), crc=0)
         frame1.crc_calc()
 
         frame2 = LoRaD2DFrame(
             source_node_id=2,  # Different source
             destination_node_id={2},
             type=LoRaD2DFrameType.CURRENT_HOP_COUNT,
-            payload=PayloadHopCnt(cnt=1),
+            payload=PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0),
             crc=0,
         )
         frame2.crc_calc()
@@ -265,14 +298,14 @@ class TestLoRaD2DFrame:
 
     def test_crc_type_byte_included(self):
         """Test frame type is included in CRC calculation"""
-        frame1 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.DATA_TO_GW, payload=PayloadHopCnt(cnt=1), crc=0)
+        frame1 = LoRaD2DFrame(source_node_id=1, destination_node_id={2}, type=LoRaD2DFrameType.DATA_TO_GW, payload=PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0), crc=0)
         frame1.crc_calc()
 
         frame2 = LoRaD2DFrame(
             source_node_id=1,
             destination_node_id={2},
             type=LoRaD2DFrameType.CURRENT_HOP_COUNT,  # Different type
-            payload=PayloadHopCnt(cnt=1),
+            payload=PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0),
             crc=0,
         )
         frame2.crc_calc()
@@ -367,12 +400,12 @@ class TestEdgeCases:
     def test_large_destination_set(self):
         """Test frame with many destinations"""
         large_id_set = set(range(1, 101))  # 100 destinations
-        hop_payload = PayloadHopCnt(cnt=1)
+        hop_payload = PayloadHopCntFull(cnt=1, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0)
 
         frame = LoRaD2DFrame(source_node_id=1, destination_node_id=large_id_set, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_payload)
 
         # Should calculate length correctly
-        expected = 4 + (4 * len(large_id_set)) + 1 + 2 + 2
+        expected = 4 + (4 * len(large_id_set)) + 1 + 8 + 2
         assert frame.length == expected
 
     def test_time_float_precision(self):
@@ -556,7 +589,7 @@ class TestBottomUpIntegration:
 
     def test_crc_with_hop_count_payload(self):
         """Test CRC calculation with hop count payload instead of data payload"""
-        hop_payload = PayloadHopCnt(cnt=5)
+        hop_payload = PayloadHopCntFull(cnt=5, slot_period_counter=0, use_slot=0, time_offset_from_period_start=0)
         frame = LoRaD2DFrame(
             source_node_id=1,
             destination_node_id={2},

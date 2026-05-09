@@ -8,7 +8,7 @@ from crc import Calculator, Configuration
 
 from Interfaces import IRSSI, ILength
 from loraWanFrameHelper import LoRaWanPHYPayload
-from payload_types import MegaSync, PayloadData, PayloadHopCnt
+from payload_types import MegaSync, PayloadData, PayloadHopCntSimple, PayloadHopCntMid, PayloadHopCntFull
 
 config = Configuration(
     width=16,
@@ -122,10 +122,11 @@ class LogMessage:
 
 class LoRaD2DFrameType(IntEnum):
     REQ_HOP_ACK = 0  # Request for hop count ACK, used by junction nodes to request ACK for a hop count
-    CHANGE_HOP_COUNT = 1  # used to set hopcount and tx slot
-    DATA_FROM_GW = 2
-    DATA_TO_GW = 3
-    CURRENT_HOP_COUNT = 4  # sent as nodes hopcount changes and as idle packets to maintain updated hop count information in the network
+    CHANGE_HOP_COUNT = 1  # used to set hopcount and tx slot for normal updates
+    REDISCOVER = 2  # Direct discover after death
+    DATA_FROM_GW = 3
+    DATA_TO_GW = 4
+    CURRENT_HOP_COUNT = 5  # sent as nodes hopcount changes and as idle packets to maintain updated hop count information in the network
 
 
 @dataclass
@@ -133,7 +134,7 @@ class LoRaD2DFrame(ILength, IRSSI):
     source_node_id: int  # uint32
     destination_node_id: Set[int]  # uint32
     type: LoRaD2DFrameType  # uint8
-    payload: PayloadData | PayloadHopCnt | MegaSync
+    payload: PayloadData | PayloadHopCntSimple | PayloadHopCntMid | PayloadHopCntFull | MegaSync
     rssi: int = 0  # uint32
     crc: int = 0  # uint16
     # frame_count?
