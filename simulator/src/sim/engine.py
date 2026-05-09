@@ -1,8 +1,10 @@
 # type: ignore
+import json
 import time
 from collections import deque
 from ctypes import c_int
 from multiprocessing import Lock, Process, Queue, Value
+from pathlib import Path
 
 from custom_types import Area, LocalEventTypes, MediumTypes, NodeMediumInfo, Severity, SimState
 from gateway.gateway import Gateway
@@ -23,6 +25,41 @@ global_time = GlobalTime()
 GUI_LOG_DISPLAY_LINES = 75
 
 
+class NetworkTopologyLoader:
+    """Load network topology from node_outputs.json file."""
+
+    @staticmethod
+    def from_json(json_path: str) -> dict[int, NodeMediumInfo]:
+        """Load topology from JSON and return as NodeMediumInfo dict."""
+        with open(json_path) as f:
+            data = json.load(f)
+
+        node_neighbors = {}
+        nodes_data = data.get("nodes", {})
+        gateways_data = data.get("gateways", {})
+        gateway_ids = set(int(gw_id) for gw_id in gateways_data.keys())
+
+        for node_id_str, node_info in nodes_data.items():
+            node_id = int(node_id_str)
+            position = tuple(node_info["point"])
+            neighbors = [int(n) for n in node_info.get("neighbours", [])]
+            is_gw = node_id in gateway_ids
+
+            node_neighbors[node_id] = NodeMediumInfo(
+                position=position,
+                neighbors=neighbors,
+                gateways_in_range=[],
+                is_gateway=is_gw,
+            )
+
+        return node_neighbors
+
+    @staticmethod
+    def from_file(file_path: str | Path) -> dict[int, NodeMediumInfo]:
+        """Alias for from_json."""
+        return NetworkTopologyLoader.from_json(str(file_path))
+
+
 class Simulation:
     def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None, injection_tasks=None, node_neighbors=None):
         self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
@@ -32,7 +69,7 @@ class Simulation:
         self.completed_injections = set()
 
         if node_neighbors is None:
-            node_neighbors = self._default_topology()
+            node_neighbors = NetworkTopologyLoader.from_file("tools/uplinkNodeLoad/final_selected/node_outputs.json")
 
         num_nodes = len(node_neighbors)
         self.event_queue = DeviceEventQueue()
@@ -47,20 +84,6 @@ class Simulation:
         self.log_queue = log_queue
         self.log_lines = log_lines
         self.current_tick_value = current_tick_value
-
-    def _default_topology(self) -> dict[int, NodeMediumInfo]:
-        node_neighbors = {}
-        node_neighbors[1] = NodeMediumInfo(position=(100, 0), neighbors=[2], gateways_in_range=[], is_gateway=True)
-        node_neighbors[2] = NodeMediumInfo(position=(1, 0), neighbors=[3], gateways_in_range=[1])
-        node_neighbors[3] = NodeMediumInfo(position=(2, 0), neighbors=[2, 4], gateways_in_range=[])
-        node_neighbors[4] = NodeMediumInfo(position=(3, 0), neighbors=[3, 5], gateways_in_range=[])
-        node_neighbors[5] = NodeMediumInfo(position=(4, 0), neighbors=[4, 6], gateways_in_range=[])
-        node_neighbors[6] = NodeMediumInfo(position=(5, 0), neighbors=[5, 7], gateways_in_range=[])
-        node_neighbors[7] = NodeMediumInfo(position=(6, 0), neighbors=[6, 8], gateways_in_range=[])
-        node_neighbors[8] = NodeMediumInfo(position=(7, 0), neighbors=[7, 9], gateways_in_range=[])
-        node_neighbors[9] = NodeMediumInfo(position=(8, 0), neighbors=[8, 10], gateways_in_range=[])
-        node_neighbors[10] = NodeMediumInfo(position=(9, 0), neighbors=[9], gateways_in_range=[])
-        return node_neighbors
 
     def _build_nodes(self, node_neighbors: dict[int, NodeMediumInfo]) -> None:
         for node_id in sorted(node_neighbors.keys()):
@@ -198,7 +221,7 @@ class Simulation:
 
 
 class Engine:
-    def __init__(self, log_lines=100, log_path="profile-results.log", injection_tasks=None, node_neighbors=None):
+    def __init__(self, log_lines=100, log_path="profile-results.log", injection_tasks=None, node_neighbors=None, topology_json_path=None):
         self.log: ILogger = SimpleLogger(log_path=log_path, buffer_size=100_000)
         self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
@@ -210,7 +233,13 @@ class Engine:
         self.log_lines = log_lines
         self._run_ticks = None
         self.injection_tasks = injection_tasks or []
-        self.node_neighbors = node_neighbors
+
+        # Load topology from JSON if provided, otherwise use node_neighbors
+        if topology_json_path:
+            self.node_neighbors = NetworkTopologyLoader.from_file(topology_json_path)
+        else:
+            self.node_neighbors = node_neighbors
+
         # Circular buffer to keep last N logs in memory (3x display for safety)
         self._log_buffer = deque(maxlen=GUI_LOG_DISPLAY_LINES * 3)
         self.log_path = log_path
@@ -229,17 +258,14 @@ class Engine:
         return self.current_tick.value
 
     def get_log(self, lines=None):
-        # Drain entire queue but only keep the latest batch for display
-        # so GUI always shows fresh logs instead of processing stale backlog
-        latest_batch = None
+        # Drain entire queue and accumulate all batches
         while not self.log_queue.empty():
             try:
-                latest_batch = self.log_queue.get_nowait()
+                batch = self.log_queue.get_nowait()
+                if batch:
+                    self._log_buffer.extend(batch)
             except Exception:
                 break
-
-        if latest_batch:
-            self._log_buffer.extend(latest_batch)
 
         n_lines = lines if lines is not None else self.log_lines
         return list(self._log_buffer)[-n_lines:] if self._log_buffer else []
