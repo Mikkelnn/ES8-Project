@@ -4,13 +4,15 @@ from collections import deque
 from ctypes import c_int
 from multiprocessing import Lock, Process, Queue, Value
 
-from custom_types import Area, NodeMediumInfo, Severity, SimState
+from custom_types import Area, LocalEventTypes, MediumTypes, NodeMediumInfo, Severity, SimState
 from gateway.gateway import Gateway
 from Interfaces import IDevice
 from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
+from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
 from medium.medium_service import MediumService
 from node.node import Node
+from payload_types import MegaSync, PayloadData, PayloadHopCnt
 
 from .device_event_queue import DeviceEventQueue
 from .global_time import GlobalTime
@@ -22,7 +24,7 @@ GUI_LOG_DISPLAY_LINES = 75
 
 
 class Simulation:
-    def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None):
+    def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None, injection_tasks=None):
         self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
         # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
         num_nodes = 5
@@ -32,6 +34,9 @@ class Simulation:
         self.global_time = GlobalTime()
         self.event_queue = DeviceEventQueue()
         self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
+
+        self.injection_tasks = injection_tasks or []
+        self.completed_injections = set()
 
         # for i in range(1, num_nodes + 1):
         #     neighbors = []
@@ -44,14 +49,12 @@ class Simulation:
         node_neighbors[2] = NodeMediumInfo(position=(1, 0), neighbors=[3], gateways_in_range=[1])
         node_neighbors[3] = NodeMediumInfo(position=(2, 0), neighbors=[2, 4], gateways_in_range=[])
         node_neighbors[4] = NodeMediumInfo(position=(3, 0), neighbors=[3, 5], gateways_in_range=[])
-        node_neighbors[5] = NodeMediumInfo(position=(4, 0), neighbors=[4], gateways_in_range=[])
-
-        # node_neighbors[5] = NodeMediumInfo(position=(4, 0), neighbors=[3,4,6,7], gateways_in_range=[])
-        # node_neighbors[6] = NodeMediumInfo(position=(5, 0), neighbors=[4,5,7,8], gateways_in_range=[])
-        # node_neighbors[7] = NodeMediumInfo(position=(6, 0), neighbors=[5,6,8,9], gateways_in_range=[])
-        # node_neighbors[8] = NodeMediumInfo(position=(7, 0), neighbors=[6,7,9,10], gateways_in_range=[])
-        # node_neighbors[9] = NodeMediumInfo(position=(8, 0), neighbors=[7,8,10], gateways_in_range=[])
-        # node_neighbors[10] = NodeMediumInfo(position=(9, 0), neighbors=[8,9], gateways_in_range=[])
+        node_neighbors[5] = NodeMediumInfo(position=(4, 0), neighbors=[4, 6], gateways_in_range=[])
+        node_neighbors[6] = NodeMediumInfo(position=(5, 0), neighbors=[5, 7], gateways_in_range=[])
+        node_neighbors[7] = NodeMediumInfo(position=(6, 0), neighbors=[6, 8], gateways_in_range=[])
+        node_neighbors[8] = NodeMediumInfo(position=(7, 0), neighbors=[7, 9], gateways_in_range=[])
+        node_neighbors[9] = NodeMediumInfo(position=(8, 0), neighbors=[8, 10], gateways_in_range=[])
+        node_neighbors[10] = NodeMediumInfo(position=(9, 0), neighbors=[9], gateways_in_range=[])
 
         self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
 
@@ -62,12 +65,11 @@ class Simulation:
         self.nodes.append(Node(node_id=3, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
         self.nodes.append(Node(node_id=4, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
         self.nodes.append(Node(node_id=5, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-
-        # self.nodes.append(Node(node_id=6, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        # self.nodes.append(Node(node_id=7, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        # self.nodes.append(Node(node_id=8, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        # self.nodes.append(Node(node_id=9, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        # self.nodes.append(Node(node_id=10, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        self.nodes.append(Node(node_id=6, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        self.nodes.append(Node(node_id=7, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        self.nodes.append(Node(node_id=8, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        self.nodes.append(Node(node_id=9, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+        self.nodes.append(Node(node_id=10, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 
         self.status = status
         self.lock = lock
@@ -75,6 +77,46 @@ class Simulation:
         self.log_queue = log_queue
         self.log_lines = log_lines
         self.current_tick_value = current_tick_value
+
+    def _inject_data(self, node_id: int, current_time: int, payload_data):
+
+        node = self.nodes[node_id - 1]
+        if not hasattr(node, "protocol"):
+            self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} protocol not available")
+            return
+
+        # Check if node is awake (can receive)
+        if hasattr(node, "state"):
+            from node.node import State
+
+            if node.state == State.SLEEP:
+                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION SKIPPED: Node {node_id} is sleeping")
+                return
+
+        if isinstance(payload_data, PayloadData):
+            # PayloadData generated locally by APP layer
+            if hasattr(node.protocol, "app"):
+                node.protocol.app.enqueue_payload(payload_data)
+                self.log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadData into Node {node_id}, payload_id={payload_data.id}, sensor1={payload_data.data.sensor1}, sensor2={payload_data.data.sensor2}")
+            else:
+                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} app not available")
+        elif isinstance(payload_data, MegaSync):
+            # MegaSync received via WAN transceiver (from gateway)
+            if hasattr(node, "local_event_queue"):
+                wan_frame = LoRaWanPHYPayload(mhdr=96, mac_payload=MACPayload(dev_addr=node_id, fctrl_flags=0, fcnt=0, frm_payload=payload_data))
+                node.local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, wan_frame, sub_type=MediumTypes.LORA_WAN)
+                self.log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: MegaSync into Node {node_id} (via WAN), time={payload_data.time}, total_handle_time={payload_data.total_handle_time}")
+            else:
+                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} event queue not available")
+        elif isinstance(payload_data, PayloadHopCnt):
+            # PayloadHopCnt received via D2D
+            if hasattr(node.protocol, "d2d"):
+                node.protocol.d2d.enqueue_payload(payload_data)
+                self.log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadHopCnt into Node {node_id}, cnt={payload_data.cnt}")
+            else:
+                self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Node {node_id} d2d not available")
+        else:
+            self.log.add(Severity.WARNING, Area.SIMULATOR, current_time, f"INJECTION FAILED: Unknown payload type '{type(payload_data).__name__}'")
 
     def run_for(self, stop_tick):
         stopwatch_start_time = time.time()
@@ -118,6 +160,11 @@ class Simulation:
                     self.event_queue.add_event(node_id, next_evaluation)
                 node_tick_time += time.time() - node_start_time
 
+                for idx, task in enumerate(self.injection_tasks):
+                    if idx not in self.completed_injections and current_time >= task["tick"]:
+                        self._inject_data(task["node_id"], current_time, task["payload"])
+                        self.completed_injections.add(idx)
+
                 propagation_start_time = time.time()
                 self.medium_service.propagate_mediums(current_time)
                 propagation_time += time.time() - propagation_start_time
@@ -159,7 +206,7 @@ class Simulation:
 
 
 class Engine:
-    def __init__(self, log_lines=100, log_path="profile-results.log"):
+    def __init__(self, log_lines=100, log_path="profile-results.log", injection_tasks=None):
         self.log: ILogger = SimpleLogger(log_path=log_path, buffer_size=100_000)
         self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
@@ -170,12 +217,13 @@ class Engine:
         self.sim_process = None
         self.log_lines = log_lines
         self._run_ticks = None
+        self.injection_tasks = injection_tasks or []
         # Circular buffer to keep last N logs in memory (3x display for safety)
         self._log_buffer = deque(maxlen=GUI_LOG_DISPLAY_LINES * 3)
         self.log_path = log_path
 
-    def _simulation_entry(self, log_path: str, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None):
-        sim = Simulation(log_path=log_path, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value)
+    def _simulation_entry(self, log_path: str, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None, injection_tasks=None):
+        sim = Simulation(log_path=log_path, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value, injection_tasks=injection_tasks)
         if run_ticks is not None:
             sim.run_for(run_ticks)
         else:
@@ -217,7 +265,7 @@ class Engine:
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine started", data=None)
         self._run_ticks = run_ticks
         if self.sim_process is None or not self.sim_process.is_alive():
-            self.sim_process = Process(target=self._simulation_entry, args=(self.log_path, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks))
+            self.sim_process = Process(target=self._simulation_entry, args=(self.log_path, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks, self.injection_tasks))
             self.sim_process.start()
 
     def run_for(self, ticks):

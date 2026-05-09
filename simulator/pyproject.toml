@@ -41,7 +41,7 @@ fix = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
-ignore = ["E101", "E501"]
+ignore = ["E101", "E402", "E501"]
 
 [tool.ruff.format]
 indent-style = "space"
@@ -51,6 +51,12 @@ line-ending = "auto"
 [tool.pytest.ini_options]
 addopts = "-n auto"
 testpaths = ["test"]
+markers = [
+    "serial: mark test to run serially (not in parallel with xdist)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:multiprocessing.popen_fork",
+]
 
 [tool.ty.analysis]
 allowed-unresolved-imports = []
