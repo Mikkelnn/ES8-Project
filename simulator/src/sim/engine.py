@@ -24,27 +24,32 @@ GUI_LOG_DISPLAY_LINES = 75
 
 
 class Simulation:
-    def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None, injection_tasks=None):
+    def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None, injection_tasks=None, node_neighbors=None):
         self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
-        # make N nodes that ping pong in pairs and have the other as neighbor, for testing purposes
-        num_nodes = 5
-        node_neighbors = {}
-
         self.nodes: list[IDevice] = []
         self.global_time = GlobalTime()
-        self.event_queue = DeviceEventQueue()
-        self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
-
         self.injection_tasks = injection_tasks or []
         self.completed_injections = set()
 
-        # for i in range(1, num_nodes + 1):
-        #     neighbors = []
-        #     if i % 2 == 1 and i < num_nodes:  # Odd node, add next node as neighbor
-        #         neighbors.append(i + 1)
-        #     elif i % 2 == 0:  # Even node, add previous node as neighbor
-        #         neighbors.append(i - 1)
-        #     node_neighbors[i] = NodeMediumInfo(position=(i, 0), neighbors=neighbors)
+        if node_neighbors is None:
+            node_neighbors = self._default_topology()
+
+        num_nodes = len(node_neighbors)
+        self.event_queue = DeviceEventQueue()
+        self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
+
+        self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
+        self._build_nodes(node_neighbors)
+
+        self.status = status
+        self.lock = lock
+        self.tps_value = tps_value
+        self.log_queue = log_queue
+        self.log_lines = log_lines
+        self.current_tick_value = current_tick_value
+
+    def _default_topology(self) -> dict[int, NodeMediumInfo]:
+        node_neighbors = {}
         node_neighbors[1] = NodeMediumInfo(position=(100, 0), neighbors=[2], gateways_in_range=[], is_gateway=True)
         node_neighbors[2] = NodeMediumInfo(position=(1, 0), neighbors=[3], gateways_in_range=[1])
         node_neighbors[3] = NodeMediumInfo(position=(2, 0), neighbors=[2, 4], gateways_in_range=[])
@@ -55,28 +60,15 @@ class Simulation:
         node_neighbors[8] = NodeMediumInfo(position=(7, 0), neighbors=[7, 9], gateways_in_range=[])
         node_neighbors[9] = NodeMediumInfo(position=(8, 0), neighbors=[8, 10], gateways_in_range=[])
         node_neighbors[10] = NodeMediumInfo(position=(9, 0), neighbors=[9], gateways_in_range=[])
+        return node_neighbors
 
-        self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
-
-        # for i in range(1, num_nodes + 1):
-        #     self.nodes.append(Node(node_id=i, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Gateway(gateway_id=1, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=2, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=3, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=4, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=5, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=6, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=7, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=8, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=9, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-        self.nodes.append(Node(node_id=10, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
-
-        self.status = status
-        self.lock = lock
-        self.tps_value = tps_value
-        self.log_queue = log_queue
-        self.log_lines = log_lines
-        self.current_tick_value = current_tick_value
+    def _build_nodes(self, node_neighbors: dict[int, NodeMediumInfo]) -> None:
+        for node_id in sorted(node_neighbors.keys()):
+            node_info = node_neighbors[node_id]
+            if node_info.is_gateway:
+                self.nodes.append(Gateway(gateway_id=node_id, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
+            else:
+                self.nodes.append(Node(node_id=node_id, second_to_global_tick=0.001, medium_service=self.medium_service, log=self.log))
 
     def _inject_data(self, node_id: int, current_time: int, payload_data):
 
@@ -206,7 +198,7 @@ class Simulation:
 
 
 class Engine:
-    def __init__(self, log_lines=100, log_path="profile-results.log", injection_tasks=None):
+    def __init__(self, log_lines=100, log_path="profile-results.log", injection_tasks=None, node_neighbors=None):
         self.log: ILogger = SimpleLogger(log_path=log_path, buffer_size=100_000)
         self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
@@ -218,12 +210,13 @@ class Engine:
         self.log_lines = log_lines
         self._run_ticks = None
         self.injection_tasks = injection_tasks or []
+        self.node_neighbors = node_neighbors
         # Circular buffer to keep last N logs in memory (3x display for safety)
         self._log_buffer = deque(maxlen=GUI_LOG_DISPLAY_LINES * 3)
         self.log_path = log_path
 
-    def _simulation_entry(self, log_path: str, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None, injection_tasks=None):
-        sim = Simulation(log_path=log_path, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value, injection_tasks=injection_tasks)
+    def _simulation_entry(self, log_path: str, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None, injection_tasks=None, node_neighbors=None):
+        sim = Simulation(log_path=log_path, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value, injection_tasks=injection_tasks, node_neighbors=node_neighbors)
         if run_ticks is not None:
             sim.run_for(run_ticks)
         else:
@@ -265,7 +258,7 @@ class Engine:
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine started", data=None)
         self._run_ticks = run_ticks
         if self.sim_process is None or not self.sim_process.is_alive():
-            self.sim_process = Process(target=self._simulation_entry, args=(self.log_path, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks, self.injection_tasks))
+            self.sim_process = Process(target=self._simulation_entry, args=(self.log_path, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks, self.injection_tasks, self.node_neighbors))
             self.sim_process.start()
 
     def run_for(self, ticks):

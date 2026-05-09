@@ -36,8 +36,12 @@ class Clock(IModule):
 
     def tick(self, current_global_tick: int) -> tuple[float, int | None]:
 
+        # Check for external time sync (MegaSync)
+        sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
+        if sync_events:
+            self.localtime = int(sync_events[0].data)
         # calculate the local time from global, this is an ideal clock
-        if self.scheduled_global_tick is not None and current_global_tick == self.scheduled_global_tick:
+        elif self.scheduled_global_tick is not None and current_global_tick == self.scheduled_global_tick:
             self.localtime = self.earliest_next_local_time
         else:
             self.localtime = int((1 + self.alpha + self.trend) * (current_global_tick - self.global_time_last) + self.localtime)

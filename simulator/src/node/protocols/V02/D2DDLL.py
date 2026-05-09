@@ -72,7 +72,8 @@ class D2DDLL:
         destination_node_ids = set()
         if isinstance(payload, PayloadData):
             # get the two nodeids with lowest lower hopcount than own hop count
-            for n in self.known_neighbors:
+            sorted_neighbors = sorted(self.known_neighbors, key=lambda x: x.hopcount_to_gateway)
+            for n in sorted_neighbors:
                 if n.hopcount_to_gateway > self.hopcount_to_gateway or len(destination_node_ids) >= 2:
                     break
                 destination_node_ids.add(n.neighbor_id)
@@ -115,8 +116,8 @@ class D2DDLL:
 
         current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
 
-        # add idle packet -> used for discovery
-        if not self.tx_buffer and self.link_established and self.current_slot == -1:
+        # add idle packet -> broadcast hopcount during listening/forwarding (so discovering nodes learn about us)
+        if not self.tx_buffer and self.current_slot == -1 and (self.link_established or self.discovery_state == DiscoverStates.LISTENING):
             hop_cnt = PayloadHopCnt(self.hopcount_to_gateway)
             msg = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={0xFFFFFFFF}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
             msg.crc_calc()
@@ -155,14 +156,18 @@ class D2DDLL:
                         self.discovery_state = DiscoverStates.REQ_ACK
                         self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors")
                         break
+            elif len(self.known_neighbors) == 1:
+                # Single neighbor case: discover from any neighbor, not just hopcount=0
+                neighbor_hopcount = self.known_neighbors[0].hopcount_to_gateway
+                if neighbor_hopcount < self.MAX_HOPCOUNT:
+                    self._update_local_hopcount(neighbor_hopcount + 1)
+                    self.discovery_state = DiscoverStates.REQ_ACK
+                    self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from single neighbor with hopcount {neighbor_hopcount}")
 
             timer_1 = current_local_clock_info.timer_1_remaining
             if timer_1 is not None and timer_1 <= 0:
-                if len(self.known_neighbors) == 1 and self.known_neighbors[0].hopcount_to_gateway == 0:
-                    self._update_local_hopcount(1)
-                    self.discovery_state = DiscoverStates.REQ_ACK
-                    self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway 1 based on single neighbor")
-                else:
+                if self.discovery_state == DiscoverStates.LISTENING:
+                    # Timer expired without discovery
                     self.discovery_state = DiscoverStates.NOT_DISCOVERED
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
                     return True
@@ -198,7 +203,7 @@ class D2DDLL:
         return False
 
     def _advance_slot(self, current_local_clock_info: LocalClockInfo) -> bool:
-        if not (self.link_established or self.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]):
+        if not (self.link_established or self.discovery_state in [DiscoverStates.LISTENING, DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]):
             return False
 
         timer_1 = current_local_clock_info.timer_1_remaining

@@ -99,12 +99,14 @@ class TopologyBuilder:
 class TestLinearChainTopology:
     """Tests on linear chain topology."""
 
-    def _run_with_topology(self, injection_tasks, run_ticks: int = 16000000):
-        """Run simulation with linear chain topology."""
+    def _run_with_topology(self, injection_tasks, topology=None, run_ticks: int = 16000000):
+        """Run simulation with specified topology."""
         with tempfile.TemporaryDirectory() as tmpdir:
             log_path = os.path.join(tmpdir, "simulation.log")
 
-            engine = Engine(log_path=log_path, injection_tasks=injection_tasks)
+            if topology is None:
+                topology = TopologyBuilder.linear_chain()
+            engine = Engine(log_path=log_path, injection_tasks=injection_tasks, node_neighbors=topology)
             engine.run_for(run_ticks)
             if engine.sim_process:
                 engine.sim_process.join()
@@ -121,8 +123,8 @@ class TestLinearChainTopology:
         payload.length_calc()
 
         injection_tasks = [{"node_id": 10, "tick": 15000000, "payload": payload}]
-
-        log = self._run_with_topology(injection_tasks)
+        topology = TopologyBuilder.linear_chain()
+        log = self._run_with_topology(injection_tasks, topology=topology)
 
         assert "INJECTED: PayloadData into Node 10" in log
         assert "sensor1=33, sensor2=44" in log
@@ -145,8 +147,9 @@ class TestBranchingTreeTopology:
             payload.length_calc()
 
             injection_tasks = [{"node_id": 9, "tick": 15000000, "payload": payload}]
+            topology = TopologyBuilder.branching_tree(num_nodes=15)
 
-            engine = Engine(log_path=log_path, injection_tasks=injection_tasks)
+            engine = Engine(log_path=log_path, injection_tasks=injection_tasks, node_neighbors=topology)
             engine.run_for(16000000)
             if engine.sim_process:
                 engine.sim_process.join()
@@ -174,8 +177,9 @@ class TestStarTopology:
             payload.length_calc()
 
             injection_tasks = [{"node_id": 5, "tick": 15000000, "payload": payload}]
+            topology = TopologyBuilder.star_topology(num_nodes=10)
 
-            engine = Engine(log_path=log_path, injection_tasks=injection_tasks)
+            engine = Engine(log_path=log_path, injection_tasks=injection_tasks, node_neighbors=topology)
             engine.run_for(16000000)
             if engine.sim_process:
                 engine.sim_process.join()
@@ -203,8 +207,9 @@ class TestMeshTopology:
             payload.length_calc()
 
             injection_tasks = [{"node_id": 6, "tick": 15000000, "payload": payload}]
+            topology = TopologyBuilder.mesh_topology(num_nodes=6)
 
-            engine = Engine(log_path=log_path, injection_tasks=injection_tasks)
+            engine = Engine(log_path=log_path, injection_tasks=injection_tasks, node_neighbors=topology)
             engine.run_for(16000000)
             if engine.sim_process:
                 engine.sim_process.join()
@@ -235,7 +240,8 @@ class TestMultipleTopologies:
         # Test linear chain
         with tempfile.TemporaryDirectory() as tmpdir:
             log_path = os.path.join(tmpdir, "simulation.log")
-            engine = Engine(log_path=log_path, injection_tasks=injection_tasks)
+            topology = TopologyBuilder.linear_chain()
+            engine = Engine(log_path=log_path, injection_tasks=injection_tasks, node_neighbors=topology)
             engine.run_for(16000000)
             if engine.sim_process:
                 engine.sim_process.join()
@@ -245,7 +251,8 @@ class TestMultipleTopologies:
         # Test star topology
         with tempfile.TemporaryDirectory() as tmpdir:
             log_path = os.path.join(tmpdir, "simulation.log")
-            engine = Engine(log_path=log_path, injection_tasks=injection_tasks)
+            topology = TopologyBuilder.star_topology(num_nodes=10)
+            engine = Engine(log_path=log_path, injection_tasks=injection_tasks, node_neighbors=topology)
             engine.run_for(16000000)
             if engine.sim_process:
                 engine.sim_process.join()
