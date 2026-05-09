@@ -282,8 +282,9 @@ class D2DDLL:
                 # implied ACk, we can assume discovery complete
                 if self.node_id in frame.destination_node_id:
                     self.discovery_state = DiscoverStates.DISCOVERED
-                    frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
+                    frame_hop_cnt = cast(PayloadHopCnt, frame.payload)                    
                     self._update_local_hopcount(frame_hop_cnt.cnt)
+                    self.own_tx_slot = frame_hop_cnt.use_slot
                     self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} discovery complete with hop count {self.hopcount_to_gateway}")
 
         # update last seen for neighbor
@@ -294,7 +295,8 @@ class D2DDLL:
 
             existing.last_seen = current_local_clock_info.current_local_time
             existing.last_rssi = frame.rssi
-            # existing.in_slot = self.current_slot
+            if self.current_slot > -1:
+                existing.in_slot = self.current_slot
 
     def _process_current_hopcount(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
         frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
@@ -308,10 +310,24 @@ class D2DDLL:
                 last_rssi=frame.rssi,
                 in_slot=frame_hop_cnt.use_slot)
             self.known_neighbors.append(neighbor_info)
+        else:
+            existing.hopcount_to_gateway = frame_hop_cnt.cnt
 
     def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
 
         # TODO: handle edge case where we have more neighbors than slots...
+
+        def get_slot_for_neighbor(neighbor: D2DNeighborInfo) -> int:
+            if neighbor.in_slot != -1:
+                return neighbor.in_slot
+
+            # find new slot
+            used_slots = {n.in_slot for n in self.known_neighbors if n.in_slot > -1}
+            used_slots.add(self.own_tx_slot)
+            usable = {range(1, self.slot_count)}
+
+            available = usable.difference(used_slots)
+            return available[0] if available else 0
 
         frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
 
@@ -320,11 +336,10 @@ class D2DDLL:
         # find requesting node in known neighbors and update hop count if needed
         neighbor = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if neighbor is None:
-            neighbor = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=validate_hopcount, last_seen=current_local_time, last_rssi=frame.rssi)
+            neighbor = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=validate_hopcount, last_seen=current_local_time, last_rssi=frame.rssi, in_slot=-1)
             self.known_neighbors.append(neighbor)
         elif neighbor.hopcount_to_gateway != validate_hopcount:
             neighbor.hopcount_to_gateway = validate_hopcount
-            neighbor.last_seen = current_local_time
             neighbor.last_rssi = frame.rssi
 
         # order list by lowest hopcount then by best RSSI
@@ -332,25 +347,34 @@ class D2DDLL:
 
         # only iterate on neighbors with higher hopcount than own
         of_interest = (neighbor for neighbor in self.known_neighbors if neighbor.hopcount_to_gateway > self.hopcount_to_gateway)
-        for i_relative, neighbor in enumerate(of_interest):
-            new_hop_count = self.hopcount_to_gateway + 1 + i_relative
-            if neighbor.hopcount_to_gateway == new_hop_count:
-                if neighbor.neighbor_id == frame.source_node_id:
-                    ack_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.HOP_ACK, payload=PayloadHopCnt(cnt=new_hop_count))
-                    ack_frame.crc_calc()
-                    self.tx_buffer.append(ack_frame)
+        current_hop = self.hopcount_to_gateway
+        prev_rssi = 0
+        rssi_threshold = 6
+        for neighbor in of_interest:
+            if abs(prev_rssi - neighbor.last_rssi) > rssi_threshold:
+                prev_rssi = neighbor.last_rssi
+                current_hop += 1 # increment by one for each "layer"
 
-                continue
+            if neighbor.hopcount_to_gateway == current_hop:
+                continue # no chaange
 
-            neighbor.hopcount_to_gateway = new_hop_count
-            change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCnt(cnt=new_hop_count))
+            neighbor.hopcount_to_gateway = current_hop
+            in_slot = get_slot_for_neighbor(neighbor)
+            change_frame = LoRaD2DFrame(source_node_id=self.node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCnt(cnt=current_hop, use_slot=in_slot))
             change_frame.crc_calc()
+
             existing_frame_index = next((i for i, f in enumerate(self.tx_buffer) if neighbor.neighbor_id in f.destination_node_id and f.type in [LoRaD2DFrameType.CHANGE_HOP_COUNT, LoRaD2DFrameType.HOP_ACK]), None)
             if existing_frame_index is not None:
                 self.tx_buffer[existing_frame_index] = change_frame
             else:
                 self.tx_buffer.append(change_frame)
 
+        # multiple can have same hop count... if the RSSI are within 3dB of each other
+        # if more the lower rsssi have +1 hopcount
+        # we need to find tx slot available
+        
+
+
     def _update_local_hopcount(self, hopcount: int) -> None:
         self.hopcount_to_gateway = hopcount
-        self.own_tx_slot = 0 # default zero is reserved for REQ_ACK unit 17 slots are needed
+        self.own_tx_slot = 1 # default zero is reserved for REQ_ACK unit 17 slots are needed
