@@ -34,6 +34,7 @@ src/node/protocols/V02/WANDLL.py
 src/node/transceiver/LoRaD2D.py
 src/node/transceiver/LoRaWan.py
 src/node/transceiver/base_transceiver.py
+src/node/transceiver/lora_tx_duration_calculator.py
 src/node/transceiver/transceiver_service.py
 src/sim/__init__.py
 src/sim/device_event_queue.py
@@ -47,5 +48,8 @@ test/test_event_net_queue.py
 test/test_gateway.py
 test/test_global_time.py
 test/test_hop_count_engine.py
+test/test_injection_e2e.py
+test/test_injection_topologies.py
 test/test_lora_d2d_medium.py
+test/test_megasync_protocol.py
 test/test_transceiver.py

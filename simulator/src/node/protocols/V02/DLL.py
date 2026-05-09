@@ -111,15 +111,29 @@ class DLL:
                 while queue:
                     msg = queue.pop(0)
                     if isinstance(msg.frm_payload, MegaSync):
-                        self._megasync_handle(cast(MegaSync, msg))
+                        self._megasync_handle(msg.frm_payload, current_global_tick)
                     else:
                         self.dll_to_app_rx.append(msg)
+                d2d_queue = self.d2d_layer.dequeue_payload()
+                while d2d_queue:
+                    msg = d2d_queue.pop(0)
+                    if isinstance(msg, PayloadData):
+                        self.wan_layer.enqueue_payload(msg)
+                    elif isinstance(msg, MegaSync):
+                        self._megasync_handle(msg, current_global_tick)
             else:
                 queue = self.d2d_layer.dequeue_payload()
                 while queue:
                     msg = queue.pop(0)
                     if isinstance(msg, MegaSync):
-                        self._megasync_handle(msg)
+                        self._megasync_handle(msg, current_global_tick)
+                    elif isinstance(msg, PayloadData):
+                        # Forward received payload: try WAN if have direct connection (hopcount 1->0), else D2D relay
+                        has_lower_hopcount_neighbor = any(n.hopcount_to_gateway < self.d2d_layer.hopcount_to_gateway for n in self.d2d_layer.known_neighbors)
+                        if self.d2d_layer.hopcount_to_gateway == 1 and has_lower_hopcount_neighbor:
+                            self.wan_layer.enqueue_payload(msg)
+                        else:
+                            self.d2d_layer.enqueue_payload(msg)
                     else:
                         self.dll_to_app_rx.append(msg)
 
@@ -131,6 +145,29 @@ class DLL:
         if self.slot_period_counter >= self.lora_wan_slot_interleave:
             self.slot_period_counter = 0
 
-    def _megasync_handle(self, msg: MegaSync):
-        self.d2d_layer.enqueue_payload(msg)
-        return msg  # TODO actually sync node from this
+    def _get_local_time(self) -> int:
+        events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.LOCAL_TIME)
+        if events:
+            clock_info = cast(LocalClockInfo, events[0].data)
+            return clock_info.current_local_time
+        return 0
+
+    def _flush_tx_buffers(self, current_global_tick: int) -> None:  # TODO, this must be able to handle that we cannot send all at once.
+        while self.app_to_dll_tx:
+            packet = self.app_to_dll_tx.pop(0)
+            if self._effective_hopcount() == 0:
+                self.wan_layer.enqueue_payload(packet)
+            elif isinstance(packet, PayloadData):
+                self.d2d_layer.enqueue_payload(packet)
+            else:
+                self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} flushed MegaSyncReq before clock sync")
+
+    def _megasync_handle(self, msg: MegaSync, current_global_tick: int) -> None:
+        self._flush_tx_buffers(current_global_tick)
+        sync_time = msg.time + msg.total_handle_time
+        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)
+        current_local = self._get_local_time()
+        new_handle_time = msg.total_handle_time + max(0, current_local - msg.time)
+        forwarded = MegaSync(time=msg.time, total_handle_time=new_handle_time)
+        self.d2d_layer.enqueue_payload(forwarded)
+        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync: time={sync_time}, handle={new_handle_time}")

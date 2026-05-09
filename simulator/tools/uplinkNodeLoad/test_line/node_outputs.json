@@ -1,0 +1,25 @@
+{
+  "metadata": {
+    "input_file": "test_line",
+    "total_nodes": 11,
+    "m_per_svg_x": 391.287,
+    "m_per_svg_y": 702.570,
+    "description": "10 nodes + 1 gateway in a straight horizontal line for testing"
+  },
+  "nodes": {
+    "1":  {"point": [350.000, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["2"],       "spacing_m": 12.5},
+    "2":  {"point": [350.032, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["1", "3"],  "spacing_m": 12.5},
+    "3":  {"point": [350.064, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["2", "4"],  "spacing_m": 12.5},
+    "4":  {"point": [350.096, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["3", "5"],  "spacing_m": 12.5},
+    "5":  {"point": [350.128, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["4", "6"],  "spacing_m": 12.5},
+    "6":  {"point": [350.160, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["5", "7"],  "spacing_m": 12.5},
+    "7":  {"point": [350.192, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["6", "8"],  "spacing_m": 12.5},
+    "8":  {"point": [350.224, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["7", "9"],  "spacing_m": 12.5},
+    "9":  {"point": [350.256, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["8", "10"], "spacing_m": 12.5},
+    "10": {"point": [350.288, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["9", "11"], "spacing_m": 12.5},
+    "11": {"point": [350.320, 300.000], "road_id": "test", "intersection_id": null, "source_intersection_ids": null, "neighbours": ["10"],      "spacing_m": 12.5}
+  },
+  "gateways": {
+    "11": {"point": [350.320, 300.000]}
+  }
+}

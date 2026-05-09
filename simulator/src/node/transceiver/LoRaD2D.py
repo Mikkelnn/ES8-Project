@@ -1,4 +1,3 @@
-import math
 from typing import List
 
 from custom_types import EventNet, EventNetTypes, MediumTypes
@@ -22,10 +21,10 @@ class LoRaD2D(BaseTransceiver):
         self.__bandwidth = 125000  # Bandwidth in Hz
         self.__coding_rate = 1 / (4 / 5)  # Coding rate (4/5, 4/6, etc.)
         self.__preamble_length = 8  # Preamble length in symbols
-        
+
         self.__calculator = LoRaTxDurationCalculator(second_to_global_tick, self.__sf, self.__bandwidth, self.__coding_rate, self.__preamble_length)
-        
-    def _calculate_transmission_duration_ticks(self, data: ILength) -> int:        
+
+    def _calculate_transmission_duration_ticks(self, data: ILength) -> int:
         return self.__calculator.get_duration(data.length)
 
     def _get_successful_receptions(self, current_global_tick: int) -> List[EventNet]:

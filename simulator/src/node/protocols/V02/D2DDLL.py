@@ -81,7 +81,8 @@ class D2DDLL:
         destination_node_ids = set()
         if isinstance(payload, PayloadData):
             # get the two nodeids with lowest lower hopcount than own hop count
-            for n in self._known_neighbors:
+            sorted_neighbors = sorted(self._known_neighbors, key=lambda x: x.hopcount_to_gateway)
+            for n in sorted_neighbors:
                 if n.hopcount_to_gateway > self.hopcount_to_gateway or len(destination_node_ids) >= 2:
                     break
                 destination_node_ids.add(n.neighbor_id)
@@ -176,6 +177,13 @@ class D2DDLL:
                         self.discovery_state = DiscoverStates.REQ_ACK
                         self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors")
                         break
+            elif len(self.known_neighbors) == 1:
+                # Single neighbor case: discover from any neighbor, not just hopcount=0
+                neighbor_hopcount = self.known_neighbors[0].hopcount_to_gateway
+                if neighbor_hopcount < self.MAX_HOPCOUNT:
+                    self._update_local_hopcount(neighbor_hopcount + 1)
+                    self.discovery_state = DiscoverStates.REQ_ACK
+                    self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from single neighbor with hopcount {neighbor_hopcount}")
 
             timer_1 = current_local_clock_info.timer_1_remaining
             if timer_1 is not None and timer_1 <= 0:
@@ -219,7 +227,7 @@ class D2DDLL:
         return False
 
     def _advance_slot(self, current_local_clock_info: LocalClockInfo) -> bool:
-        if not (self.link_established or self.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]):
+        if not (self.link_established or self.discovery_state in [DiscoverStates.LISTENING, DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]):
             return False
 
         timer_1 = current_local_clock_info.timer_1_remaining
@@ -399,10 +407,10 @@ class D2DDLL:
         for neighbor in of_interest:
             if abs(prev_rssi - neighbor.last_rssi) > rssi_threshold:
                 prev_rssi = neighbor.last_rssi
-                current_hop += 1 # increment by one for each "layer"
+                current_hop += 1  # increment by one for each "layer"
 
             if neighbor.hopcount_to_gateway == current_hop:
-                continue # no chaange
+                continue  # no chaange
 
             neighbor.hopcount_to_gateway = current_hop
             in_slot = get_slot_for_neighbor(neighbor)

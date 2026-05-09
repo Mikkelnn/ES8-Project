@@ -2,6 +2,7 @@
 import datetime
 import multiprocessing
 import os
+import re
 import sys
 
 from PySide6.QtCore import Qt, QTimer
@@ -30,6 +31,25 @@ from sim.global_time import GlobalTime
 
 REFRESH_RATE_MS = 50
 
+TOPOLOGY_OPTIONS = [
+    "tools/uplinkNodeLoad/final_selected/node_outputs.json",
+    "tools/uplinkNodeLoad/test_line/node_outputs.json",
+]
+
+
+def _topology_label(path: str) -> str:
+    try:
+        # Read only first 2KB to extract metadata without loading 500MB+ JSON
+        with open(path) as f:
+            head = f.read(2048)
+        # Parse the partial text as valid JSON by finding the metadata block
+        m = re.search(r'"total_nodes"\s*:\s*(\d+)', head)
+        count = int(m.group(1)) if m else "?"
+    except Exception:
+        count = "?"
+    name = os.path.basename(os.path.dirname(path))
+    return f"{name} ({count} nodes)"
+
 
 class GUI(QMainWindow):
     def collect_input_state(self):
@@ -53,6 +73,7 @@ class GUI(QMainWindow):
             self.left_bottom_minutes_input,
             self.left_bottom_seconds_input,
             self.left_bottom_severity_dropdown,
+            self.topology_dropdown,
         ] + self.right_area_checkboxes
         for w in widgets:
             w.setEnabled(not locked)
@@ -80,7 +101,8 @@ class GUI(QMainWindow):
         # Create log file path inside the run folder
         log_path = os.path.join(run_folder, "simulation.log")
 
-        self.engine = Engine(log_path=log_path)
+        topology_path = getattr(self, "_topology_path", TOPOLOGY_OPTIONS[0])
+        self.engine = Engine(log_path=log_path, topology_json_path=topology_path)
         self._sim_state = SimState.STOPPED
         self._latest_tick = 0
         self._target_tick = None
@@ -334,6 +356,20 @@ class GUI(QMainWindow):
         controls_layout = QVBoxLayout(controls_widget)
         controls_layout.setContentsMargins(0, 0, 0, 0)
         controls_layout.setSpacing(5)
+
+        # Topology selection row
+        topology_row = QHBoxLayout()
+        topology_label = QLabel("Topology:")
+        topology_label.setMinimumHeight(28)
+        topology_dropdown = QComboBox()
+        for path in TOPOLOGY_OPTIONS:
+            topology_dropdown.addItem(_topology_label(path), path)
+        topology_dropdown.setMinimumHeight(28)
+        topology_dropdown.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        topology_row.addWidget(topology_label)
+        topology_row.addWidget(topology_dropdown)
+        controls_layout.addLayout(topology_row)
+
         input_row = QHBoxLayout()
 
         # Relative duration input (hours/minutes/seconds)
@@ -427,7 +463,17 @@ class GUI(QMainWindow):
         self.left_bottom_minutes_input = minutes_input
         self.left_bottom_seconds_input = seconds_input
         self.left_bottom_severity_dropdown = dropdown
+        self.topology_dropdown = topology_dropdown
         self.est_time_label = est_time_label
+
+        self._topology_path = TOPOLOGY_OPTIONS[0]
+
+        def _on_topology_changed(index):
+            self._topology_path = topology_dropdown.itemData(index)
+            if self._sim_state == SimState.STOPPED:
+                self.create_new_engine()
+
+        topology_dropdown.currentIndexChanged.connect(_on_topology_changed)
 
         # Engine integration: connect buttons
         btn1.clicked.connect(self.start_engine)

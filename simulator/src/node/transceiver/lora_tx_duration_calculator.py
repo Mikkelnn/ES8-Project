@@ -1,5 +1,6 @@
 import math
 
+
 class LoRaTxDurationCalculator:
     """Reusable LoRa transmission duration calculator."""
 
@@ -10,8 +11,8 @@ class LoRaTxDurationCalculator:
         self._coding_rate = 1 / (4 / 5) if coding_rate is None else coding_rate
         self._preamble_length = preamble_length
 
-        self._ts = (2 ** self._sf) / self._bandwidth
-        self._preamble_time_ticks = ((self._preamble_length + 4.25) * self._ts * (1 / self._second_to_global_tick))
+        self._ts = (2**self._sf) / self._bandwidth
+        self._preamble_time_ticks = (self._preamble_length + 4.25) * self._ts * (1 / self._second_to_global_tick)
 
     def get_duration(self, payload_length_bytes: int) -> int:
         """Return the LoRa transmission duration in global ticks for payload length."""
