@@ -6,7 +6,7 @@ from Interfaces import IDevice
 from logger import ILogger
 from medium.medium_service import MediumService
 from node.battery.battery import Battery
-from node.clock.clock import Clock
+from node.clock.clockIdeal import Clock
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
 from node.protocols.V02.V02 import V02

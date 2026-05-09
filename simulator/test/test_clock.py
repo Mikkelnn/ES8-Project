@@ -80,8 +80,8 @@ class TestNoEventScheduled:
 
     def test_no_events_returns_none_scheduled_tick(self, clock_instance):
         """When no events are scheduled, tick() should return None."""
-        result = clock_instance.tick(current_global_tick=1)
-        assert result is None
+        power, scheduled_tick = clock_instance.tick(current_global_tick=1)
+        assert scheduled_tick is None
         assert clock_instance.scheduled_global_tick is None
 
     def test_no_events_local_time_increments(self, clock_instance):
@@ -100,8 +100,8 @@ class TestNoEventScheduled:
     def test_multiple_ticks_no_events(self, clock_instance):
         """Multiple consecutive ticks with no events should maintain None scheduled_tick."""
         for tick in range(1, 6):
-            result = clock_instance.tick(current_global_tick=tick)
-            assert result is None
+            power, scheduled_tick = clock_instance.tick(current_global_tick=tick)
+            assert scheduled_tick is None
             assert clock_instance.scheduled_global_tick is None
 
     def test_earliest_next_local_time_none(self, clock_instance):
@@ -149,7 +149,7 @@ class TestScheduledEventWithQueue:
         mock_event_queue.get_current_events_by_type.side_effect = lambda evt_type, sub_type=None: []
 
         # Second tick: reach scheduled tick
-        result = clock_instance.tick(current_global_tick=scheduled_tick)
+        clock_instance.tick(current_global_tick=scheduled_tick)
         assert clock_instance.localtime == earliest_local_time
 
     def test_scheduled_event_with_next_queue(self, clock_instance, mock_event_queue):
@@ -163,10 +163,10 @@ class TestScheduledEventWithQueue:
 
         # Reset and tick again at scheduled time
         mock_event_queue.get_current_events_by_type.side_effect = lambda evt_type, sub_type=None: []
-        result = clock_instance.tick(current_global_tick=first_scheduled)
+        power, scheduled_tick = clock_instance.tick(current_global_tick=first_scheduled)
 
         # Result should be None if no more timers, or a new scheduled tick
-        assert result is None or isinstance(result, (int, type(None)))
+        assert scheduled_tick is None or isinstance(scheduled_tick, int)
 
     def test_scheduled_tick_returns_next_global_tick(self, clock_instance, mock_event_queue):
         """When scheduled tick reached, return value should be the next scheduled global tick (or None)."""
@@ -178,8 +178,8 @@ class TestScheduledEventWithQueue:
 
         # At scheduled tick, result should be an int (next scheduled tick) or None
         mock_event_queue.get_current_events_by_type.side_effect = lambda evt_type, sub_type=None: []
-        result = clock_instance.tick(current_global_tick=scheduled_tick)
-        assert result is None or isinstance(result, int)
+        power, scheduled_tick_result = clock_instance.tick(current_global_tick=scheduled_tick)
+        assert scheduled_tick_result is None or isinstance(scheduled_tick_result, int)
 
 
 # ============================================================================
@@ -639,10 +639,6 @@ class TestEdgeCases:
     def test_local_event_queue_reference(self, clock_instance, mock_event_queue):
         """Clock should maintain reference to local event queue."""
         assert clock_instance.local_event_queue is mock_event_queue
-
-    def test_accumulated_state_initialized(self, clock_instance):
-        """accumulated_state should be initialized."""
-        assert clock_instance.accumulated_state is not None
 
     def test_timer_remaining_in_local_clock_info(self, clock_instance, mock_event_queue):
         """LocalClockInfo should include remaining time for each timer."""
