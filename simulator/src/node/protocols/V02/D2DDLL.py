@@ -6,6 +6,7 @@ from typing import List, cast
 from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, Severity, TransceiverState
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
+from node.transceiver.lora_tx_duration_calculator import LoRaTxDurationCalculator
 from payload_types import MegaSync, PayloadData, PayloadHopCnt
 
 
@@ -15,6 +16,8 @@ class D2DNeighborInfo:
     hopcount_to_gateway: int
     last_seen: int
     last_rssi: int
+    in_slot: int
+    first_tx_start_time_in_period: int
 
 
 class DiscoverStates(Enum):
@@ -30,7 +33,7 @@ class D2DDLL:
     DISCOVERY_TIMEOUT_MS = (60 + 10) * 1000
     MAX_HOPCOUNT = 65535
 
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 100, slot_count: int = 5):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 110, slot_count: int = 5):
 
         self.node_id = node_id
         self.local_event_queue = local_event_queue
@@ -38,6 +41,7 @@ class D2DDLL:
         self.slot_duration = slot_duration
         self.slot_count = slot_count
         self.mini_slot_count = 3
+        self.duration_calculator = LoRaTxDurationCalculator(second_to_global_tick=0.001) # in ms
         self.reset(0)
 
     def reset(self, current_global_tick: int) -> None:
@@ -47,12 +51,13 @@ class D2DDLL:
         self.tx_buffer: List[LoRaD2DFrame] = []
         self.rx_buffer: List[LoRaD2DFrame] = []
         self.current_slot = -1
-        self.current_tx_slot = -1
+        self.own_tx_slot = -1
         self.offset_for_req_ack = 0
-        self.tx_start_offset = 10
+        self.tx_start_edn_buffer = 10
         self.tx_offset_done = False
         self.rnd = Random(self.node_id)
-
+        self.slot_period_start = 0
+        
     @property
     def link_established(self) -> bool:
         return self.hopcount_to_gateway < self.MAX_HOPCOUNT and self.discovery_state == DiscoverStates.DISCOVERED
@@ -200,11 +205,14 @@ class D2DDLL:
         if not (timer_1 is None or timer_1 == 0):
             return False
 
-        self.current_slot += 1
+        if self.current_slot == -1:
+            self.slot_period_start = current_local_clock_info.current_local_time
+
+        self.current_slot += 1        
         if self.current_slot < self.slot_count:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=self.slot_duration)
-            if self.current_slot == self.current_tx_slot:
-                offset = self.offset_for_req_ack if self.discovery_state == DiscoverStates.WAIT_REQ_ACK_SENT else self.tx_start_offset
+            if self.current_slot == self.own_tx_slot:
+                offset = self.offset_for_req_ack if self.discovery_state == DiscoverStates.WAIT_REQ_ACK_SENT else self.tx_start_edn_buffer
                 self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_2, data=offset)
                 self.tx_offset_done = False
             return False
@@ -218,8 +226,9 @@ class D2DDLL:
         if self.current_slot < 0:
             return
 
+        slot_end_in = current_local_clock_info.timer_1_remaining
         timer_2 = current_local_clock_info.timer_2_remaining
-        is_tx_slot = self.current_slot == self.current_tx_slot
+        is_tx_slot = self.current_slot == self.own_tx_slot
 
         if not is_tx_slot:
             if current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.RECEIVING:
@@ -231,8 +240,11 @@ class D2DDLL:
 
         if self.tx_buffer and current_transceiver_states[MediumTypes.LORA_D2D] != TransceiverState.TRANSMITTING and ((timer_2 is not None and timer_2 <= 0) or self.tx_offset_done):  # ((timer_2 is not None and timer_2 <= 0) or self.tx_offset_done)
             self.tx_offset_done = True
-            # TODO: determine if tiem allow for packet tx other wise wait until next slot
             self.tx_buffer.sort(key=lambda f: f.type)  # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
+            # determine if time allow for packet tx
+            if self.duration_calculator.get_duration(self.tx_buffer[0].length) > slot_end_in - self.tx_start_edn_buffer:
+                return 
+
             packet = self.tx_buffer.pop(0)
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
 
@@ -277,15 +289,24 @@ class D2DDLL:
         # update last seen for neighbor
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing:
+            if existing.last_seen < self.slot_period_start:
+                existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self.duration_calculator.get_duration(frame.length)
+
             existing.last_seen = current_local_clock_info.current_local_time
             existing.last_rssi = frame.rssi
+            # existing.in_slot = self.current_slot
 
     def _process_current_hopcount(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
         frame_hop_cnt = cast(PayloadHopCnt, frame.payload)
 
         existing = next((n for n in self.known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing is None:
-            neighbor_info = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=frame_hop_cnt.cnt, last_seen=current_local_time, last_rssi=frame.rssi)
+            neighbor_info = D2DNeighborInfo(
+                neighbor_id=frame.source_node_id, 
+                hopcount_to_gateway=frame_hop_cnt.cnt, 
+                last_seen=current_local_time, 
+                last_rssi=frame.rssi,
+                in_slot=frame_hop_cnt.use_slot)
             self.known_neighbors.append(neighbor_info)
 
     def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
@@ -332,4 +353,4 @@ class D2DDLL:
 
     def _update_local_hopcount(self, hopcount: int) -> None:
         self.hopcount_to_gateway = hopcount
-        self.current_tx_slot = hopcount % self.slot_count
+        self.own_tx_slot = 0 # default zero is reserved for REQ_ACK unit 17 slots are needed

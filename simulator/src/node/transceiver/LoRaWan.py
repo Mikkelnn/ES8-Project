@@ -7,6 +7,7 @@ from logger.ILogger import ILogger
 from medium.medium_service import MediumService
 from node.event_local_queue import LocalEventQueue
 from node.transceiver.base_transceiver import BaseTransceiver
+from node.transceiver.lora_tx_duration_calculator import LoRaTxDurationCalculator
 
 
 class LoRaWan(BaseTransceiver):
@@ -22,18 +23,10 @@ class LoRaWan(BaseTransceiver):
         self.__coding_rate = 1 / (4 / 5)  # Coding rate (4/5, 4/6, etc.)
         self.__preamble_length = 8  # Preamble length in symbols
 
-        self.__ts = (2**self.__sf) / self.__bandwidth  # Symbol duration in seconds
-
-        # Calculate the preamble time in seconds
-        self.__preamble_time_ticks = (self.__preamble_length + 4.25) * self.__ts * (1 / self._second_to_global_tick)
-
+        self.__calculator = LoRaTxDurationCalculator(second_to_global_tick, self.__sf, self.__bandwidth, self.__coding_rate, self.__preamble_length)
+        
     def _calculate_transmission_duration_ticks(self, data: ILength) -> int:
-        # Calculate the number of symbols needed to transmit the data based on the spreading factor, coding rate, and data size
-        N_symbols = math.ceil((data.length * 8 * self.__coding_rate) / self.__sf)
-        # Calculate the total transmission time in ticks ceil to ensure we account for any partial symbol time
-        symbol_time_ticks = math.ceil(N_symbols * self.__ts * (1 / self._second_to_global_tick))
-        # Calculate the transmission time in global ticks based on the size of the data
-        return int(symbol_time_ticks + self.__preamble_time_ticks)
+        return self.__calculator.get_duration(data.length)
 
     def _get_successful_receptions(self, current_global_tick: int) -> List[EventNet]:
         successful_receptions: List[EventNet] = []
