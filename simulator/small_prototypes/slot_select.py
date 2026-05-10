@@ -1,4 +1,4 @@
-known_neighbors = [0,1]
+known_neighbors = [0, 1]
 slot_count = 3
 own_slot = 2
 
@@ -12,4 +12,3 @@ if not available:
 
 print(available)
 # print(available[0] if available else 0)
-

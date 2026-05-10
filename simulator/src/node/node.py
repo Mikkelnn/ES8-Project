@@ -56,12 +56,12 @@ class Node(IDevice):
         node_sleep_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP)
         if len(node_sleep_events) > 0 and self.state == State.WAKE:
             self.state = State.SLEEP
-            self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} is going to sleep...")
+            self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} is going to sleep, Battery charge {self.battery.current_charge}")
 
         node_wake_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_WAKE_UP)
         if len(node_wake_events) > 0 and self.state == State.SLEEP:
             self.state = State.WAKE
-            self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} woke up...")
+            self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} woke up, , Battery charge {self.battery.current_charge}")
             self.accumulated_state.update((0, current_global_tick + 1))  # tick next
 
         # deterimine if we died during the current tick

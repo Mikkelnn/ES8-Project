@@ -51,7 +51,7 @@ class BaseMedium(ABC):
             else:
                 reception_event = event  # Don't set rssi for LoRaWAN
             self.__add_reception_event_for_node(to_node_id, reception_event)
-            self.log.add(Severity.INFO, Area.MEDIUM, current_global_tick, f"Medium {self.type} transmitting from node {event.node_id} to node {to_node_id} with data {event.data} from global tick {event.time_start} to global tick {event.time_end}")
+            self.log.add(Severity.DEBUG, Area.MEDIUM, current_global_tick, f"Medium {self.type} transmitting from node {event.node_id} to node {to_node_id} with data {event.data} from global tick {event.time_start} to global tick {event.time_end}")
 
     def __housekeep_ongoing_transmissions(self, current_global_tick: int):
         # Remove any ongoing transmissions that have ended

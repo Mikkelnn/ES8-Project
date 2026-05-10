@@ -10,7 +10,6 @@ from pathlib import Path
 
 from custom_types import Area, LocalEventTypes, MediumTypes, NodeMediumInfo, Severity, SimState
 from gateway.gateway import Gateway
-from Interfaces import IDevice
 from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
 from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
@@ -40,7 +39,7 @@ class CollectingMediumService:
     """
 
     def __init__(self):
-        self._incoming: dict = defaultdict(list)   # node_id → List[EventNet]
+        self._incoming: dict = defaultdict(list)  # node_id → List[EventNet]
         self._transmissions: list = []
         self._cancellations: list = []
 
@@ -144,14 +143,14 @@ def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
                 continue
             if isinstance(payload, PayloadData) and hasattr(node, "protocol") and hasattr(node.protocol, "app"):
                 node.protocol.app.enqueue_payload(payload)
-                log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadData into Node {nid}")
+                log.add(Severity.DEBUG, Area.SIMULATOR, current_time, f"INJECTED: PayloadData into Node {nid}")
             elif isinstance(payload, MegaSync) and hasattr(node, "local_event_queue"):
                 wan_frame = LoRaWanPHYPayload(mhdr=96, mac_payload=MACPayload(dev_addr=nid, fctrl_flags=0, fcnt=0, frm_payload=payload))
                 node.local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, wan_frame, sub_type=MediumTypes.LORA_WAN)
-                log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: MegaSync into Node {nid}")
+                log.add(Severity.DEBUG, Area.SIMULATOR, current_time, f"INJECTED: MegaSync into Node {nid}")
             elif (isinstance(payload, PayloadHopCntSimple) or isinstance(payload, PayloadHopCntMid) or isinstance(payload, PayloadHopCntFull)) and hasattr(node, "protocol") and hasattr(node.protocol, "d2d"):
                 node.protocol.d2d.enqueue_payload(payload)
-                log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadHopCnt into Node {nid}")
+                log.add(Severity.DEBUG, Area.SIMULATOR, current_time, f"INJECTED: PayloadHopCnt into Node {nid}")
 
         # Tick each active node
         next_ticks = []
@@ -411,6 +410,7 @@ class Simulation:
                     last_tps_calc = now
         except Exception as e:
             import traceback
+
             print(f"Simulation error: {e}\n{traceback.format_exc()}")
             self.log.add(Severity.ERROR, Area.SIMULATOR, self.global_time.get_time(), f"Simulation error: {e}", data=None)
         finally:
@@ -418,10 +418,10 @@ class Simulation:
 
         elapsed_time = time.time() - stopwatch_start_time
         num_nodes = len(self._node_to_worker)
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {num_nodes} nodes")
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total node tick time: {node_tick_time:.2f} seconds")
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total propagation time: {propagation_time:.2f} seconds")
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total log time: {(elapsed_time - (propagation_time + node_tick_time)):.2f} seconds")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {num_nodes} nodes")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total node tick time: {node_tick_time:.2f} seconds")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total propagation time: {propagation_time:.2f} seconds")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total log time: {(elapsed_time - (propagation_time + node_tick_time)):.2f} seconds")
         self.log.flush(force=True)
 
     def _stop_workers(self) -> None:

@@ -49,7 +49,7 @@ class BaseTransceiver(IModule):
             if next_state != self.state:
                 self._cancel_transmission(current_global_tick)  # If we are changing state, we should not have any ongoing transmission. Just to be sure, cancel any transmission if it exists.
                 self._cancel_reception(current_global_tick)  # If we are changing state, we should not have any
-                self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} changing state of {self.medium_type} from {self.state} to {next_state}")
+                self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} changing state of {self.medium_type} from {self.state} to {next_state}")
                 self.state = next_state
 
         if self.state == TransceiverState.IDLE:
@@ -63,14 +63,14 @@ class BaseTransceiver(IModule):
 
                 for e, duration in zip(transmit_data_events, durations):
                     self._medium_service.transmit(self._node_id, self.medium_type, e.data, current_global_tick, current_global_tick + duration)
-                    self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} started transmitting on {self.medium_type} with data {e.data} for a duration of {duration} ticks (until global tick {current_global_tick + duration})")
+                    self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} started transmitting on {self.medium_type} with data {e.data} for a duration of {duration} ticks (until global tick {current_global_tick + duration})")
 
         if self.state == TransceiverState.TRANSMITTING:
             # Check if we have finished transmitting
             if current_global_tick >= self._current_transmission_end_global_tick:
                 self._current_transmission_end_global_tick = 0
                 self.state = TransceiverState.IDLE
-                self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} finished transmitting on {self.medium_type}")
+                self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} finished transmitting on {self.medium_type}")
 
         if self.state == TransceiverState.RECEIVING:
             # just changed to receiving state, set the reception start global tick if not already set
@@ -80,7 +80,7 @@ class BaseTransceiver(IModule):
             received_events = self._get_successful_receptions(current_global_tick)
             for event in received_events:
                 self._local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.medium_type)
-                self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} successfully received data {event.data} on {self.medium_type} from node {event.node_id}")
+                self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} successfully received data {event.data} on {self.medium_type} from node {event.node_id}") #TODO add guid to track payload between nodes?
 
         self.log.add(
             Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} transceiver {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self._receive_queue]}"
@@ -110,7 +110,7 @@ class BaseTransceiver(IModule):
         self._medium_service.cancel_transmission(self._node_id, self.medium_type, current_global_tick, self._current_transmission_end_global_tick)
         self._current_transmission_end_global_tick = 0
         self.state = TransceiverState.IDLE
-        self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} cancelled transmission on {self.medium_type}")
+        self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} cancelled transmission on {self.medium_type}")
 
     def _cancel_reception(self, current_global_tick: int):
         if self._current_reception_start_global_tick is None:
@@ -118,7 +118,7 @@ class BaseTransceiver(IModule):
 
         self._current_reception_start_global_tick = None
         self.state = TransceiverState.IDLE
-        self.log.add(Severity.INFO, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} cancelled reception on {self.medium_type}")
+        self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} cancelled reception on {self.medium_type}")
 
     def _housekeep_receive_queue(self, current_global_tick):
         if self._current_reception_start_global_tick is not None:

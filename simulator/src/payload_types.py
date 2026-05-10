@@ -1,5 +1,7 @@
+import uuid
 from dataclasses import dataclass, field
 from typing import Set
+from uuid import UUID
 
 from crc import Calculator, Configuration
 
@@ -36,6 +38,7 @@ class PayloadData(ILength):
     length_payload: int = 0
     time: float = 0.0
     data: Data = field(default_factory=Data)
+    guid: UUID = field(default_factory=uuid.uuid4)
 
     @property
     def length(self) -> int:
@@ -52,6 +55,7 @@ class PayloadData(ILength):
 @dataclass
 class PayloadHopCntSimple(ILength):
     """Simple hop count payload for REQ_HOP_ACK frames - only cnt (2 bytes total)"""
+
     cnt: int  # uint16
 
     @property
@@ -65,8 +69,9 @@ class PayloadHopCntSimple(ILength):
 @dataclass
 class PayloadHopCntMid(ILength):
     """Mid hop count payload for CHANGE_HOP_COUNT ACK responses - cnt and slot (3 bytes total)"""
+
     cnt: int  # uint16
-    use_slot: int # uint8
+    use_slot: int  # uint8
 
     @property
     def length(self) -> int:
@@ -79,10 +84,11 @@ class PayloadHopCntMid(ILength):
 @dataclass
 class PayloadHopCntFull(ILength):
     """Full hop count payload for CURRENT_HOP_COUNT and REDISCOVER frames (8 bytes total)"""
+
     cnt: int  # uint16
-    slot_period_counter: int # uint8
-    use_slot: int # uint8
-    time_offset_from_period_start: int # uint16
+    slot_period_counter: int  # uint8
+    use_slot: int  # uint8
+    time_offset_from_period_start: int  # uint16
 
     @property
     def length(self) -> int:
@@ -94,6 +100,7 @@ class PayloadHopCntFull(ILength):
 
 @dataclass
 class MegaSync:
+    guid: UUID = field(default_factory=uuid.uuid4)
     time: int = 0
     total_handle_time: int = 0
 
@@ -107,6 +114,7 @@ class MegaSync:
 
 @dataclass
 class MegaSyncReq:
+    guid: UUID = field(default_factory=uuid.uuid4)
     data: int = 1
 
     @property
