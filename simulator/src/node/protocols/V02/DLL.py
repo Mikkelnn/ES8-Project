@@ -26,10 +26,12 @@ class DLL:
         self.wan_layer: WANDLL = wan_layer
         self.app_to_dll_tx = app_to_dll_tx
         self.dll_to_app_rx = dll_to_app_rx
+        self.sync_buffer : list[MegaSync]
 
         self.slot_period_ms = 60_000  # 1 min slot period
         self.lora_wan_slot_interleave = 60
         self.d2d_rety_period_ms = 25 * 60_000  # 25 min retry period for D2D allow battery to charge
+        self.retain_depth_old_megasync = 20
 
         self.reset(0)
 
@@ -163,6 +165,13 @@ class DLL:
                 self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} flushed MegaSyncReq before clock sync")
 
     def _megasync_handle(self, msg: MegaSync, current_global_tick: int) -> None:
+
+        for old_msg in self.sync_buffer:
+            if msg is old_msg:
+                return
+            else:
+                self.sync_buffer.append(msg)
+            
         self._flush_tx_buffers(current_global_tick)
         sync_time = msg.time + msg.total_handle_time
         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)
@@ -170,4 +179,11 @@ class DLL:
         new_handle_time = msg.total_handle_time + max(0, current_local - msg.time)
         forwarded = MegaSync(time=msg.time, total_handle_time=new_handle_time)
         self.d2d_layer.enqueue_payload(forwarded)
+
+        diff = self.retain_depth_old_megasync - len(self.sync_buffer)
+
+        if diff < 0:
+            for _ in range(abs(diff)):
+                self.sync_buffer.pop(0)
+
         self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync: time={sync_time}, handle={new_handle_time}, GUID={msg.guid}")
