@@ -81,13 +81,13 @@ class DLL:
                 if self.current_period_start_time is None:
                     self.current_period_start_time = current_local_clock_info.current_local_time
 
-                finished = False
-                if self.slot_period_counter == 0:
-                    finished = self.wan_layer.tick(current_global_tick, current_local_clock_info)
-                else:
-                    finished = self.d2d_layer.tick(current_global_tick, current_local_clock_info)
+                is_wan_slot = self.slot_period_counter == 0
+                finished = self.wan_layer.tick(current_global_tick, current_local_clock_info) if is_wan_slot else self.d2d_layer.tick(current_global_tick, current_local_clock_info)
 
                 if finished:
+                    if not is_wan_slot:
+                        self._handle_minisync(self.d2d_layer.estimated_period_correction)
+
                     sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                     self.current_period_start_time = None
@@ -130,9 +130,8 @@ class DLL:
                     if isinstance(msg, MegaSync):
                         self._megasync_handle(msg, current_global_tick)
                     elif isinstance(msg, PayloadData):
-                        # Forward received payload: try WAN if have direct connection (hopcount 1->0), else D2D relay
-                        has_lower_hopcount_neighbor = any(n.hopcount_to_gateway < self.d2d_layer.hopcount_to_gateway for n in self.d2d_layer.known_neighbors)
-                        if self.d2d_layer.hopcount_to_gateway == 1 and has_lower_hopcount_neighbor:
+                        # Forward received payload: try WAN if have direct connection (hopcount 0), else D2D relay
+                        if self._effective_hopcount() == 0:
                             self.wan_layer.enqueue_payload(msg)
                         else:
                             self.d2d_layer.enqueue_payload(msg)
@@ -174,8 +173,9 @@ class DLL:
 
         self._flush_tx_buffers(current_global_tick)
         sync_time = msg.time + msg.total_handle_time
+        # TODO: we shoud only give relative time here....
         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)
-        current_local = self._get_local_time()
+        current_local = self._get_local_time() # the correct from above is not effectuated here.... What is done here?
         new_handle_time = msg.total_handle_time + max(0, current_local - msg.time)
         forwarded = MegaSync(time=msg.time, total_handle_time=new_handle_time)
         self.d2d_layer.enqueue_payload(forwarded)
@@ -186,4 +186,13 @@ class DLL:
             for _ in range(abs(diff)):
                 self.sync_buffer.pop(0)
 
+        # TODO: Why guid??? -> only for spawned APP packages...
         self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync: time={sync_time}, handle={new_handle_time}, GUID={msg.guid}")
+
+    def _handle_minisync(self, correction: int, local_tiem: int, current_global_tick: int) -> None:
+        # TODO: we shoud only give relative time here....
+        sync_time = local_tiem + correction
+        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)
+
+        # Maybe only log from clock?
+        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MiniSync: correction={correction}, time={sync_time}")

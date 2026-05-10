@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from random import Random
+import statistics
 from typing import List, cast
 
 from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, Severity, TransceiverState
@@ -50,6 +51,7 @@ class D2DDLL:
         self.hopcount_to_gateway = self.MAX_HOPCOUNT
         self.estimated_period_start = None
         self.slot_period_counter = 0
+        self.estimated_period_correction = 0
 
         self._known_neighbors: List[D2DNeighborInfo] = []
         self._tx_buffer: List[LoRaD2DFrame] = []
@@ -148,9 +150,9 @@ class D2DDLL:
         # process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
         self._process_receptions(current_global_tick, current_local_clock_info)
 
+        # handle MINI SYNC here
         if period_finished:
-            # handle MINI SYNC here
-            pass
+            self._minisync()
 
         if not self.link_established:
             if self._run_discovery(current_global_tick, period_finished, current_local_clock_info, current_transceiver_states):
@@ -417,3 +419,38 @@ class D2DDLL:
                 self._tx_buffer[existing_frame_index] = change_frame
             else:
                 self._tx_buffer.append(change_frame)
+
+    def _minisync(self) -> None:
+        if not self.link_established or not self._known_neighbors:
+            self.estimated_period_correction = 0
+            return
+
+        slot_offsets = []
+        for n in self._known_neighbors:
+            # ignore if not seen in this slot period e.g a dead node
+            if n.last_seen < self._slot_period_start:
+                continue 
+
+            # calculate diff between local start time of slot and the observed tx time
+            slot_start = (n.in_slot * self._slot_duration) + self._tx_start_end_buffer 
+            observed_start = n.first_tx_start_time_in_period
+            # relative correction, negative means we are ahead while positive means behind
+            # fx. observed: 102, start: 100 -> 100 - 102 = -2
+            correction = observed_start - slot_start
+            slot_offsets.append(correction)
+
+        if not slot_offsets:
+            self.estimated_period_correction = 0
+            return
+
+        # simple average -> simplest
+        # current_offset = sum(slot_offsets) / len(slot_offsets)
+
+        # median -> f occasional large outliers (missed packets, delayed RX timestamps, collisions), then median is often more stable
+        current_offset =  statistics.median(slot_offsets)
+
+        self.estimated_period_correction = current_offset
+
+        # lowpass with prev correction to avoid oscillation and over-correction
+        # alpha = 0.2
+        # self.estimated_period_correction = (alpha * current_offset + (1 - alpha) * self.estimated_relative_period_offset)
