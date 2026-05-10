@@ -42,7 +42,7 @@ class D2DDLL:
         self._log = log
         self._slot_duration = slot_duration
         self._slot_count = slot_count
-        self._mini_slot_count = 3
+        self._mini_slot_count: int = 3
         self._duration_calculator = LoRaTxDurationCalculator(second_to_global_tick=0.001)  # in ms
         self.reset(0)
 
@@ -50,19 +50,19 @@ class D2DDLL:
         self.discovery_state = DiscoverStates.NOT_DISCOVERED
         self.hopcount_to_gateway = self.MAX_HOPCOUNT
         self.estimated_period_start = None
-        self.slot_period_counter = 0
-        self.estimated_period_correction = 0
+        self.slot_period_counter: int = 0
+        self.estimated_period_correction: int = 0
 
         self._known_neighbors: List[D2DNeighborInfo] = []
         self._tx_buffer: List[LoRaD2DFrame] = []
         self._rx_buffer: List[LoRaD2DFrame] = []
-        self._current_slot = -1
-        self._own_tx_slot = 0  # used for REQ_ACK
-        self._offset_for_req_ack = 0
-        self._tx_start_end_buffer = 10
+        self._current_slot: int = -1
+        self._own_tx_slot: int = 0  # used for REQ_ACK
+        self._offset_for_req_ack: int = 0
+        self._tx_start_end_buffer: int = 10
         self._tx_offset_done = False
         self._rnd = Random(self._node_id)
-        self._slot_period_start = 0
+        self._slot_period_start: int = 0
 
     @property
     def link_established(self) -> bool:
@@ -449,8 +449,8 @@ class D2DDLL:
         # median -> f occasional large outliers (missed packets, delayed RX timestamps, collisions), then median is often more stable
         current_offset =  statistics.median(slot_offsets)
 
-        self.estimated_period_correction = current_offset
+        self.estimated_period_correction = int(current_offset)
 
         # lowpass with prev correction to avoid oscillation and over-correction
         # alpha = 0.2
-        # self.estimated_period_correction = (alpha * current_offset + (1 - alpha) * self.estimated_relative_period_offset)
+        # self.estimated_period_correction = int((alpha * current_offset + (1 - alpha) * self.estimated_relative_period_offset))
