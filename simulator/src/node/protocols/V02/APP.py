@@ -72,7 +72,7 @@ class APP:
                         self.payload_data.time = float(current_local_time)
                         self.payload_data.length_calc()
                         self.enqueue_payload(self.payload_data)
-                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} enqueued averaged payload: avg_s1={avg_s1}, avg_s2={avg_s2}")
+                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} enqueued averaged payload: avg_s1={avg_s1}, avg_s2={avg_s2}, GUID={self.payload_data.guid}")
                         self.sensor_buffer.clear()
 
             case AppState.FORWARDING:

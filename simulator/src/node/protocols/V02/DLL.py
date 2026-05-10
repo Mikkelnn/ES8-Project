@@ -57,7 +57,7 @@ class DLL:
                         self.state = DLLState.FORWARDING
                         self.slot_period_counter = self.d2d_layer.slot_period_counter
                         self._increment_slot_period_counter()
-                        sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms                        
+                        sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                         self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery with D2D route to gateway, sleeping until next slot period")
 
@@ -170,4 +170,4 @@ class DLL:
         new_handle_time = msg.total_handle_time + max(0, current_local - msg.time)
         forwarded = MegaSync(time=msg.time, total_handle_time=new_handle_time)
         self.d2d_layer.enqueue_payload(forwarded)
-        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync: time={sync_time}, handle={new_handle_time}")
+        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync: time={sync_time}, handle={new_handle_time}, GUID={msg.guid}")

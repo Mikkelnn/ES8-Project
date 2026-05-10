@@ -8,7 +8,7 @@ from crc import Calculator, Configuration
 
 from Interfaces import IRSSI, ILength
 from loraWanFrameHelper import LoRaWanPHYPayload
-from payload_types import MegaSync, PayloadData, PayloadHopCntSimple, PayloadHopCntMid, PayloadHopCntFull
+from payload_types import MegaSync, PayloadData, PayloadHopCntFull, PayloadHopCntMid, PayloadHopCntSimple
 
 config = Configuration(
     width=16,

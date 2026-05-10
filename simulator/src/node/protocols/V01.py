@@ -106,7 +106,7 @@ class V01(IModule):
                     reception_data = cast(LoRaWanPHYPayload, current_receptions[0].data)
                     if reception_data.mac_payload.dev_addr == self.node_id and reception_data.is_ack():
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
-                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} received ACK from gateway!")
+                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} received ACK from gateway! GUID={reception_data.mac_payload.frm_payload.guid}")
                         # We did receive the ACK from the gateway, we can now set our hopcount to 0 and start doing D2D syncs to establish hopcounts to neighbors.
                         self.gw_hopcount = 0
 

@@ -10,7 +10,6 @@ from pathlib import Path
 
 from custom_types import Area, LocalEventTypes, MediumTypes, NodeMediumInfo, Severity, SimState
 from gateway.gateway import Gateway
-from Interfaces import IDevice
 from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
 from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
@@ -39,7 +38,7 @@ class CollectingMediumService:
     """
 
     def __init__(self):
-        self._incoming: dict = defaultdict(list)   # node_id → List[EventNet]
+        self._incoming: dict = defaultdict(list)  # node_id → List[EventNet]
         self._transmissions: list = []
         self._cancellations: list = []
 
@@ -106,11 +105,6 @@ def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
       receive task → tick active nodes → send results.
     """
     # Local imports so this function works with both fork and spawn.
-    from gateway.gateway import Gateway
-    from node.node import Node
-    from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
-    from custom_types import LocalEventTypes, MediumTypes
-    from payload_types import MegaSync, PayloadData, PayloadHopCnt
 
     medium = CollectingMediumService()
     log = CollectingLogger()
@@ -378,6 +372,7 @@ class Simulation:
                     last_tps_calc = now
         except Exception as e:
             import traceback
+
             print(f"Simulation error: {e}\n{traceback.format_exc()}")
             self.log.add(Severity.ERROR, Area.SIMULATOR, self.global_time.get_time(), f"Simulation error: {e}", data=None)
         finally:
