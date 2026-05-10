@@ -136,7 +136,7 @@ class D2DDLL:
 
         # add idle packet -> used for discovery
         if not self._tx_buffer and self.link_established and self._current_slot == -1:
-            hop_cnt = PayloadHopCntFull(self.hopcount_to_gateway, slot_period_counter=slot_period_counter, time_offset_from_period_start=self._period_start_to_tx)
+            hop_cnt = PayloadHopCntFull(self.hopcount_to_gateway, slot_period_counter=slot_period_counter, time_offset_from_period_start=self._period_start_to_tx, use_slot=self._own_tx_slot)
             msg = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={0xFFFFFFFF}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
             msg.crc_calc()
             self._tx_buffer.append(msg)
@@ -181,9 +181,9 @@ class D2DDLL:
                 # Single neighbor case: discover from any neighbor, not just hopcount=0
                 neighbor_hopcount = self._known_neighbors[0].hopcount_to_gateway
                 if neighbor_hopcount < self.MAX_HOPCOUNT:
-                    self._update_local_hopcount(neighbor_hopcount + 1)
+                    self.hopcount_to_gateway = neighbor_hopcount + 1
                     self.discovery_state = DiscoverStates.REQ_ACK
-                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from single neighbor with hopcount {neighbor_hopcount}")
+                    self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} set hopcount to gateway {self.hopcount_to_gateway} from single neighbor with hopcount {neighbor_hopcount}")
 
             timer_1 = current_local_clock_info.timer_1_remaining
             if timer_1 is not None and timer_1 <= 0:
@@ -271,7 +271,7 @@ class D2DDLL:
             self._tx_offset_done = True
             self._tx_buffer.sort(key=lambda f: f.type)  # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
             # determine if time allow for packet tx
-            if self._duration_calculator.get_duration(self._tx_buffer[0].length) > slot_end_in - self._tx_start_end_buffer:
+            if slot_end_in is None or self._duration_calculator.get_duration(self._tx_buffer[0].length) > slot_end_in - self._tx_start_end_buffer:
                 return
 
             packet = self._tx_buffer.pop(0)
