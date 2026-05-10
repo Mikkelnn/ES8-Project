@@ -1,0 +1,13 @@
+[project]
+name = "log-stats"
+version = "0.1.0"
+description = "This install all the dependencies for the statistics of the logger"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["numpy", "matplotlib"]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
