@@ -61,11 +61,11 @@ class D2DDLL:
         self._tx_offset_done = False
         self._rnd = Random(self._node_id)
         self._slot_period_start = 0
-        
+
     @property
     def link_established(self) -> bool:
         return self.hopcount_to_gateway < self.MAX_HOPCOUNT and self.discovery_state == DiscoverStates.DISCOVERED
-    
+
     @property
     def _period_start_to_tx(self) -> int:
         return self._slot_duration * self._own_tx_slot + self._tx_start_end_buffer

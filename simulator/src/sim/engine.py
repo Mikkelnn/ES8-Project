@@ -16,10 +16,11 @@ from logger.simple_logger import SimpleLogger
 from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
 from medium.medium_service import MediumService
 from node.node import Node
-from payload_types import MegaSync, PayloadData, PayloadHopCnt
+from payload_types import MegaSync, PayloadData, PayloadHopCntSimple, PayloadHopCntMid, PayloadHopCntFull
 
 from .device_event_queue import DeviceEventQueue
 from .global_time import GlobalTime
+from .bfs_topology_analyzer import BFSTopologyAnalyzer
 
 global_time = GlobalTime()
 
@@ -110,7 +111,7 @@ def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
     from node.node import Node
     from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
     from custom_types import LocalEventTypes, MediumTypes
-    from payload_types import MegaSync, PayloadData, PayloadHopCnt
+    from payload_types import MegaSync, PayloadData,  PayloadHopCntSimple, PayloadHopCntMid, PayloadHopCntFull
 
     medium = CollectingMediumService()
     log = CollectingLogger()
@@ -148,7 +149,7 @@ def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
                 wan_frame = LoRaWanPHYPayload(mhdr=96, mac_payload=MACPayload(dev_addr=nid, fctrl_flags=0, fcnt=0, frm_payload=payload))
                 node.local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, wan_frame, sub_type=MediumTypes.LORA_WAN)
                 log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: MegaSync into Node {nid}")
-            elif isinstance(payload, PayloadHopCnt) and hasattr(node, "protocol") and hasattr(node.protocol, "d2d"):
+            elif (isinstance(payload, PayloadHopCntSimple) or isinstance(payload, PayloadHopCntMid) or isinstance(payload, PayloadHopCntFull)) and hasattr(node, "protocol") and hasattr(node.protocol, "d2d"):
                 node.protocol.d2d.enqueue_payload(payload)
                 log.add(Severity.INFO, Area.SIMULATOR, current_time, f"INJECTED: PayloadHopCnt into Node {nid}")
 
@@ -169,45 +170,75 @@ class NetworkTopologyLoader:
 
     @staticmethod
     def from_json(json_path: str) -> dict[int, NodeMediumInfo]:
-        """Load topology from JSON and return as NodeMediumInfo dict."""
+        """Load topology from JSON and return as NodeMediumInfo dict (device_neighbors).
+
+        Includes only BFS-visited nodes and all gateways.
+        Gateway IDs are assigned above all node IDs.
+        Node neighbor lists are filtered to only include visited nodes.
+        Gateway neighbor lists contain nodes within LORA_WAN_RADIUS.
+        """
         with open(json_path) as f:
             data = json.load(f)
 
-        node_neighbors = {}
         nodes_data = data.get("nodes", {})
         gateways_data = data.get("gateways", {})
-        gateway_ids = set(int(gw_id) for gw_id in gateways_data.keys())
-
         meta = data.get("metadata", {})
+
         m_per_svg_x = meta.get("m_per_svg_x", 391.287)
         m_per_svg_y = meta.get("m_per_svg_y", 702.570)
         radius_m = NetworkTopologyLoader.LORA_WAN_RADIUS_M
 
-        gw_positions = {int(gw_id): tuple(gw["point"]) for gw_id, gw in gateways_data.items()}
+        # Calculate gateway ID offset: max node ID + 1
+        max_node_id = max(int(nid) for nid in nodes_data.keys()) if nodes_data else 0
+        gw_id_offset = max_node_id + 1
 
+        # Run BFS topology analysis
+        visited_nodes, gateway_initials, node_to_gateway = BFSTopologyAnalyzer.analyze(
+            nodes_data, gateways_data, m_per_svg_x, m_per_svg_y, radius_m, gw_id_offset
+        )
+
+        device_neighbors = {}
+
+        # Add visited nodes only (filtered neighbors)
         for node_id_str, node_info in nodes_data.items():
             node_id = int(node_id_str)
+
+            # Skip unreached nodes
+            if node_id not in visited_nodes:
+                continue
+
             position = tuple(node_info["point"])
-            neighbors = [int(n) for n in node_info.get("neighbours", [])]
-            is_gw = node_id in gateway_ids
+            # Filter neighbors to only include visited nodes
+            neighbors = [int(n) for n in node_info.get("neighbours", []) if int(n) in visited_nodes]
 
-            gateways_in_range = []
-            if not is_gw:
-                px, py = position
-                for gw_id, (gx, gy) in gw_positions.items():
-                    dx = (px - gx) * m_per_svg_x
-                    dy = (py - gy) * m_per_svg_y
-                    if (dx * dx + dy * dy) ** 0.5 <= radius_m:
-                        gateways_in_range.append(gw_id)
+            # Get gateway for this node from BFS mapping (single gateway only)
+            gw_id = node_to_gateway.get(node_id)
+            gateways_in_range = [gw_id] if gw_id is not None else []
 
-            node_neighbors[node_id] = NodeMediumInfo(
+            device_neighbors[node_id] = NodeMediumInfo(
                 position=position,
                 neighbors=neighbors,
                 gateways_in_range=gateways_in_range,
-                is_gateway=is_gw,
+                is_gateway=False,
             )
 
-        return node_neighbors
+        # Add all gateways with their neighbors (only nodes that belong to this gateway via BFS and are visited)
+        for gw_id_str, gw_info in gateways_data.items():
+            gw_id = gw_id_offset + int(gw_id_str)
+            gw_position = tuple(gw_info["point"])
+
+            # Gateway neighbors: only nodes assigned to this gateway via BFS, and must be visited
+            gw_neighbors = [nid for nid, assigned_gw_id in node_to_gateway.items() 
+                           if assigned_gw_id == gw_id and nid in visited_nodes]
+
+            device_neighbors[gw_id] = NodeMediumInfo(
+                position=gw_position,
+                neighbors=sorted(gw_neighbors),
+                gateways_in_range=[],
+                is_gateway=True,
+            )
+
+        return device_neighbors
 
     @staticmethod
     def from_file(file_path: str | Path) -> dict[int, NodeMediumInfo]:
@@ -216,27 +247,29 @@ class NetworkTopologyLoader:
 
 
 class Simulation:
-    def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None, injection_tasks=None, node_neighbors=None):
+    def __init__(self, log_path: str, status=None, lock=None, tps_value=None, log_queue=None, log_lines=100, current_tick_value=None, injection_tasks=None, device_neighbors=None):
         self.log = SimpleLogger(log_path=log_path, buffer_size=100_000)
         self.global_time = GlobalTime()
         self.injection_tasks = injection_tasks or []
         self.completed_injections = set()
 
-        if node_neighbors is None:
-            node_neighbors = NetworkTopologyLoader.from_file("tools/uplinkNodeLoad/final_selected/node_outputs.json")
+        if device_neighbors is None:
+            device_neighbors_dict = NetworkTopologyLoader.from_file("tools/uplinkNodeLoad/final_selected/node_outputs.json")
+        else:
+            device_neighbors_dict = device_neighbors
 
-        num_nodes = len(node_neighbors)
+        num_devices = len(device_neighbors_dict)
         self.event_queue = DeviceEventQueue()
-        self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_nodes + 1))
+        self.event_queue.init_tick(start_tick=1, node_ids=range(1, num_devices + 1))
 
-        self.medium_service = MediumService(node_neighbors=node_neighbors, event_queue=self.event_queue, log=self.log)
+        self.medium_service = MediumService(node_neighbors=device_neighbors_dict, event_queue=self.event_queue, log=self.log)
 
         # Cap workers to physical cores — hyperthreads don't help CPU-bound Python
         logical_cpus = os.cpu_count() or 4
         phys_cores = max(1, logical_cpus // 2)
-        n_workers = max(1, min(phys_cores, num_nodes))
+        n_workers = max(1, min(phys_cores, num_devices))
 
-        sorted_ids = sorted(node_neighbors.keys())
+        sorted_ids = sorted(device_neighbors_dict.keys())
         partitions: list[list[int]] = [[] for _ in range(n_workers)]
         self._node_to_worker: dict[int, int] = {}
         for i, nid in enumerate(sorted_ids):
@@ -248,7 +281,7 @@ class Simulation:
         self._workers: list[tuple] = []  # (parent_conn, Process)
         for w_ids in partitions:
             parent_conn, child_conn = Pipe(duplex=True)
-            p = Process(target=_worker_run_loop, args=(w_ids, node_neighbors, child_conn), daemon=True)
+            p = Process(target=_worker_run_loop, args=(w_ids, device_neighbors_dict, child_conn), daemon=True)
             p.start()
             child_conn.close()  # Only the child needs its end
             self._workers.append((parent_conn, p))
@@ -413,7 +446,7 @@ class Simulation:
 
 
 class Engine:
-    def __init__(self, log_lines=100, log_path="profile-results.log", injection_tasks=None, node_neighbors=None, topology_json_path=None):
+    def __init__(self, log_lines=100, log_path="profile-results.log", injection_tasks=None, device_neighbors=None, topology_json_path=None):
         self.log: ILogger = SimpleLogger(log_path=log_path, buffer_size=100_000)
         self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
@@ -426,18 +459,18 @@ class Engine:
         self._run_ticks = None
         self.injection_tasks = injection_tasks or []
 
-        # Load topology from JSON if provided, otherwise use node_neighbors
+        # Load topology from JSON if provided, otherwise use device_neighbors
         if topology_json_path:
-            self.node_neighbors = NetworkTopologyLoader.from_file(topology_json_path)
+            self.device_neighbors = NetworkTopologyLoader.from_file(topology_json_path)
         else:
-            self.node_neighbors = node_neighbors
+            self.device_neighbors = device_neighbors
 
         # Circular buffer to keep last N logs in memory (3x display for safety)
         self._log_buffer = deque(maxlen=GUI_LOG_DISPLAY_LINES * 3)
         self.log_path = log_path
 
-    def _simulation_entry(self, log_path: str, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None, injection_tasks=None, node_neighbors=None):
-        sim = Simulation(log_path=log_path, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value, injection_tasks=injection_tasks, node_neighbors=node_neighbors)
+    def _simulation_entry(self, log_path: str, status, lock, tps_value, log_queue, log_lines, current_tick_value, run_ticks=None, injection_tasks=None, device_neighbors=None):
+        sim = Simulation(log_path=log_path, status=status, lock=lock, tps_value=tps_value, log_queue=log_queue, log_lines=log_lines, current_tick_value=current_tick_value, injection_tasks=injection_tasks, device_neighbors=device_neighbors)
         if run_ticks is not None:
             sim.run_for(run_ticks)
         else:
@@ -476,7 +509,7 @@ class Engine:
         self.log.add(Severity.INFO, Area.SIMULATOR, global_time.get_time(), "Engine started", data=None)
         self._run_ticks = run_ticks
         if self.sim_process is None or not self.sim_process.is_alive():
-            self.sim_process = Process(target=self._simulation_entry, args=(self.log_path, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks, self.injection_tasks, self.node_neighbors))
+            self.sim_process = Process(target=self._simulation_entry, args=(self.log_path, self.status, self.lock, self.tps_from_sim, self.log_queue, self.log_lines, self.current_tick, self._run_ticks, self.injection_tasks, self.device_neighbors))
             self.sim_process.start()
 
     def run_for(self, ticks):
