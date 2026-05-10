@@ -177,9 +177,9 @@ class D2DDLL:
                         self.discovery_state = DiscoverStates.REQ_ACK
                         self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors")
                         break
-            elif len(self.known_neighbors) == 1:
+            elif len(self._known_neighbors) == 1:
                 # Single neighbor case: discover from any neighbor, not just hopcount=0
-                neighbor_hopcount = self.known_neighbors[0].hopcount_to_gateway
+                neighbor_hopcount = self._known_neighbors[0].hopcount_to_gateway
                 if neighbor_hopcount < self.MAX_HOPCOUNT:
                     self._update_local_hopcount(neighbor_hopcount + 1)
                     self.discovery_state = DiscoverStates.REQ_ACK

@@ -17,9 +17,9 @@ from medium.medium_service import MediumService
 from node.node import Node
 from payload_types import MegaSync, PayloadData
 
+from .bfs_topology_analyzer import BFSTopologyAnalyzer
 from .device_event_queue import DeviceEventQueue
 from .global_time import GlobalTime
-from .bfs_topology_analyzer import BFSTopologyAnalyzer
 
 global_time = GlobalTime()
 
@@ -106,11 +106,7 @@ def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
       receive task → tick active nodes → send results.
     """
     # Local imports so this function works with both fork and spawn.
-    from gateway.gateway import Gateway
-    from node.node import Node
-    from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
-    from custom_types import LocalEventTypes, MediumTypes
-    from payload_types import MegaSync, PayloadData,  PayloadHopCntSimple, PayloadHopCntMid, PayloadHopCntFull
+    from payload_types import PayloadHopCntFull, PayloadHopCntMid, PayloadHopCntSimple
 
     medium = CollectingMediumService()
     log = CollectingLogger()
@@ -192,9 +188,7 @@ class NetworkTopologyLoader:
         gw_id_offset = max_node_id + 1
 
         # Run BFS topology analysis
-        visited_nodes, gateway_initials, node_to_gateway = BFSTopologyAnalyzer.analyze(
-            nodes_data, gateways_data, m_per_svg_x, m_per_svg_y, radius_m, gw_id_offset
-        )
+        visited_nodes, gateway_initials, node_to_gateway = BFSTopologyAnalyzer.analyze(nodes_data, gateways_data, m_per_svg_x, m_per_svg_y, radius_m, gw_id_offset)
 
         device_neighbors = {}
 
@@ -227,8 +221,7 @@ class NetworkTopologyLoader:
             gw_position = tuple(gw_info["point"])
 
             # Gateway neighbors: only nodes assigned to this gateway via BFS, and must be visited
-            gw_neighbors = [nid for nid, assigned_gw_id in node_to_gateway.items() 
-                           if assigned_gw_id == gw_id and nid in visited_nodes]
+            gw_neighbors = [nid for nid, assigned_gw_id in node_to_gateway.items() if assigned_gw_id == gw_id and nid in visited_nodes]
 
             device_neighbors[gw_id] = NodeMediumInfo(
                 position=gw_position,

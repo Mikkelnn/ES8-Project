@@ -1,6 +1,6 @@
 """BFS-based network topology analyzer for gateway reachability."""
 
-from collections import defaultdict, deque
+from collections import deque
 from math import sqrt
 
 
@@ -53,9 +53,7 @@ class BFSTopologyAnalyzer:
         return gateway_initials
 
     @staticmethod
-    def _run_multi_source_bfs(
-        graph: dict[int, list[int]], gateway_initials: dict[int, list[int]]
-    ) -> tuple[set[int], dict[int, int]]:
+    def _run_multi_source_bfs(graph: dict[int, list[int]], gateway_initials: dict[int, list[int]]) -> tuple[set[int], dict[int, int]]:
         """Execute multi-source BFS from all gateway initial nodes.
 
         Returns: (visited_nodes_set, node_to_gateway_map)
@@ -116,9 +114,7 @@ class BFSTopologyAnalyzer:
             raise ValueError("gw_id_offset is required")
 
         graph = BFSTopologyAnalyzer._build_graph(nodes_data)
-        gateway_initials = BFSTopologyAnalyzer._find_gateway_initial_nodes(
-            nodes_data, gateways_data, m_per_svg_x, m_per_svg_y, radius_m, gw_id_offset
-        )
+        gateway_initials = BFSTopologyAnalyzer._find_gateway_initial_nodes(nodes_data, gateways_data, m_per_svg_x, m_per_svg_y, radius_m, gw_id_offset)
         visited_nodes, node_to_gateway = BFSTopologyAnalyzer._run_multi_source_bfs(graph, gateway_initials)
 
         return visited_nodes, gateway_initials, node_to_gateway

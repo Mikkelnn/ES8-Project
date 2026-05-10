@@ -1,5 +1,6 @@
 # type: ignore
 import inspect
+import os
 from typing import Any, List, Tuple
 
 from custom_types import Area, Severity
@@ -102,14 +103,28 @@ class SimpleLogger(ILogger):
         return [message for _, message in self._buffer]
 
     def flush(self, force: bool = False) -> bool:
-        """Write selected messages to disk."""
-
         if not (force or len(self._buffer) >= self.buffer_size):
             return False
 
-        messages_to_write = [message for severity, message in self._buffer if self._should_flush_message(severity)]
+        messages_to_write = []
+
+        for item in self._buffer:
+            if isinstance(item, tuple) and len(item) == 2:
+                severity, message = item
+
+                if self._should_flush_message(severity):
+                    messages_to_write.append(message)
+
+            else:
+                # Backwards compatibility for old string-only buffer entries
+                messages_to_write.append(str(item))
 
         if messages_to_write:
+            log_dir = os.path.dirname(self.log_path)
+
+            if log_dir:
+                os.makedirs(log_dir, exist_ok=True)
+
             with open(self.log_path, "a", encoding="utf-8") as f:
                 if not self._first_flush_done:
                     f.write("--- logger start ---\n")
@@ -118,7 +133,5 @@ class SimpleLogger(ILogger):
                 f.writelines(messages_to_write)
                 f.flush()
 
-        # Clear ALL buffered messages after flush attempt
         self._buffer.clear()
-
         return True
