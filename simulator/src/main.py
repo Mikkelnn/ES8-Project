@@ -120,8 +120,7 @@ class GUI(QMainWindow):
         chosen_severity = self.left_bottom_severity_dropdown.currentData()
         chosen_areas = [cb.text() for cb in self.right_area_checkboxes if cb.isChecked()]
 
-        # Severity levels in order (for threshold filtering)
-        severity_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        severity_levels = [Severity.value]
         min_severity_index = severity_levels.index(chosen_severity)
 
         filtered_logs = []

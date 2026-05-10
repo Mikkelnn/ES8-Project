@@ -64,7 +64,7 @@ class WANDLL:
                 return self._run_wan_forwarding(current_local_clock_info, current_transceiver_states)
                 # maybe handle ACK in _rx_buffer -> use for re transmission and link state management?
 
-        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} tick match cases not hit for WANDLL, returning False")
+        self.log.add(Severity.ERROR, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} tick match cases not hit for WANDLL, returning False")
         return False
 
     def _run_gateway_connect(self, current_global_tick: int) -> None:
@@ -73,7 +73,7 @@ class WANDLL:
             msr = MegaSyncReq()
             frame = make_uplink(dev_addr=self.node_id, frame_count=0, payload=msr, confirmed=True)
             self._tx_buffer.append(frame)
-            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} attempts gateway connect via WAN")
+            self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} attempts gateway connect via WAN")
             self._connect_attempted = True
             return
 
@@ -86,7 +86,7 @@ class WANDLL:
                 return
 
             self.link_state = LinkState.NO_LINK
-            self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} failed to connect to gateway via WAN, moving on to D2D")
+            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} failed to connect to gateway via WAN, moving on to D2D")
 
     def _run_wan_forwarding(self, current_local_clock_info: LocalClockInfo, current_transceiver_states: dict[MediumTypes, TransceiverState]) -> bool:
         """Returns True if the current slot period is finished and we can move on to the next slot, False if we are still in the current slot period"""

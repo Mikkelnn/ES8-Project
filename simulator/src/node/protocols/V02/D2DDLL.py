@@ -166,7 +166,7 @@ class D2DDLL:
             self._local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.RECEIVING)
             self._local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=self.DISCOVERY_TIMEOUT_MS)
             self.discovery_state = DiscoverStates.LISTENING
-            self._log.add(Severity.INFO, Area.PROTOCOL, current_global_clock if (current_global_clock := current_global_tick) else current_global_tick, f"Node {self._node_id} started D2D discovery")
+            self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_clock if (current_global_clock := current_global_tick) else current_global_tick, f"Node {self._node_id} started D2D discovery")
 
         if self.discovery_state == DiscoverStates.LISTENING:
             hopcounts = {neighbor.hopcount_to_gateway for neighbor in self._known_neighbors}
@@ -175,7 +175,7 @@ class D2DDLL:
                     if (hopcount + 1) in hopcounts:
                         self.hopcount_to_gateway = hopcount + 2
                         self.discovery_state = DiscoverStates.REQ_ACK
-                        self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors")
+                        self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} set hopcount to gateway {self.hopcount_to_gateway} from neighbors")
                         break
             elif len(self.known_neighbors) == 1:
                 # Single neighbor case: discover from any neighbor, not just hopcount=0
@@ -183,14 +183,14 @@ class D2DDLL:
                 if neighbor_hopcount < self.MAX_HOPCOUNT:
                     self._update_local_hopcount(neighbor_hopcount + 1)
                     self.discovery_state = DiscoverStates.REQ_ACK
-                    self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from single neighbor with hopcount {neighbor_hopcount}")
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set hopcount to gateway {self.hopcount_to_gateway} from single neighbor with hopcount {neighbor_hopcount}")
 
             timer_1 = current_local_clock_info.timer_1_remaining
             if timer_1 is not None and timer_1 <= 0:
                 if len(self._known_neighbors) == 1 and self._known_neighbors[0].hopcount_to_gateway == 0:
                     self.hopcount_to_gateway = 1
                     self.discovery_state = DiscoverStates.REQ_ACK
-                    self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} set hopcount to gateway 1 based on single neighbor")
+                    self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} set hopcount to gateway 1 based on single neighbor")
                 else:
                     self.discovery_state = DiscoverStates.NOT_DISCOVERED
                     self._local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)

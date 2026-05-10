@@ -67,10 +67,10 @@ class TestEngine:
 
         elapsed_time = time.time() - stopwatch_start_time
 
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total node tick time: {node_tick_time:.2f} seconds")
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total propagation time: {propagation_time:.2f} seconds")
-        self.log.add(Severity.INFO, Area.SIMULATOR, 0, f"Total log time: {(elapsed_time - (propagation_time + node_tick_time)):.2f} seconds")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total elapsed real time: {elapsed_time:.2f} seconds for {len(self.nodes)} nodes")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total node tick time: {node_tick_time:.2f} seconds")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total propagation time: {propagation_time:.2f} seconds")
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Total log time: {(elapsed_time - (propagation_time + node_tick_time)):.2f} seconds")
         self.log.flush(force=True)
 
 

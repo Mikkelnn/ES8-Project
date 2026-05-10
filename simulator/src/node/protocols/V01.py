@@ -99,7 +99,7 @@ class V01(IModule):
                 timer_1 = current_local_clock_info.timer_1_remaining
                 if timer_1 is not None and timer_1 <= 0:
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
-                    self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} did not receive any response from gateway, will try to connect using D2D...")
+                    self.log.add(Severity.WARNING, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} did not receive any response from gateway, will try to connect using D2D...")
                     self.state = State.D2D_DISCOVERY
 
                 if len(current_receptions) > 0:
@@ -137,7 +137,7 @@ class V01(IModule):
                         for hopcount in hopcounts:
                             if (hopcount + 1) in hopcounts:
                                 self.gw_hopcount = hopcount + 2
-                                self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set its hopcount to gateway to {self.gw_hopcount} based on neighbors info!")
+                                self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set its hopcount to gateway to {self.gw_hopcount} based on neighbors info!")
                                 # TODO: we can end rx mode and sleep until next slot to start packet forwarding as we now have a connection to the gateway through our neighbors and can start forwarding packets.
                                 # TODO: we should handle case after death where all four nodes around us is alive, here we should set our hopcount to the missing
                                 break
@@ -148,16 +148,16 @@ class V01(IModule):
                     # if only received single with hopcount 0 we can assume we are 1 hop away from the gateway and set our hopcount to 1
                     if len(self.known_neighbors) == 1 and self.known_neighbors[0].hopcount_to_gateway == 0:
                         self.gw_hopcount = 1
-                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set its hopcount to gateway to {self.gw_hopcount} based on single neighbor with hopcount 0!")
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} set its hopcount to gateway to {self.gw_hopcount} based on single neighbor with hopcount 0!")
 
                     if self.gw_hopcount < 65535:
-                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished D2D discovery with hopcount to gateway {self.gw_hopcount}!")
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished D2D discovery with hopcount to gateway {self.gw_hopcount}!")
                         # TODO: maybe schedule based on GPS time from gateway.... Here it should be based on rx time of the messages from neighbors to ensure we are in sync with them, but for simplicity we just schedule based on our local clock.
                         time_to_next_minute = 60_000 - (current_local_clock_info.current_local_time % 60_000)
                         self.__sleep(sleep_duration_milliseconds=time_to_next_minute, next_state=State.PACKET_FORWARDING)
                     else:
                         # sleep for 25 min and try again - ensure power in battery
-                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished D2D discovery with NO hopcount to gateway, will try again later!")
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished D2D discovery with NO hopcount to gateway, will try again later!")
                         self.__sleep(sleep_duration_milliseconds=25 * 60 * 1000, next_state=State.D2D_DISCOVERY)
 
             case State.PACKET_FORWARDING:
