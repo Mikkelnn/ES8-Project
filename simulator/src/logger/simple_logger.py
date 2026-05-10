@@ -1,6 +1,5 @@
 # type: ignore
 import inspect
-from enum import Enum
 from typing import Any, List, Tuple
 
 from custom_types import Area, Severity
@@ -61,10 +60,7 @@ class SimpleLogger(ILogger):
 
     def _should_flush_message(self, severity: Severity) -> bool:
         """Check if a message should be written to disk."""
-        return (
-            self._severity_order[severity]
-            >= self._severity_order[self.flush_min_severity]
-        )
+        return self._severity_order[severity] >= self._severity_order[self.flush_min_severity]
 
     def add(
         self,
@@ -85,27 +81,14 @@ class SimpleLogger(ILogger):
                 caller_frame = frame.f_back
 
                 if caller_frame is not None:
-                    caller_filename = inspect.getframeinfo(
-                        caller_frame
-                    ).filename
+                    caller_filename = inspect.getframeinfo(caller_frame).filename
 
         extra_data = data if data is not None else ""
 
         if caller_filename:
-            formatted = (
-                f"[{severity.value}] "
-                f"({area.value}) "
-                f"[{caller_filename}] "
-                f"@ {global_time}: "
-                f"{info}, {extra_data}"
-            )
+            formatted = f"[{severity.value}] ({area.value}) [{caller_filename}] @ {global_time}: {info}, {extra_data}"
         else:
-            formatted = (
-                f"[{severity.value}] "
-                f"({area.value}) "
-                f"@ {global_time}: "
-                f"{info}, {extra_data}"
-            )
+            formatted = f"[{severity.value}] ({area.value}) @ {global_time}: {info}, {extra_data}"
 
         # Store ALL logs regardless of severity
         self._buffer.append((severity, formatted + "\n"))
@@ -124,11 +107,7 @@ class SimpleLogger(ILogger):
         if not (force or len(self._buffer) >= self.buffer_size):
             return False
 
-        messages_to_write = [
-            message
-            for severity, message in self._buffer
-            if self._should_flush_message(severity)
-        ]
+        messages_to_write = [message for severity, message in self._buffer if self._should_flush_message(severity)]
 
         if messages_to_write:
             with open(self.log_path, "a", encoding="utf-8") as f:

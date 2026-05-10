@@ -1,11 +1,14 @@
-import re
 import argparse
+import re
+
 import matplotlib.pyplot as plt
 
-#===================Analyser classes===================
+
+# ===================Analyser classes===================
 class deadnodecounter:
     """initializes the dictionary to keep a track of the Node IDs
-     and the number of times 'Death' event recorded for each Node ID"""
+    and the number of times 'Death' event recorded for each Node ID"""
+
     def __init__(self):
         self.dict = {}
 
@@ -29,19 +32,20 @@ class deadnodecounter:
         3: [50]
     }
     """
+
     def build_dict(self, line):
-        if not line.startswith('[CRITICAL]'):
+        if not line.startswith("[CRITICAL]"):
             return None
-        pattern = r'\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED'
+        pattern = r"\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED"
         match = re.match(pattern, line)
         if match:
-            tick = int(match.group('tick'))
-            node_id = int(match.group('node_id'))
+            tick = int(match.group("tick"))
+            node_id = int(match.group("node_id"))
             self.dict.setdefault(node_id, []).append(tick)
 
     def deathcounter(self):
         """increments the count of 'Death' event for the given Node ID in the dictionary"""
-        #Need count for every node ID, so we can plot the graph with node ID on x-axis and count of 'Death' events on y-axis
+        # Need count for every node ID, so we can plot the graph with node ID on x-axis and count of 'Death' events on y-axis
         count = []
         for i in self.dict:
             count.append(len(self.dict[i]))
@@ -60,8 +64,7 @@ class deadnodecounter:
 
         if not node_ids:
             ax.set_title("Events per Node")
-            ax.text(0.5, 0.5, "No death events recorded",
-                    ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.5, 0.5, "No death events recorded", ha="center", va="center", transform=ax.transAxes)
             return ax
 
         ax.stem(node_ids, counts, label="Death Events")
@@ -72,9 +75,11 @@ class deadnodecounter:
 
         return ax
 
+
 class sync_interval_counter:
     """initializes the sets to keep a track of the syncronised and unsynchronised Node IDs
-     and the maximum tick at which the last 'Sync' event recorded globally among the syncronised nodes"""
+    and the maximum tick at which the last 'Sync' event recorded globally among the syncronised nodes"""
+
     def __init__(self):
         self.sync_node_set = set()  # Set to track synced nodes
         self.unsync_node_set = set()  # Set to track unsynced nodes
@@ -104,13 +109,14 @@ class sync_interval_counter:
     unsync_node_set = {4, 5}
     max_sync_tick = 500
     """
+
     def build_dict(self, line):
-        attempt_pattern = r'\[DEBUG\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+attempts gateway connect via WAN'
-        synced_pattern  = r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+(connected to gateway via WAN|discovery complete with hop count \d+)'
+        attempt_pattern = r"\[DEBUG\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+attempts gateway connect via WAN"
+        synced_pattern = r"\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+(connected to gateway via WAN|discovery complete with hop count \d+)"
 
         match = re.match(attempt_pattern, line)
         if match:
-            node_id = int(match.group('node_id'))
+            node_id = int(match.group("node_id"))
             # Special case 1 & 2: ignore if already synced or already waiting
             if node_id not in self.sync_node_set and node_id not in self.unsync_node_set:
                 self.unsync_node_set.add(node_id)
@@ -118,8 +124,8 @@ class sync_interval_counter:
 
         match = re.match(synced_pattern, line)
         if match:
-            node_id = int(match.group('node_id'))
-            tick    = int(match.group('tick'))
+            node_id = int(match.group("node_id"))
+            tick = int(match.group("tick"))
             if node_id in self.unsync_node_set:
                 self.unsync_node_set.discard(node_id)
                 self.sync_node_set.add(node_id)
@@ -136,24 +142,14 @@ class sync_interval_counter:
         if ax is None:
             fig, ax = plt.subplots()
 
-        ax.bar(['Synced', 'Unsynced'], [len(synced), len(unsynced)],
-               color=['steelblue', 'salmon'])
+        ax.bar(["Synced", "Unsynced"], [len(synced), len(unsynced)], color=["steelblue", "salmon"])
         ax.set_ylabel("Node count")
         ax.set_title(f"Sync state  (Time taken to complete synchronization: {tick})")
 
         return ax
 
 
-
-
-
-
-
-
-
-
-
-#===================Helper functions===================
+# ===================Helper functions===================
 def execute(executable_list, line):
     """Passes each log line to every analyser's build_dict method."""
     for exe in executable_list:
@@ -173,12 +169,12 @@ def post_process_and_plot(executable_list):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log', default='Log_debugging\\simulation.log', help='Path to log file')
+    parser.add_argument("--log", default="Log_debugging\\simulation.log", help="Path to log file")
     args = parser.parse_args()
 
     executable_list = [deadnodecounter(), sync_interval_counter()]
 
-    with open(args.log, 'r') as file:
+    with open(args.log, "r") as file:
         for line in file:
             execute(executable_list, line)
 

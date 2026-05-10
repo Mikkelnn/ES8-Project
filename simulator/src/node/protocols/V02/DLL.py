@@ -26,7 +26,7 @@ class DLL:
         self.wan_layer: WANDLL = wan_layer
         self.app_to_dll_tx = app_to_dll_tx
         self.dll_to_app_rx = dll_to_app_rx
-        self.sync_buffer : list[MegaSync]
+        self.sync_buffer: list[MegaSync]
 
         self.slot_period_ms = 60_000  # 1 min slot period
         self.lora_wan_slot_interleave = 60
@@ -171,7 +171,7 @@ class DLL:
                 return
             else:
                 self.sync_buffer.append(msg)
-            
+
         self._flush_tx_buffers(current_global_tick)
         sync_time = msg.time + msg.total_handle_time
         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)

@@ -1,21 +1,23 @@
 import matplotlib
-matplotlib.use('Agg')  # non-interactive backend — must be set before importing pyplot
 
-import pytest
-import matplotlib.pyplot as plt
+matplotlib.use("Agg")  # non-interactive backend — must be set before importing pyplot
+
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import pytest
 
 from main import deadnodecounter, execute, post_process_and_plot, sync_interval_counter
 
-LOG_PATH = Path(__file__).parent / 'test_simulation.log'
+LOG_PATH = Path(__file__).parent / "test_simulation.log"
 
 # Ground truth derived from test_simulation.log
-SYNC_EXPECTED_SYNCED   = [1, 2, 4, 5]
+SYNC_EXPECTED_SYNCED = [1, 2, 4, 5]
 SYNC_EXPECTED_UNSYNCED = [3, 6]
-SYNC_EXPECTED_TICK     = 140
+SYNC_EXPECTED_TICK = 140
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def log_lines():
     with open(LOG_PATH) as f:
         return f.readlines()
@@ -29,7 +31,8 @@ def sync_full_counter(log_lines):
         c.build_dict(line)
     return c
 
-DEATH_LINE = '[CRITICAL] (NODE) @ {tick}: Node {node_id} DIED'
+
+DEATH_LINE = "[CRITICAL] (NODE) @ {tick}: Node {node_id} DIED"
 
 
 def death(node_id, tick):
@@ -40,6 +43,7 @@ def death(node_id, tick):
 # deadnodecounter.build_dict
 # ---------------------------------------------------------------------------
 
+
 class TestBuildDict:
     def test_valid_line_adds_entry(self):
         c = deadnodecounter()
@@ -48,17 +52,17 @@ class TestBuildDict:
 
     def test_non_critical_level_ignored(self):
         c = deadnodecounter()
-        c.build_dict('[DEBUG] (NODE) @ 100: Node 1 DIED')
+        c.build_dict("[DEBUG] (NODE) @ 100: Node 1 DIED")
         assert c.dict == {}
 
     def test_info_level_ignored(self):
         c = deadnodecounter()
-        c.build_dict('[INFO] (NODE) @ 100: Node 1 DIED')
+        c.build_dict("[INFO] (NODE) @ 100: Node 1 DIED")
         assert c.dict == {}
 
     def test_critical_wrong_component_ignored(self):
         c = deadnodecounter()
-        c.build_dict('[CRITICAL] (TRANCEIVER) @ 100: Node 1 DIED')
+        c.build_dict("[CRITICAL] (TRANCEIVER) @ 100: Node 1 DIED")
         assert c.dict == {}
 
     def test_multiple_deaths_same_node_accumulates_ticks(self):
@@ -77,12 +81,13 @@ class TestBuildDict:
 
     def test_returns_none_for_non_critical(self):
         c = deadnodecounter()
-        assert c.build_dict('[DEBUG] (NODE) @ 100: Node 1 DIED') is None
+        assert c.build_dict("[DEBUG] (NODE) @ 100: Node 1 DIED") is None
 
 
 # ---------------------------------------------------------------------------
 # deadnodecounter.deathcounter
 # ---------------------------------------------------------------------------
+
 
 class TestDeathcounter:
     def test_empty_dict_returns_empty_lists(self):
@@ -116,8 +121,8 @@ class TestDeathcounter:
         # Regression: self.count used to be an instance list that accumulated
         c = deadnodecounter()
         c.build_dict(death(1, 100))
-        c.deathcounter()                    # first call
-        _, counts = c.deathcounter()        # second call
+        c.deathcounter()  # first call
+        _, counts = c.deathcounter()  # second call
         assert counts == [1]
 
 
@@ -125,15 +130,16 @@ class TestDeathcounter:
 # deadnodecounter.plot
 # ---------------------------------------------------------------------------
 
+
 class TestPlot:
     def teardown_method(self):
-        plt.close('all')
+        plt.close("all")
 
     def test_empty_dict_plot_does_not_raise(self):
         """stem([], []) must not raise when no death events were recorded."""
         c = deadnodecounter()
-        ax = c.plot()          # should not raise ValueError
-        assert hasattr(ax, 'stem')
+        ax = c.plot()  # should not raise ValueError
+        assert hasattr(ax, "stem")
 
     def test_empty_dict_plot_shows_no_data_message(self):
         """When there is no data, the axes should carry an explanatory text label."""
@@ -147,7 +153,7 @@ class TestPlot:
         c = deadnodecounter()
         c.build_dict(death(1, 100))
         ax = c.plot()
-        assert hasattr(ax, 'stem')
+        assert hasattr(ax, "stem")
 
     def test_uses_provided_ax(self):
         c = deadnodecounter()
@@ -168,6 +174,7 @@ class TestPlot:
 # execute
 # ---------------------------------------------------------------------------
 
+
 class TestExecute:
     def test_calls_build_dict_on_every_analyser(self):
         c1, c2 = deadnodecounter(), deadnodecounter()
@@ -177,7 +184,7 @@ class TestExecute:
 
     def test_non_matching_line_leaves_dicts_empty(self):
         c = deadnodecounter()
-        execute([c], '[DEBUG] (NODE) @ 100: Node 1 DIED')
+        execute([c], "[DEBUG] (NODE) @ 100: Node 1 DIED")
         assert c.dict == {}
 
     def test_empty_executable_list_does_not_raise(self):
@@ -188,9 +195,10 @@ class TestExecute:
 # post_process_and_plot
 # ---------------------------------------------------------------------------
 
+
 class TestPostProcessAndPlot:
     def teardown_method(self):
-        plt.close('all')
+        plt.close("all")
 
     def test_single_analyser_produces_one_figure(self):
         c = deadnodecounter()
@@ -212,17 +220,18 @@ class TestPostProcessAndPlot:
 # sync_interval_counter.build_dict
 # ---------------------------------------------------------------------------
 
+
 class TestSyncBuildDict:
     def test_attempt_adds_to_unsync_set(self, log_lines):
-        line = next(l for l in log_lines if 'Node 1 attempts gateway connect via WAN' in l)
+        line = next(line for line in log_lines if "Node 1 attempts gateway connect via WAN" in line)
         c = sync_interval_counter()
         c.build_dict(line)
         assert c.unsync_node_set == {1}
         assert c.sync_node_set == set()
 
     def test_discovery_complete_moves_to_sync_set(self, log_lines):
-        attempt   = next(l for l in log_lines if 'Node 2 attempts gateway connect via WAN' in l)
-        discovery = next(l for l in log_lines if 'Node 2 discovery complete' in l)
+        attempt = next(line for line in log_lines if "Node 2 attempts gateway connect via WAN" in line)
+        discovery = next(line for line in log_lines if "Node 2 discovery complete" in line)
         c = sync_interval_counter()
         c.build_dict(attempt)
         c.build_dict(discovery)
@@ -230,8 +239,8 @@ class TestSyncBuildDict:
         assert c.unsync_node_set == set()
 
     def test_sync_tick_updated_on_discovery(self, log_lines):
-        attempt   = next(l for l in log_lines if 'Node 2 attempts gateway connect via WAN' in l)
-        discovery = next(l for l in log_lines if 'Node 2 discovery complete' in l)
+        attempt = next(line for line in log_lines if "Node 2 attempts gateway connect via WAN" in line)
+        discovery = next(line for line in log_lines if "Node 2 discovery complete" in line)
         c = sync_interval_counter()
         c.build_dict(attempt)
         c.build_dict(discovery)
@@ -239,27 +248,27 @@ class TestSyncBuildDict:
 
     def test_special_case1_already_synced_attempt_ignored(self, log_lines):
         # Node 1: first attempt (tick 10) → discovery (tick 140) → re-attempt (tick 160)
-        node1_attempts = [l for l in log_lines if 'Node 1 attempts gateway connect via WAN' in l]
-        discovery      = next(l for l in log_lines if 'Node 1 discovery complete' in l)
+        node1_attempts = [line for line in log_lines if "Node 1 attempts gateway connect via WAN" in line]
+        discovery = next(line for line in log_lines if "Node 1 discovery complete" in line)
         c = sync_interval_counter()
-        c.build_dict(node1_attempts[0])   # tick 10 → unsync
-        c.build_dict(discovery)            # tick 140 → sync
+        c.build_dict(node1_attempts[0])  # tick 10 → unsync
+        c.build_dict(discovery)  # tick 140 → sync
         c.build_dict(node1_attempts[-1])  # tick 160 → ignored (already synced)
         assert c.sync_node_set == {1}
         assert c.unsync_node_set == set()
 
     def test_special_case2_double_attempt_ignored(self, log_lines):
         # Node 6 attempts twice — second attempt must be ignored
-        node6_attempts = [l for l in log_lines if 'Node 6 attempts gateway connect via WAN' in l]
+        node6_attempts = [line for line in log_lines if "Node 6 attempts gateway connect via WAN" in line]
         c = sync_interval_counter()
-        c.build_dict(node6_attempts[0])   # tick 35 → unsync
-        c.build_dict(node6_attempts[1])   # tick 75 → ignored
+        c.build_dict(node6_attempts[0])  # tick 35 → unsync
+        c.build_dict(node6_attempts[1])  # tick 75 → ignored
         assert c.unsync_node_set == {6}
         assert c.sync_node_set == set()
 
     def test_discovery_without_prior_attempt_ignored(self, log_lines):
         # Node 7 has discovery complete but no prior attempt → must be ignored
-        discovery = next(l for l in log_lines if 'Node 7 discovery complete' in l)
+        discovery = next(line for line in log_lines if "Node 7 discovery complete" in line)
         c = sync_interval_counter()
         c.build_dict(discovery)
         assert c.sync_node_set == set()
@@ -267,9 +276,7 @@ class TestSyncBuildDict:
 
     def test_node1_death_and_reset_still_syncs(self, log_lines):
         # Node 1: attempt → die → reset attempt → discovery complete → synced
-        node1_lines = [l for l in log_lines
-                       if 'Node 1 attempts gateway connect via WAN' in l
-                       or 'Node 1 discovery complete' in l]
+        node1_lines = [line for line in log_lines if "Node 1 attempts gateway connect via WAN" in line or "Node 1 discovery complete" in line]
         c = sync_interval_counter()
         for line in node1_lines:
             c.build_dict(line)
@@ -277,7 +284,7 @@ class TestSyncBuildDict:
         assert 1 not in c.unsync_node_set
 
     def test_non_protocol_line_ignored(self, log_lines):
-        line = next(l for l in log_lines if l.startswith('[DEBUG] (TRANCEIVER)'))
+        line = next(line for line in log_lines if line.startswith("[DEBUG] (TRANCEIVER)"))
         c = sync_interval_counter()
         c.build_dict(line)
         assert c.sync_node_set == set()
@@ -287,6 +294,7 @@ class TestSyncBuildDict:
 # ---------------------------------------------------------------------------
 # sync_interval_counter.sync_counter
 # ---------------------------------------------------------------------------
+
 
 class TestSyncCounter:
     def test_empty_returns_empty_lists_and_zero(self):
@@ -311,13 +319,14 @@ class TestSyncCounter:
 # sync_interval_counter.plot
 # ---------------------------------------------------------------------------
 
+
 class TestSyncPlot:
     def teardown_method(self):
-        plt.close('all')
+        plt.close("all")
 
     def test_returns_axes_object(self, sync_full_counter):
         ax = sync_full_counter.plot()
-        assert hasattr(ax, 'bar')
+        assert hasattr(ax, "bar")
 
     def test_uses_provided_ax(self, sync_full_counter):
         _, ax = plt.subplots()

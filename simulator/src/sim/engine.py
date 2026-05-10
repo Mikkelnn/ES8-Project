@@ -15,7 +15,7 @@ from logger.simple_logger import SimpleLogger
 from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
 from medium.medium_service import MediumService
 from node.node import Node
-from payload_types import MegaSync, PayloadData, PayloadHopCntSimple, PayloadHopCntMid, PayloadHopCntFull
+from payload_types import MegaSync, PayloadData
 
 from .device_event_queue import DeviceEventQueue
 from .global_time import GlobalTime
