@@ -4,7 +4,6 @@ from typing import cast
 
 from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
 from logger.ILogger import ILogger
-from loraWanFrameHelper import MACPayload
 from node.event_local_queue import LocalEventQueue
 from payload_types import PayloadData
 
@@ -15,7 +14,6 @@ class AppState(Enum):
     MEASURING = 2
     DEDUP = 3
     FORWARDING = 4
-    
 
 
 class APP:
@@ -84,7 +82,7 @@ class APP:
                     packet = self.dll_to_app_rx.pop(0)
                     self.enqueue_payload(packet)
 
-            case AppState.DEDUP: #TODO
+            case AppState.DEDUP:  # TODO
                 self._deduplication()
 
     def enqueue_payload(self, payload: PayloadData) -> None:

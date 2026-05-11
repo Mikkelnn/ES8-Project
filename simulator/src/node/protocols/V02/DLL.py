@@ -53,10 +53,10 @@ class DLL:
             i = 0
             while i < len(buffer_list):
                 frame = buffer_list[i]
-                checksum = frame.crc if hasattr(frame, 'crc') else frame.mic
+                checksum = frame.crc if hasattr(frame, "crc") else frame.mic
 
                 if isinstance(checksum, bytes):
-                    checksum = int.from_bytes(checksum, 'big')
+                    checksum = int.from_bytes(checksum, "big")
 
                 if checksum in seen_checksums:
                     buffer_list.pop(i)
