@@ -3,11 +3,10 @@ from typing import cast
 
 from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
 from logger.ILogger import ILogger
-from loraWanFrameHelper import MACPayload
 from node.event_local_queue import LocalEventQueue
 from node.protocols.V02.D2DDLL import D2DDLL, DiscoverStates
 from node.protocols.V02.WANDLL import WANDLL, LinkState
-from payload_types import MegaSync, MegaSyncReq, PayloadData
+from payload_types import MegaSync, PayloadData
 
 
 class DLLState(Enum):
@@ -61,7 +60,7 @@ class DLL:
                     checksum = int.from_bytes(checksum, "big")
 
                 if checksum in seen_checksums:
-                    buffer_list.pop(i) # So we remove from our local array but not from the actual buffers?
+                    buffer_list.pop(i)  # So we remove from our local array but not from the actual buffers?
                 else:
                     seen_checksums.add(checksum)
                     i += 1
@@ -119,7 +118,7 @@ class DLL:
                 finished = self.wan_layer.tick(current_global_tick, current_local_clock_info) if is_wan_slot else self.d2d_layer.tick(current_global_tick, current_local_clock_info, slot_period_counter=0)
 
                 if finished:
-                    if not is_wan_slot: 
+                    if not is_wan_slot:
                         # TODO: should we only do this if abs(diff) > 0 ?
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=self.d2d_layer.estimated_period_correction)
 
@@ -143,9 +142,9 @@ class DLL:
         while queue:
             msg = queue.pop(0)
             if isinstance(msg.frm_payload, MegaSync):
-                self._megasync_handle(msg)
+                self._megasync_handle(msg.frm_payload)
             else:
-                pass # we currently have no payloads from WAN that should be passed to APP-layer
+                pass  # we currently have no payloads from WAN that should be passed to APP-layer
                 # self.dll_to_app_rx.append(msg)
 
         d2d_queue = self.d2d_layer.dequeue_payload()
@@ -153,7 +152,7 @@ class DLL:
             msg = d2d_queue.pop(0)
             if isinstance(msg, PayloadData):
                 self.dll_to_app_rx.append(msg)
-            elif isinstance(msg, MegaSync): # we route directly back to tx
+            elif isinstance(msg, MegaSync):  # we route directly back to tx
                 self._megasync_handle(msg)
 
     def _have_direct_wan_connection(self) -> bool:
@@ -172,7 +171,6 @@ class DLL:
         return 0
 
     def _megasync_handle(self, msg: MegaSync) -> None:
-        
         # TODO: maybe use GUIDs for this check, if memory ref is an issue
         for old_msg in self.sync_buffer:
             if msg is old_msg:

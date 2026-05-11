@@ -6,7 +6,7 @@ from logger.ILogger import ILogger
 from loraWanFrameHelper import MACPayload, make_uplink
 from node.event_local_queue import LocalEventQueue
 from node.transceiver.lora_tx_duration_calculator import LoRaTxDurationCalculator
-from payload_types import MegaSync, MegaSyncReq, PayloadData
+from payload_types import MegaSyncReq, PayloadData
 
 
 class LinkState(Enum):

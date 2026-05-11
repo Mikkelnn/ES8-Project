@@ -59,7 +59,6 @@ class Clock(IModule):
 
             self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.local_time - current_global_tick}")
 
-
         # calculate next clock skew
         self.alpha = self.ar_constant * self.alpha + self.random_vector[0]
         if self.random_vector.size == 1:

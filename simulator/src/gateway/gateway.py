@@ -1,6 +1,8 @@
 # type: ignore
-from pyparsing import cast
 from collections import defaultdict
+
+from pyparsing import cast
+
 from custom_types import Area, LocalEventTypes, MediumTypes, Severity, TransceiverState
 from Interfaces import IDevice
 from logger import ILogger
@@ -35,10 +37,10 @@ class Gateway(IDevice):
         rx_now = self.rx_at_tick.pop(current_global_tick, [])
         if rx_now:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
-        
+
         for frame in rx_now:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_WAN, data=frame)
-            self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} sent a response to node {dev_addr} at global tick {current_global_tick} GUID={frame.mac_payload.frm_payload.guid}")
+            self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} sent a response to node {frame.mac_payload.dev_addr} at global tick {current_global_tick} GUID={frame.mac_payload.frm_payload.guid}")
 
         # Received data
         received_data = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, sub_type=MediumTypes.LORA_WAN)
@@ -47,7 +49,7 @@ class Gateway(IDevice):
             self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} received data:{data}, GUID={data.mac_payload.frm_payload.guid}")
             rx1_tick = current_global_tick + 1 * (1 / self.second_to_global_tick)  # 1 second after rx as per LoRaWAN specification for rx1
             if data.is_ack():
-                pass # we should send ACK with no payload but this is not currently possible...
+                pass  # we should send ACK with no payload but this is not currently possible...
                 # self.rx_at_tick.setdefault(rx1_tick, []).append(make_downlink_ack(data.mac_payload.dev_addr, frame_count=0, ))
             elif data.mac_payload and isinstance(MegaSyncReq, data.mac_payload.frm_payload):
                 frame = make_downlink_ack(dev_addr=data.mac_payload.dev_addr, frame_count=0, payload=MegaSync(time=current_global_tick))

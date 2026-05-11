@@ -299,8 +299,8 @@ class D2DDLL:
 
             case LoRaD2DFrameType.DATA_TO_GW:
                 if self._node_id in frame.destination_node_id:
-                    if isinstance(MegaSync, frame.payload):
-                        cast(MegaSync, frame.payload).local_rx_time = current_local_clock_info.current_local_time
+                    if isinstance(frame.payload, MegaSync):
+                        frame.payload.local_rx_time = current_local_clock_info.current_local_time
                     self._rx_buffer.append(frame)
 
             case LoRaD2DFrameType.DATA_FROM_GW:
@@ -430,11 +430,11 @@ class D2DDLL:
                 self._tx_buffer.append(change_frame)
 
     def _minisync(self) -> None:
-        if not self.link_established or not self._known_neighbors:            
+        if not self.link_established or not self._known_neighbors:
             return
 
         if self.estimated_period_correction > 0:
-            return # MegaSync has happened in current period
+            return  # MegaSync has happened in current period
 
         slot_offsets = []
         for n in self._known_neighbors:
@@ -469,9 +469,9 @@ class D2DDLL:
 
         # add internal process time
         packet.total_handle_time += current_local_time - packet.local_rx_time
-        
+
         # calculate local time diff from synced time
         self.estimated_period_correction = current_local_time - packet.time + packet.total_handle_time
-        
+
         # add tx time for nex node
-        packet.total_handle_time += (tx_duration + 1)
+        packet.total_handle_time += tx_duration + 1
