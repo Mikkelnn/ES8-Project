@@ -31,6 +31,7 @@ class DLL:
         self.lora_wan_slot_interleave = 60
         self.d2d_rety_period_ms = 25 * 60_000  # 25 min retry period for D2D allow battery to charge
         self.retain_depth_old_megasync = 20
+        self._megasync_req_interval_ms = 60 * 60 * 1000  # 1 hour
 
         self.reset(0)
 
@@ -41,6 +42,8 @@ class DLL:
         self.wan_layer.reset(current_global_tick)
         self.current_period_start_time = None
         self.sync_buffer: list[MegaSync] = []
+        self._last_megasync_req_local_time: int = 0
+        self._megasync_req_due: bool = False
 
     def _remove_duplicates_from_buffers(self) -> None:
         """Remove duplicate frames across D2D and WAN buffers based on CRC/MIC. TX buffers kept, RX duplicates removed."""
@@ -103,7 +106,17 @@ class DLL:
                 if self.current_period_start_time is None:
                     self.current_period_start_time = current_local_clock_info.current_local_time
 
+                current_local_time = current_local_clock_info.current_local_time
+                if abs(current_local_time - self._last_megasync_req_local_time) >= self._megasync_req_interval_ms:
+                    self._megasync_req_due = True
+
                 is_wan_slot = self.slot_period_counter == 0
+                if self._megasync_req_due and self._effective_hopcount() == 0 and is_wan_slot:
+                    self.wan_layer.enqueue_payload(MegaSyncReq())
+                    self._last_megasync_req_local_time = current_local_time
+                    self._megasync_req_due = False
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} sent periodic MegaSyncReq")
+
                 finished = self.wan_layer.tick(current_global_tick, current_local_clock_info) if is_wan_slot else self.d2d_layer.tick(current_global_tick, current_local_clock_info, slot_period_counter=0)
 
                 if finished:
