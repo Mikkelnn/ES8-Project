@@ -8,6 +8,7 @@ from node.protocols.V02.APP import APP
 from node.protocols.V02.D2DDLL import D2DDLL
 from node.protocols.V02.DLL import DLL
 from node.protocols.V02.WANDLL import WANDLL
+from payload_types import PayloadData
 
 
 class V02(IModule):
@@ -17,8 +18,8 @@ class V02(IModule):
         self.second_to_global_tick = second_to_global_tick
         self.log = log
 
-        self.app_to_dll_tx: list[Any] = []  # This is loose, but had problems making uints for this fit bith APP and DLL
-        self.dll_to_app_rx: list[Any] = []
+        self.app_to_dll_tx: list[PayloadData] = []
+        self.dll_to_app_rx: list[PayloadData] = []
 
         self.app = APP(node_id, local_event_queue, log, self.app_to_dll_tx, self.dll_to_app_rx)
         self.d2d = D2DDLL(node_id, local_event_queue, log)

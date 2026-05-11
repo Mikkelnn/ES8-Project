@@ -1,6 +1,6 @@
 # type: ignore
 from pyparsing import cast
-
+from collections import defaultdict
 from custom_types import Area, LocalEventTypes, MediumTypes, Severity, TransceiverState
 from Interfaces import IDevice
 from logger import ILogger
@@ -9,7 +9,7 @@ from medium.medium_service import MediumService
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
 from node.transceiver.transceiver_service import TransceiverService
-from payload_types import MegaSync
+from payload_types import MegaSync, MegaSyncReq
 
 
 class Gateway(IDevice):
@@ -21,7 +21,7 @@ class Gateway(IDevice):
 
         self.transceiver = TransceiverService(self.gateway_id, medium_service, self.local_event_queue, second_to_global_tick, log)
         self.second_to_global_tick = second_to_global_tick
-        self.rx_to_nodes: dict[int, int] = {}
+        self.rx_at_tick: dict[int, list[LoRaWanPHYPayload]] = defaultdict(list)
 
     def tick(self, current_global_tick: int) -> int | None:
         self.accumulated_state.reset()
@@ -32,13 +32,13 @@ class Gateway(IDevice):
         if tranceiver_statuses[MediumTypes.LORA_WAN] == TransceiverState.IDLE:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.RECEIVING)
 
-        nodes_to_respond = [dev_addr for dev_addr, rx_tick in self.rx_to_nodes.items() if current_global_tick >= rx_tick]
-        for dev_addr in nodes_to_respond:
-            frame = make_downlink_ack(dev_addr=dev_addr, frame_count=0, payload=MegaSync())
+        rx_now = self.rx_at_tick.pop(current_global_tick, [])
+        if rx_now:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_WAN, data=TransceiverState.IDLE)
+        
+        for frame in rx_now:
             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_WAN, data=frame)
             self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} sent a response to node {dev_addr} at global tick {current_global_tick} GUID={frame.mac_payload.frm_payload.guid}")
-            del self.rx_to_nodes[dev_addr]
 
         # Received data
         received_data = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, sub_type=MediumTypes.LORA_WAN)
@@ -46,10 +46,15 @@ class Gateway(IDevice):
             data = cast(LoRaWanPHYPayload, event.data)
             self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} received data:{data}, GUID={data.mac_payload.frm_payload.guid}")
             rx1_tick = current_global_tick + 1 * (1 / self.second_to_global_tick)  # 1 second after rx as per LoRaWAN specification for rx1
-            self.rx_to_nodes[data.mac_payload.dev_addr] = rx1_tick
+            if data.is_ack():
+                pass # we should send ACK with no payload but this is not currently possible...
+                # self.rx_at_tick.setdefault(rx1_tick, []).append(make_downlink_ack(data.mac_payload.dev_addr, frame_count=0, ))
+            elif data.mac_payload and isinstance(MegaSyncReq, data.mac_payload.frm_payload):
+                frame = make_downlink_ack(dev_addr=data.mac_payload.dev_addr, frame_count=0, payload=MegaSync(time=current_global_tick))
+                self.rx_at_tick.setdefault(rx1_tick, []).append(frame)
 
-        if self.rx_to_nodes:
-            earliest_rx_tick = min(self.rx_to_nodes.values())
+        if self.rx_at_tick:
+            earliest_rx_tick = min(self.rx_at_tick.keys())
             self.accumulated_state.update((0, earliest_rx_tick))
 
         # Clear local event bus

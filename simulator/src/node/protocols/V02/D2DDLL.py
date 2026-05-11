@@ -100,7 +100,7 @@ class D2DDLL:
             return
 
         if len(destination_node_ids) == 0:
-            self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, "Node have no destinations for payload.... dropped")
+            self._log.add(Severity.WARNING, Area.PROTOCOL, 0, "Node have no destinations for payload....")
 
         msg = LoRaD2DFrame(
             source_node_id=self._node_id,
@@ -126,6 +126,7 @@ class D2DDLL:
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, slot_period_counter: int) -> bool:
 
         current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self._local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
+        self.estimated_period_correction = 0
 
         # Add REDISCOVER for DEAD Nodes -> use last_seen to determine (only one for now)
         if self.link_established and self._current_slot == -1:
@@ -257,6 +258,7 @@ class D2DDLL:
         if self._current_slot < 0:
             return
 
+        current_local_time = current_local_clock_info.current_local_time
         slot_end_in = current_local_clock_info.timer_1_remaining
         timer_2 = current_local_clock_info.timer_2_remaining
         is_tx_slot = self._current_slot == self._own_tx_slot
@@ -273,13 +275,14 @@ class D2DDLL:
             self._tx_offset_done = True
             self._tx_buffer.sort(key=lambda f: f.type)  # Ensure highest priority packets are sent first, currently priority is determined by frame type order in LoRaD2DFrameType enum
             # determine if time allow for packet tx
-            if slot_end_in is None or self._duration_calculator.get_duration(self._tx_buffer[0].length) > slot_end_in - self._tx_start_end_buffer:
+            tx_duration = self._duration_calculator.get_duration(self._tx_buffer[0].length)
+            if slot_end_in is None or tx_duration > slot_end_in - self._tx_start_end_buffer:
                 return
 
             packet = self._tx_buffer.pop(0)
 
             if isinstance(packet.payload, MegaSync):
-                packet.payload.total_handle_time = packet.payload.total_handle_time + (current_local_clock_info.current_local_time - packet.payload.total_handle_time) + self._duration_calculator.get_duration(self._tx_buffer[0].length) + 1
+                self._handle_megasync_packet(packet.payload, current_local_time, tx_duration)
 
             self._local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
 
@@ -296,6 +299,8 @@ class D2DDLL:
 
             case LoRaD2DFrameType.DATA_TO_GW:
                 if self._node_id in frame.destination_node_id:
+                    if isinstance(MegaSync, frame.payload):
+                        cast(MegaSync, frame.payload).local_rx_time = current_local_clock_info.current_local_time
                     self._rx_buffer.append(frame)
 
             case LoRaD2DFrameType.DATA_FROM_GW:
@@ -425,9 +430,11 @@ class D2DDLL:
                 self._tx_buffer.append(change_frame)
 
     def _minisync(self) -> None:
-        if not self.link_established or not self._known_neighbors:
-            self.estimated_period_correction = 0
+        if not self.link_established or not self._known_neighbors:            
             return
+
+        if self.estimated_period_correction > 0:
+            return # MegaSync has happened in current period
 
         slot_offsets = []
         for n in self._known_neighbors:
@@ -444,7 +451,6 @@ class D2DDLL:
             slot_offsets.append(correction)
 
         if not slot_offsets:
-            self.estimated_period_correction = 0
             return
 
         # simple average -> simplest
@@ -458,3 +464,14 @@ class D2DDLL:
         # lowpass with prev correction to avoid oscillation and over-correction
         # alpha = 0.2
         # self.estimated_period_correction = int((alpha * current_offset + (1 - alpha) * self.estimated_relative_period_offset))
+
+    def _handle_megasync_packet(self, packet: MegaSync, current_local_time: int, tx_duration: int) -> None:
+
+        # add internal process time
+        packet.total_handle_time += current_local_time - packet.local_rx_time
+        
+        # calculate local time diff from synced time
+        self.estimated_period_correction = current_local_time - packet.time + packet.total_handle_time
+        
+        # add tx time for nex node
+        packet.total_handle_time += (tx_duration + 1)
