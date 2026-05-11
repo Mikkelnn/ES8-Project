@@ -22,6 +22,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from custom_types import LocalClockInfo, LocalEventNet, LocalEventSubTypes, LocalEventTypes
+from logger.ILogger import ILogger
 from node.clock.clock import Clock
 from node.event_local_queue import LocalEventQueue
 
@@ -53,11 +54,17 @@ def mock_event_queue():
 
 
 @pytest.fixture
-def clock_instance(mock_event_queue):
+def mock_log():
+    """Create a mock ILogger for testing."""
+    return Mock(spec=ILogger)
+
+
+@pytest.fixture
+def clock_instance(mock_log, mock_event_queue):
     """Create a fresh Clock instance for testing."""
     # Re-seed before each test for consistent clock drift
     np.random.seed(RANDOM_SEED)
-    clock = Clock(node_id=1, local_event_queue=mock_event_queue, second_to_global_tick=0.001)
+    clock = Clock(log=mock_log, node_id=1, local_event_queue=mock_event_queue, second_to_global_tick=0.001)
     return clock
 
 
@@ -466,11 +473,12 @@ class TestClockDrift:
     def test_seeded_determinism(self):
         """Multiple clocks with same seed should produce identical drift sequences."""
         np.random.seed(42)
+        mock_log1 = Mock(spec=ILogger)
         mock1 = Mock(spec=LocalEventQueue)
         mock1.get_current_events_by_type.return_value = []
         mock1.add_event_to_current_tick = Mock()
 
-        clock1 = Clock(node_id=1, local_event_queue=mock1, second_to_global_tick=0.001)
+        clock1 = Clock(log=mock_log1, node_id=1, local_event_queue=mock1, second_to_global_tick=0.001)
         times1 = []
         for tick in range(1, 11):
             clock1.tick(current_global_tick=tick)
@@ -478,11 +486,12 @@ class TestClockDrift:
 
         # Create second clock with same seed
         np.random.seed(42)
+        mock_log2 = Mock(spec=ILogger)
         mock2 = Mock(spec=LocalEventQueue)
         mock2.get_current_events_by_type.return_value = []
         mock2.add_event_to_current_tick = Mock()
 
-        clock2 = Clock(node_id=2, local_event_queue=mock2, second_to_global_tick=0.001)
+        clock2 = Clock(log=mock_log2, node_id=2, local_event_queue=mock2, second_to_global_tick=0.001)
         times2 = []
         for tick in range(1, 11):
             clock2.tick(current_global_tick=tick)

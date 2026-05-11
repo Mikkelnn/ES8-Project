@@ -1,5 +1,6 @@
 # type: ignore
-from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, Severity
+from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
 from node.Imodule import IModule
@@ -7,9 +8,10 @@ from node.Imodule import IModule
 
 # log = Logger()
 class Clock(IModule):
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float):
+    def __init__(self, log: ILogger, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float):
         self.node_id = node_id
         self.local_event_queue = local_event_queue
+        self.log = log
 
         joules_per_second_consumption = 1e-6  # TODO: Set realistic value
         self.consuption_per_tick = joules_per_second_consumption * second_to_global_tick
@@ -32,15 +34,21 @@ class Clock(IModule):
 
         # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
-        if sync_events:
+        if sync_events:            
+            drift_before_correction = self.local_time - current_global_tick
+
             correction = int(sync_events[0].data)
-            local_time += correction  # +1 Because this time was scheduled 1 tick before
+            self.local_time += correction  # +1 Because this time was scheduled 1 tick before
             if self.sleep_until_local_time is not None:
                 self.sleep_until_local_time += correction
             if self.timer_1_end_local_time is not None:
                 self.timer_1_end_local_time += correction
             if self.timer_2_end_local_time is not None:
                 self.timer_2_end_local_time += correction
+
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.local_time - current_global_tick}")
+
+
 
         # update timers
         set_timers = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SET_TIMER)

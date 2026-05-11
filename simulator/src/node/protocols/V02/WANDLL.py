@@ -5,6 +5,7 @@ from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTyp
 from logger.ILogger import ILogger
 from loraWanFrameHelper import MACPayload, make_uplink
 from node.event_local_queue import LocalEventQueue
+from node.transceiver.lora_tx_duration_calculator import LoRaTxDurationCalculator
 from payload_types import MegaSync, MegaSyncReq, PayloadData
 
 
@@ -27,6 +28,9 @@ class WANDLL:
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log
+        self._duration_calculator = LoRaTxDurationCalculator(second_to_global_tick=0.001)
+        self.tx_counter = 0
+        self.tx_one_go_tick_cap = 36_000
         self.reset(0)
 
     def reset(self, current_global_tick: int) -> None:
@@ -93,9 +97,15 @@ class WANDLL:
         match self.transmit_state:
             case TransmitState.IDLE:
                 if len(self._tx_buffer) == 0:
+                    self.tx_counter = 0
                     return True  # nothing to transmit, period finished, can move on to next slot
 
                 # TODO: handle max TX dutycycle and turn off tranceiver
+                self.tx_counter += self._duration_calculator.get_duration(self._tx_buffer[0].length)
+                if self.tx_counter >= self.tx_one_go_tick_cap:
+                    self.tx_counter = 0
+                    return True  # Too much tx time used
+
                 next_packet = self._tx_buffer.pop(0)
                 self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_WAN, data=next_packet)
                 self.transmit_state = TransmitState.TRANSMITTING_WAITING_FOR_RX if next_packet.is_confirmed_uplink() else TransmitState.TRANSMITTING

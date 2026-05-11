@@ -43,6 +43,7 @@ src/sim/engine.py
 src/sim/global_time.py
 src/sim/logger.py
 test/test_battery.py
+test/test_bfs_topology_equivalence.py
 test/test_clock.py
 test/test_custom_types.py
 test/test_event_net_queue.py
@@ -53,4 +54,6 @@ test/test_injection_e2e.py
 test/test_injection_topologies.py
 test/test_lora_d2d_medium.py
 test/test_megasync_protocol.py
+test/test_network_topology_loader.py
 test/test_transceiver.py
+test/test_v02_deduplication.py

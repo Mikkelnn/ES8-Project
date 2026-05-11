@@ -31,6 +31,7 @@ class DLL:
         self.lora_wan_slot_interleave = 60
         self.d2d_rety_period_ms = 25 * 60_000  # 25 min retry period for D2D allow battery to charge
         self.retain_depth_old_megasync = 20
+        self._megasync_req_interval_ms = 60 * 60 * 1000  # 1 hour
 
         self.reset(0)
 
@@ -41,12 +42,34 @@ class DLL:
         self.wan_layer.reset(current_global_tick)
         self.current_period_start_time = None
         self.sync_buffer: list[MegaSync] = []
+        self._last_megasync_req_local_time: int = 0
+        self._megasync_req_due: bool = False
+
+    def _remove_duplicates_from_buffers(self) -> None:
+        """Remove duplicate frames across D2D and WAN buffers based on CRC/MIC. TX buffers kept, RX duplicates removed."""
+        seen_checksums = set()
+
+        # TODO: Does this work? -> below seems to be a 2D array....
+        # also why O(n²)? -> we can just run over the list once, if we have checksum slice current packet...
+        for buffer_list in [self.d2d_layer._tx_buffer, self.wan_layer._tx_buffer, self.d2d_layer._rx_buffer, self.wan_layer._rx_buffer]:
+            i = 0
+            while i < len(buffer_list):
+                frame = buffer_list[i]
+                checksum = frame.crc if hasattr(frame, "crc") else frame.mic
+
+                if isinstance(checksum, bytes):
+                    checksum = int.from_bytes(checksum, "big")
+
+                if checksum in seen_checksums:
+                    buffer_list.pop(i) # So we remove from our local array but not from the actual buffers?
+                else:
+                    seen_checksums.add(checksum)
+                    i += 1
 
     def tick(self, current_global_tick: int) -> None:
         current_local_clock_info = cast(LocalClockInfo, self.local_event_queue.get_current_events_by_type(LocalEventTypes.LOCAL_TIME)[0].data)
 
-        # TODO: when to do MegaSync?
-        # self.wan_layer.request_mega_sync()
+        self._remove_duplicates_from_buffers()
 
         # Determine if discovery have occured, otherwise start with WAN then D2D
         match self.state:
@@ -85,7 +108,14 @@ class DLL:
                 if self.current_period_start_time is None:
                     self.current_period_start_time = current_local_clock_info.current_local_time
 
+                current_local_time = current_local_clock_info.current_local_time
+
                 is_wan_slot = self.slot_period_counter == 0
+                if self._have_direct_wan_connection() and is_wan_slot and abs(current_local_time - self._last_megasync_req_local_time) >= self._megasync_req_interval_ms:
+                    self.wan_layer.request_mega_sync()
+                    self._last_megasync_req_local_time = current_local_time
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} sent periodic MegaSyncReq")
+
                 finished = self.wan_layer.tick(current_global_tick, current_local_clock_info) if is_wan_slot else self.d2d_layer.tick(current_global_tick, current_local_clock_info, slot_period_counter=0)
 
                 if finished:
