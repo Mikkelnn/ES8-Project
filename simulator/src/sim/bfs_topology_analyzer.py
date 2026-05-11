@@ -89,8 +89,8 @@ class BFSTopologyAnalyzer:
         gateways_data: dict,
         m_per_svg_x: float,
         m_per_svg_y: float,
-        radius_m: float = None,
-        gw_id_offset: int = None,
+        radius_m: float | None = None,
+        gw_id_offset: int | None = None,
     ) -> tuple[set[int], dict[int, list[int]], dict[int, int]]:
         """Run full BFS topology analysis.
 

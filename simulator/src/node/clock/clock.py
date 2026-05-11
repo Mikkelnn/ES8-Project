@@ -33,7 +33,7 @@ class Clock(IModule):
         self.random_vector = self.random_vector[1:]
 
     def tick(self, current_global_tick: int) -> tuple[float, int | None]:
-        
+
         # TODO: WE NEED TO UPDATE ALL TIMERS RELATIVE!
         # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)

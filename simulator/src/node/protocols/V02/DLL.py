@@ -59,14 +59,15 @@ class DLL:
                         self.state = DLLState.FORWARDING
                         self.slot_period_counter = self.d2d_layer.slot_period_counter
                         self._increment_slot_period_counter()
-                        sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms
+
+                        sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms  # ty: ignore[unsupported-operator]
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                         self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery with D2D route to gateway, sleeping until next slot period")
 
                     elif finished and not self.d2d_layer.link_established:
                         # sleep before retrying discovery
                         if self.d2d_layer.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]:
-                            sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms
+                            sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms  # ty: ignore[unsupported-operator]
                             if self.d2d_layer.slot_period_counter + 1 >= self.lora_wan_slot_interleave:
                                 # sleep next period as it is LORA WAN -> no D2D
                                 sleep_ms + self.slot_period_ms
@@ -82,11 +83,11 @@ class DLL:
                     self.current_period_start_time = current_local_clock_info.current_local_time
 
                 is_wan_slot = self.slot_period_counter == 0
-                finished = self.wan_layer.tick(current_global_tick, current_local_clock_info) if is_wan_slot else self.d2d_layer.tick(current_global_tick, current_local_clock_info)
+                finished = self.wan_layer.tick(current_global_tick, current_local_clock_info) if is_wan_slot else self.d2d_layer.tick(current_global_tick, current_local_clock_info, slot_period_counter=0)
 
                 if finished:
                     if not is_wan_slot:
-                        self._handle_minisync(self.d2d_layer.estimated_period_correction)
+                        self._handle_minisync(self.d2d_layer.estimated_period_correction, current_local_clock_info.current_local_time, current_global_tick)
 
                     sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
@@ -175,7 +176,7 @@ class DLL:
         sync_time = msg.time + msg.total_handle_time
         # TODO: we shoud only give relative time here....
         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)
-        current_local = self._get_local_time() # the correct from above is not effectuated here.... What is done here?
+        current_local = self._get_local_time()  # the correct from above is not effectuated here.... What is done here?
         new_handle_time = msg.total_handle_time + max(0, current_local - msg.time)
         forwarded = MegaSync(time=msg.time, total_handle_time=new_handle_time)
         self.d2d_layer.enqueue_payload(forwarded)

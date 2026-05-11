@@ -1,7 +1,7 @@
+import statistics
 from dataclasses import dataclass
 from enum import Enum
 from random import Random
-import statistics
 from typing import List, cast
 
 from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, LoRaD2DFrame, LoRaD2DFrameType, MediumTypes, Severity, TransceiverState
@@ -351,7 +351,7 @@ class D2DDLL:
 
         existing = next((n for n in self._known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing is None:
-            neighbor_info = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=frame_hop_cnt.cnt, last_seen=current_local_time, last_rssi=frame.rssi, in_slot=frame_hop_cnt.use_slot)
+            neighbor_info = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=frame_hop_cnt.cnt, last_seen=current_local_time, last_rssi=frame.rssi, in_slot=frame_hop_cnt.use_slot, first_tx_start_time_in_period=0)
             self._known_neighbors.append(neighbor_info)
         else:
             existing.hopcount_to_gateway = frame_hop_cnt.cnt
@@ -369,7 +369,7 @@ class D2DDLL:
         # find requesting node in known neighbors and update hop count if needed
         neighbor = next((n for n in self._known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if neighbor is None:
-            neighbor = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=validate_hopcount, last_seen=current_local_time, last_rssi=frame.rssi, in_slot=-1)
+            neighbor = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=validate_hopcount, last_seen=current_local_time, last_rssi=frame.rssi, in_slot=-1, first_tx_start_time_in_period=0)
             self._known_neighbors.append(neighbor)
         elif neighbor.hopcount_to_gateway != validate_hopcount:
             neighbor.hopcount_to_gateway = validate_hopcount
@@ -391,7 +391,7 @@ class D2DDLL:
             if not available:
                 self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"NOde {self._node_id} Slot exhaution! - reusing 0")
 
-            return available[1] if len(available) > 1 else 0
+            return sorted(available)[1] if len(available) > 1 else 0
 
         # order list by lowest hopcount then by best RSSI
         self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
@@ -429,10 +429,10 @@ class D2DDLL:
         for n in self._known_neighbors:
             # ignore if not seen in this slot period e.g a dead node
             if n.last_seen < self._slot_period_start:
-                continue 
+                continue
 
             # calculate diff between local start time of slot and the observed tx time
-            slot_start = (n.in_slot * self._slot_duration) + self._tx_start_end_buffer 
+            slot_start = (n.in_slot * self._slot_duration) + self._tx_start_end_buffer
             observed_start = n.first_tx_start_time_in_period
             # relative correction, negative means we are ahead while positive means behind
             # fx. observed: 102, start: 100 -> 100 - 102 = -2
@@ -447,7 +447,7 @@ class D2DDLL:
         # current_offset = sum(slot_offsets) / len(slot_offsets)
 
         # median -> f occasional large outliers (missed packets, delayed RX timestamps, collisions), then median is often more stable
-        current_offset =  statistics.median(slot_offsets)
+        current_offset = statistics.median(slot_offsets)
 
         self.estimated_period_correction = int(current_offset)
 
