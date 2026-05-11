@@ -87,7 +87,7 @@ class DLL:
 
                 if finished:
                     if not is_wan_slot:
-                        self._handle_minisync(self.d2d_layer.estimated_period_correction, current_local_clock_info.current_local_time, current_global_tick)
+                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=self.d2d_layer.estimated_period_correction)
 
                     sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
@@ -188,11 +188,3 @@ class DLL:
         self.d2d_layer.enqueue_payload(msg)
 
         self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync time {current_time + sync_time_diff}")
-
-    def _handle_minisync(self, correction: int, local_tiem: int, current_global_tick: int) -> None:
-        # TODO: we shoud only give relative time here....
-        sync_time = local_tiem + correction
-        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)
-
-        # Maybe only log from clock?
-        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MiniSync: correction={correction}, time={sync_time}")
