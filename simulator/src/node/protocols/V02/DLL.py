@@ -26,7 +26,6 @@ class DLL:
         self.wan_layer: WANDLL = wan_layer
         self.app_to_dll_tx = app_to_dll_tx
         self.dll_to_app_rx = dll_to_app_rx
-        self.sync_buffer: list[MegaSync]
 
         self.slot_period_ms = 60_000  # 1 min slot period
         self.lora_wan_slot_interleave = 60
@@ -41,6 +40,7 @@ class DLL:
         self.d2d_layer.reset(current_global_tick)
         self.wan_layer.reset(current_global_tick)
         self.current_period_start_time = None
+        self.sync_buffer: list[MegaSync] = []
 
     def tick(self, current_global_tick: int) -> None:
         current_local_clock_info = cast(LocalClockInfo, self.local_event_queue.get_current_events_by_type(LocalEventTypes.LOCAL_TIME)[0].data)
@@ -129,6 +129,7 @@ class DLL:
                 while queue:
                     msg = queue.pop(0)
                     if isinstance(msg, MegaSync):
+                        msg.local_rx_time = self._get_local_time()
                         self._megasync_handle(msg, current_global_tick)
                     elif isinstance(msg, PayloadData):
                         # Forward received payload: try WAN if have direct connection (hopcount 0), else D2D relay
@@ -172,23 +173,21 @@ class DLL:
             else:
                 self.sync_buffer.append(msg)
 
-        self._flush_tx_buffers(current_global_tick)
-        sync_time = msg.time + msg.total_handle_time
-        # TODO: we shoud only give relative time here....
-        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time)
-        current_local = self._get_local_time()  # the correct from above is not effectuated here.... What is done here?
-        new_handle_time = msg.total_handle_time + max(0, current_local - msg.time)
-        forwarded = MegaSync(time=msg.time, total_handle_time=new_handle_time)
-        self.d2d_layer.enqueue_payload(forwarded)
-
         diff = self.retain_depth_old_megasync - len(self.sync_buffer)
 
         if diff < 0:
             for _ in range(abs(diff)):
                 self.sync_buffer.pop(0)
 
-        # TODO: Why guid??? -> only for spawned APP packages...
-        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync: time={sync_time}, handle={new_handle_time}, GUID={msg.guid}")
+        #self._flush_tx_buffers(current_global_tick) #TODO or not TODO
+
+        current_time = self._get_local_time()
+        sync_time_diff = current_time - msg.time + msg.total_handle_time
+
+        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=sync_time_diff)
+        self.d2d_layer.enqueue_payload(msg)
+
+        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} MegaSync sync time {current_time + sync_time_diff}")
 
     def _handle_minisync(self, correction: int, local_tiem: int, current_global_tick: int) -> None:
         # TODO: we shoud only give relative time here....

@@ -103,6 +103,8 @@ class MegaSync:
     guid: UUID = field(default_factory=uuid.uuid4)
     time: int = 0
     total_handle_time: int = 0
+    local_rx_time: int = 0
+
 
     @property
     def length(self) -> int:

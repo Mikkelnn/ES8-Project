@@ -28,13 +28,19 @@ class Clock(IModule):
     def tick(self, current_global_tick: int) -> tuple[float, int | None]:
         self.accumulated_state.reset()
 
+        local_time = int(current_global_tick / self.global_ticks_per_local_time_increment)
+
         # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
         if sync_events:
-            local_time = int(sync_events[0].data)
-        else:
-            # calculate the local time from global, this is an ideal clock
-            local_time = int(current_global_tick / self.global_ticks_per_local_time_increment)  # TODO: chyange from ideal linear
+            correction = int(sync_events[0].data)
+            local_time += correction # +1 Because this time was scheduled 1 tick before
+            if self.sleep_until_local_time is not None:
+                self.sleep_until_local_time += correction
+            if self.timer_1_end_local_time is not None:
+                self.timer_1_end_local_time += correction
+            if self.timer_2_end_local_time is not None:
+                self.timer_2_end_local_time += correction
 
         # update timers
         set_timers = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SET_TIMER)

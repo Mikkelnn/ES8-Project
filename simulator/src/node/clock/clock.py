@@ -34,11 +34,18 @@ class Clock(IModule):
 
     def tick(self, current_global_tick: int) -> tuple[float, int | None]:
 
-        # TODO: WE NEED TO UPDATE ALL TIMERS RELATIVE!
         # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
+
         if sync_events:
-            self.localtime = int(sync_events[0].data)
+            correction = int(sync_events[0].data)
+            self.local_time += correction # +1 Because this time was scheduled 1 tick before
+            if self.sleep_until_local_time is not None:
+                self.sleep_until_local_time += correction
+            if self.timer_1_end_local_time is not None:
+                self.timer_1_end_local_time += correction
+            if self.timer_2_end_local_time is not None:
+                self.timer_2_end_local_time += correction
 
         elif self.scheduled_global_tick is not None and current_global_tick == self.scheduled_global_tick:
             # if we have reached the schedule global tick, use the ccalculatyed tieme to avoid rounding error

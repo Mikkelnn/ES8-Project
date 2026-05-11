@@ -277,6 +277,10 @@ class D2DDLL:
                 return
 
             packet = self._tx_buffer.pop(0)
+
+            if isinstance(packet.payload, MegaSync):
+                packet.payload.total_handle_time = packet.payload.total_handle_time + (current_local_clock_info.current_local_time - packet.payload.total_handle_time) + self._duration_calculator.get_duration(self._tx_buffer[0].length) + 1
+
             self._local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
 
     def _process_receptions(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> None:
