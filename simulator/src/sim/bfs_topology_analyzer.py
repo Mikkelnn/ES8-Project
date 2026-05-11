@@ -1,6 +1,6 @@
 """BFS-based network topology analyzer for gateway reachability."""
 
-from collections import deque
+from collections import defaultdict, deque
 from math import sqrt
 
 
@@ -118,3 +118,99 @@ class BFSTopologyAnalyzer:
         visited_nodes, node_to_gateway = BFSTopologyAnalyzer._run_multi_source_bfs(graph, gateway_initials)
 
         return visited_nodes, gateway_initials, node_to_gateway
+
+    @staticmethod
+    def analyze_with_stats(
+        nodes_data: dict,
+        gateways_data: dict,
+        m_per_svg_x: float,
+        m_per_svg_y: float,
+        radius_m: float | None = None,
+        gw_id_offset: int = 0,
+    ) -> dict:
+        """Run BFS topology analysis with hop/count statistics (gatewayBFS format).
+
+        Args:
+            nodes_data: Dict of nodes from JSON
+            gateways_data: Dict of gateways from JSON
+            m_per_svg_x: Meters per SVG unit (X axis)
+            m_per_svg_y: Meters per SVG unit (Y axis)
+            radius_m: LoRaWAN radius in meters (default: LORA_WAN_RADIUS_M)
+            gw_id_offset: ID offset for gateway numbering (default: 0)
+
+        Returns:
+            Dict with structure matching gatewayBFS output:
+            {
+                "gateway_radius_m": int,
+                "total_nodes": int,
+                "total_reached": int,
+                "total_nodes_unreached": int,
+                "max_hop": {"gid": int, "init_node_id": int, "max_hop": int},
+                "max_count": {"gid": int, "init_node_id": int, "count": int},
+                gateway_id: {"gateway_id": int, "total_nodes_reached": int, "num_initial_nodes": int},
+                "visited": [node_ids...]
+            }
+        """
+        if radius_m is None:
+            radius_m = BFSTopologyAnalyzer.LORA_WAN_RADIUS_M
+
+        graph = BFSTopologyAnalyzer._build_graph(nodes_data)
+        gateway_initials = BFSTopologyAnalyzer._find_gateway_initial_nodes(nodes_data, gateways_data, m_per_svg_x, m_per_svg_y, radius_m, gw_id_offset)
+
+        # Run BFS with stats tracking
+        visited = set()
+        gateway_total = defaultdict(int)
+        per_init_count = defaultdict(lambda: defaultdict(int))
+        per_init_max_hops = defaultdict(lambda: defaultdict(int))
+
+        queue = deque()
+        for gw_id in sorted(gateway_initials.keys()):
+            for init in sorted(gateway_initials[gw_id]):
+                if init not in visited:
+                    visited.add(init)
+                    queue.append((init, gw_id, init, 0))
+                    gateway_total[gw_id] += 1
+                    per_init_count[gw_id][init] += 1
+                    per_init_max_hops[gw_id][init] = 0
+
+        while queue:
+            node, gw_id, owner_init, hops = queue.popleft()
+            for nb in graph.get(node, []):
+                if nb not in visited:
+                    visited.add(nb)
+                    queue.append((nb, gw_id, owner_init, hops + 1))
+                    gateway_total[gw_id] += 1
+                    per_init_count[gw_id][owner_init] += 1
+                    if hops + 1 > per_init_max_hops[gw_id][owner_init]:
+                        per_init_max_hops[gw_id][owner_init] = hops + 1
+
+        # Compute global stats
+        reached_count = len(visited)
+        unreached_count = len(nodes_data) - reached_count
+        max_hop_gid, max_hop_init, global_max_hops = max(
+            ((g, i, h) for g, d in per_init_max_hops.items() for i, h in d.items()),
+            key=lambda x: x[2],
+        )
+        max_node_gid, max_node_init, global_max_nodes = max(
+            ((g, i, c) for g, d in per_init_count.items() for i, c in d.items()),
+            key=lambda x: x[2],
+        )
+
+        results = {
+            "gateway_radius_m": int(radius_m),
+            "total_nodes": len(nodes_data),
+            "total_reached": reached_count,
+            "total_nodes_unreached": unreached_count,
+            "max_hop": {"gid": max_hop_gid, "init_node_id": max_hop_init, "max_hop": global_max_hops},
+            "max_count": {"gid": max_node_gid, "init_node_id": max_node_init, "count": global_max_nodes},
+        }
+
+        for gw_id in gateway_initials:
+            results[str(gw_id)] = {
+                "gateway_id": gw_id,
+                "total_nodes_reached": gateway_total[gw_id],
+                "num_initial_nodes": len(gateway_initials[gw_id]),
+            }
+
+        results["visited"] = sorted(list(visited))
+        return results
