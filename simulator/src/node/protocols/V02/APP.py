@@ -57,7 +57,7 @@ class APP:
                 current_local_time = self._get_local_time()
                 if self.last_measurement_time is None:
                     return
-                time_since_last = current_local_time - self.last_measurement_time
+                time_since_last = abs(current_local_time - self.last_measurement_time)
                 if time_since_last >= self.measurement_interval_ms:
                     s1 = self.random.randint(0, 30)
                     s2 = self.random.randint(0, 30)
