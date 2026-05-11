@@ -34,7 +34,7 @@ class Clock(IModule):
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
         if sync_events:
             correction = int(sync_events[0].data)
-            local_time += correction # +1 Because this time was scheduled 1 tick before
+            local_time += correction  # +1 Because this time was scheduled 1 tick before
             if self.sleep_until_local_time is not None:
                 self.sleep_until_local_time += correction
             if self.timer_1_end_local_time is not None:

@@ -105,7 +105,6 @@ class MegaSync:
     total_handle_time: int = 0
     local_rx_time: int = 0
 
-
     @property
     def length(self) -> int:
         return 8 + 2

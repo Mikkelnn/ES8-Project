@@ -179,7 +179,7 @@ class DLL:
             for _ in range(abs(diff)):
                 self.sync_buffer.pop(0)
 
-        #self._flush_tx_buffers(current_global_tick) #TODO or not TODO
+        # self._flush_tx_buffers(current_global_tick) #TODO or not TODO
 
         current_time = self._get_local_time()
         sync_time_diff = current_time - msg.time + msg.total_handle_time
