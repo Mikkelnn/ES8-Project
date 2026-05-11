@@ -26,7 +26,7 @@ class Node(IDevice):
         self.accumulated_state = AccumulatedState()
 
         self.battery = Battery(capacity_joule=7.9, recharge_rate_joule_per_second=5.4, second_to_global_tick=second_to_global_tick)
-        self.clock = Clock(self.node_id, self.local_event_queue, second_to_global_tick)
+        self.clock = Clock(log, self.node_id, self.local_event_queue, second_to_global_tick)
         self.transceiver = TransceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick, log)
         # self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log)
         self.protocol = V02(self.node_id, self.local_event_queue, second_to_global_tick, log)

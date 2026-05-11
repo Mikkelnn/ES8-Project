@@ -2,16 +2,18 @@
 import numpy as np
 from numpy import random as rnd
 
-from custom_types import LocalClockInfo, LocalEventSubTypes, LocalEventTypes
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, Severity
+from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.Imodule import IModule
 
 
 # log = Logger()
 class Clock(IModule):
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float):
+    def __init__(self, log: ILogger, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float):
         self.node_id = node_id
         self.local_event_queue = local_event_queue
+        self.log = log
 
         self.local_time_increment_per_second = 1000
         self.global_ticks_per_local_time_increment = int(1 / second_to_global_tick / self.local_time_increment_per_second)
@@ -38,6 +40,8 @@ class Clock(IModule):
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
 
         if sync_events:
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock before correction: {self.local_time}")
+
             correction = int(sync_events[0].data)
             self.local_time += correction  # +1 Because this time was scheduled 1 tick before
             if self.sleep_until_local_time is not None:
@@ -46,6 +50,8 @@ class Clock(IModule):
                 self.timer_1_end_local_time += correction
             if self.timer_2_end_local_time is not None:
                 self.timer_2_end_local_time += correction
+
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock after correction: {self.local_time}")
 
         elif self.scheduled_global_tick is not None and current_global_tick == self.scheduled_global_tick:
             # if we have reached the schedule global tick, use the ccalculatyed tieme to avoid rounding error
