@@ -389,7 +389,7 @@ class D2DDLL:
 
             available = usable.difference(used_slots)
             if not available:
-                self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, "Slot exhaution! - reusing 0")
+                self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"NOde {self._node_id} Slot exhaution! - reusing 0")
 
             return available[1] if len(available) > 1 else 0
 
