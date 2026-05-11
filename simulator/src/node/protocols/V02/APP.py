@@ -13,12 +13,13 @@ class AppState(Enum):
     INITIAL_SLEEP = 0
     SENSOR = 1
     MEASURING = 2
-    FORWARDING = 3
-    DEDUP = 4
+    DEDUP = 3
+    FORWARDING = 4
+    
 
 
 class APP:
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, app_to_dll_tx: list[PayloadData], dll_to_app_rx: list[PayloadData | MACPayload]):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, app_to_dll_tx: list[PayloadData], dll_to_app_rx: list[PayloadData]):
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log
@@ -31,6 +32,9 @@ class APP:
         self.measurement_interval_ms = 3_600_000
         self.required_samples = 12
         self.last_measurement_time: int | None = None
+
+    def _deduplication(self):
+        pass
 
     def tick(self, current_global_tick: int) -> None:
         match self.state:
@@ -78,7 +82,10 @@ class APP:
             case AppState.FORWARDING:
                 while self.dll_to_app_rx:
                     packet = self.dll_to_app_rx.pop(0)
-                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} APP received packet from DLL, payload length={packet.length}")
+                    self.enqueue_payload(packet)
+
+            case AppState.DEDUP: #TODO
+                self._deduplication()
 
     def enqueue_payload(self, payload: PayloadData) -> None:
         self.app_to_dll_tx.append(payload)

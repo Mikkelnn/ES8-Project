@@ -42,8 +42,29 @@ class DLL:
         self.current_period_start_time = None
         self.sync_buffer: list[MegaSync] = []
 
+    def _remove_duplicates_from_buffers(self) -> None:
+        """Remove duplicate frames across D2D and WAN buffers based on CRC/MIC. TX buffers kept, RX duplicates removed."""
+        seen_checksums = set()
+
+        for buffer_list in [self.d2d_layer._tx_buffer, self.wan_layer._tx_buffer, self.d2d_layer._rx_buffer, self.wan_layer._rx_buffer]:
+            i = 0
+            while i < len(buffer_list):
+                frame = buffer_list[i]
+                checksum = frame.crc if hasattr(frame, 'crc') else frame.mic
+
+                if isinstance(checksum, bytes):
+                    checksum = int.from_bytes(checksum, 'big')
+
+                if checksum in seen_checksums:
+                    buffer_list.pop(i)
+                else:
+                    seen_checksums.add(checksum)
+                    i += 1
+
     def tick(self, current_global_tick: int) -> None:
         current_local_clock_info = cast(LocalClockInfo, self.local_event_queue.get_current_events_by_type(LocalEventTypes.LOCAL_TIME)[0].data)
+
+        self._remove_duplicates_from_buffers()
 
         # Determine if discovery have occured, otherwise start with WAN then D2D
         match self.state:
