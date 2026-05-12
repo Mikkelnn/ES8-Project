@@ -408,9 +408,8 @@ class D2DDLL:
             if not available:
                 self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"NOde {self._node_id} Slot exhaution! - reusing 0")
 
-            selected = sorted(available)[1] if len(available) > 1 else 0
-            print(f"Node {self._node_id} has available slots: {available} -> for node {neighbor.neighbor_id} current slot: {neighbor.in_slot} -> assigned {selected}")
-            return selected
+            # print(f"Node {self._node_id} has available slots: {available} -> for node {neighbor.neighbor_id} current slot: {neighbor.in_slot} -> assigned {selected}")
+            return sorted(available)[1] if len(available) > 1 else 0
 
         # order list by lowest hopcount then by best RSSI
         self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
