@@ -453,7 +453,7 @@ class D2DDLL:
                 continue
 
             # calculate diff between local start time of slot and the observed tx time
-            slot_start = (n.in_slot * self._slot_duration) + self._tx_start_end_buffer
+            slot_start = self._slot_period_start + (n.in_slot * self._slot_duration) + self._tx_start_end_buffer
             observed_start = n.first_tx_start_time_in_period
             # relative correction, negative means we are ahead while positive means behind
             # fx. observed: 102, start: 100 -> 100 - 102 = -2
