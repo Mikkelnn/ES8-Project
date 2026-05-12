@@ -353,11 +353,11 @@ class D2DDLL:
         if existing:
             if existing.last_seen < self._slot_period_start:
                 existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self._duration_calculator.get_duration(frame.length)
+                if self._current_slot > -1:
+                    existing.in_slot = self._current_slot
 
             existing.last_seen = current_local_clock_info.current_local_time
             existing.last_rssi = frame.rssi
-            if self._current_slot > -1:
-                existing.in_slot = self._current_slot
 
     def _process_current_hopcount(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
         frame_hop_cnt = cast(PayloadHopCntFull, frame.payload)
@@ -408,7 +408,9 @@ class D2DDLL:
             if not available:
                 self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"NOde {self._node_id} Slot exhaution! - reusing 0")
 
-            return sorted(available)[1] if len(available) > 1 else 0
+            selected = sorted(available)[1] if len(available) > 1 else 0
+            print(f"Node {self._node_id} has available slots: {available} -> for node {neighbor.neighbor_id} current slot: {neighbor.in_slot} -> assigned {selected}")
+            return selected
 
         # order list by lowest hopcount then by best RSSI
         self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
@@ -427,8 +429,8 @@ class D2DDLL:
                 continue  # no chaange
 
             neighbor.hopcount_to_gateway = current_hop
-            in_slot = get_slot_for_neighbor(neighbor)
-            change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=current_hop, use_slot=in_slot))
+            neighbor.in_slot = get_slot_for_neighbor(neighbor)
+            change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=current_hop, use_slot=neighbor.in_slot))
             change_frame.crc_calc()
 
             existing_frame_index = next((i for i, f in enumerate(self._tx_buffer) if neighbor.neighbor_id in f.destination_node_id and f.type == LoRaD2DFrameType.CHANGE_HOP_COUNT), None)
