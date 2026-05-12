@@ -220,7 +220,8 @@ class D2DDLL:
 
             # we have selected a hop count, we need to request ACK from neighbors with that hop
             # dest node should be the lowest hop count node known
-            dest_node_id = min(self._known_neighbors, key=lambda x: x.hopcount_to_gateway).neighbor_id
+            # dest_node_id = min(self._known_neighbors, key=lambda x: x.hopcount_to_gateway).neighbor_id
+            dest_node_id = max(self._known_neighbors, key=lambda x: x.hopcount_to_gateway).neighbor_id
             frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={dest_node_id}, type=LoRaD2DFrameType.REQ_HOP_ACK, payload=PayloadHopCntSimple(cnt=self.hopcount_to_gateway))
             frame.crc_calc()
             self._tx_buffer.append(frame)
@@ -320,6 +321,7 @@ class D2DDLL:
             case LoRaD2DFrameType.CHANGE_HOP_COUNT:
                 # we have been instructed to change our hop count, update our hop count to the instructed hop count
                 # implied ACk, we can assume discovery complete
+                payload = cast(PayloadHopCntMid, frame.payload)
                 if self._node_id in frame.destination_node_id:
                     if self.discovery_state != DiscoverStates.DISCOVERED:
                         self.estimated_period_start = self._slot_period_start
@@ -327,13 +329,24 @@ class D2DDLL:
 
                     self.discovery_state = DiscoverStates.DISCOVERED
 
-                    payload = cast(PayloadHopCntMid, frame.payload)
-                    from_hop = min(self.hopcount_to_gateway, payload.cnt)
+                    
+                    from_hop = self.hopcount_to_gateway # min(self.hopcount_to_gateway, payload.cnt)
                     self.hopcount_to_gateway = payload.cnt
                     self._own_tx_slot = payload.use_slot
                     self._resolve_upstream_hopcount_and_slot(from_hop)
 
                     self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} discovery complete with hop count {self.hopcount_to_gateway}")
+                elif frame.destination_node_id and abs(payload.cnt - self.hopcount_to_gateway) <= 2:
+                    # is for a node in reach -> we want to update in known_neighbors
+                    nid = frame.destination_node_id.pop()
+                    existing = next((n for n in self._known_neighbors if n.neighbor_id == nid), None)
+                    if existing is None:
+                        pass
+                        # neighbor_info = D2DNeighborInfo(neighbor_id=nid, hopcount_to_gateway=payload.cnt, last_seen=current_local_clock_info.current_local_time, last_rssi=frame.rssi, in_slot=frame_hop_cnt.use_slot, first_tx_start_time_in_period=0)
+                        # self._known_neighbors.append(neighbor_info)
+                    else:
+                        existing.hopcount_to_gateway = payload.cnt
+                        existing.in_slot = payload.use_slot
 
                 # We migh update our knowledge of what the neighbor have been instructed
 
@@ -414,10 +427,12 @@ class D2DDLL:
             return sorted(available)[1] if len(available) > 1 else 0
 
         # order list by lowest hopcount then by best RSSI
-        self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
+        # self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
+        self._known_neighbors.sort(key=lambda x: (-x.last_rssi))
 
         # only iterate on neighbors with higher hopcount than own
-        of_interest = (neighbor for neighbor in self._known_neighbors if neighbor.hopcount_to_gateway > from_hop)
+        of_interest = (neighbor for neighbor in self._known_neighbors if neighbor.hopcount_to_gateway >= from_hop) # neighbor.hopcount_to_gateway > from_hop
+        # of_interest = self._known_neighbors
         current_hop = self.hopcount_to_gateway
         prev_rssi = 0
         rssi_threshold = 6
@@ -426,7 +441,7 @@ class D2DDLL:
                 prev_rssi = neighbor.last_rssi
                 current_hop += 1  # increment by one for each "layer"
 
-            if neighbor.hopcount_to_gateway == current_hop and neighbor.in_slot > -1:
+            if (neighbor.hopcount_to_gateway == current_hop and neighbor.in_slot > -1): # or neighbor.hopcount_to_gateway < from_hop
                 continue  # no chaange
 
             neighbor.hopcount_to_gateway = current_hop
@@ -439,6 +454,8 @@ class D2DDLL:
                 self._tx_buffer[existing_frame_index] = change_frame
             else:
                 self._tx_buffer.append(change_frame)
+        
+        self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
 
     def _minisync(self) -> None:
         if not self.link_established or not self._known_neighbors:
