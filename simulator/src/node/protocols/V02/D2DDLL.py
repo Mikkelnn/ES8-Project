@@ -321,6 +321,7 @@ class D2DDLL:
                 if self._node_id in frame.destination_node_id:
                     if self.discovery_state != DiscoverStates.DISCOVERED:
                         self.estimated_period_start = self._slot_period_start
+                        self.slot_period_counter += 1
 
                     self.discovery_state = DiscoverStates.DISCOVERED
 
