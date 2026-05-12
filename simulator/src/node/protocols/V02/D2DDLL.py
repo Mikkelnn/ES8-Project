@@ -449,7 +449,7 @@ class D2DDLL:
         slot_offsets = []
         for n in self._known_neighbors:
             # ignore if not seen in this slot period e.g a dead node
-            if n.last_seen < self._slot_period_start:
+            if n.last_seen < self._slot_period_start or n.first_tx_start_time_in_period < self._slot_period_start:
                 continue
 
             # calculate diff between local start time of slot and the observed tx time
