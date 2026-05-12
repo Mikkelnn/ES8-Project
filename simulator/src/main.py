@@ -32,8 +32,8 @@ from sim.global_time import GlobalTime
 REFRESH_RATE_MS = 50
 
 TOPOLOGY_OPTIONS = [
-    "tools/uplinkNodeLoad/final_selected/node_outputs.json",
     "tools/uplinkNodeLoad/test_line/node_outputs.json",
+    "tools/uplinkNodeLoad/final_selected/node_outputs.json",
 ]
 
 

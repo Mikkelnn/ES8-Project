@@ -78,7 +78,7 @@ class BFSTopologyAnalyzer:
             for neighbor in graph.get(node, []):
                 if neighbor not in visited:
                     visited.add(neighbor)
-                    node_to_gateway[neighbor] = gw_id
+                    # node_to_gateway[neighbor] = gw_id
                     queue.append((neighbor, gw_id))
 
         return visited, node_to_gateway

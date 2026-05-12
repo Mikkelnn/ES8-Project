@@ -27,26 +27,34 @@ class Clock(IModule):
         self.timer_1_end_local_time: int | None = None
         self.timer_2_end_local_time: int | None = None
 
+        self.total_correction = 0
+
     def tick(self, current_global_tick: int) -> tuple[float, int | None]:
         self.accumulated_state.reset()
 
-        local_time = int(current_global_tick / self.global_ticks_per_local_time_increment)
+        local_time = current_global_tick
 
-        # Check for external time sync (MegaSync)
+        # local_time = int(current_global_tick / self.global_ticks_per_local_time_increment) + self.total_correction
+
+        # # print(f"clock local time {local_time}")
+
+        # # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
         if sync_events:
-            drift_before_correction = self.local_time - current_global_tick
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock correction: {int(sync_events[0].data)}")
+        #     drift_before_correction = local_time - current_global_tick
 
-            correction = int(sync_events[0].data)
-            self.local_time += correction  # +1 Because this time was scheduled 1 tick before
-            if self.sleep_until_local_time is not None:
-                self.sleep_until_local_time += correction
-            if self.timer_1_end_local_time is not None:
-                self.timer_1_end_local_time += correction
-            if self.timer_2_end_local_time is not None:
-                self.timer_2_end_local_time += correction
+        #     correction = int(sync_events[0].data)
+        #     self.total_correction += correction
+        #     local_time += correction  # +1 Because this time was scheduled 1 tick before
+        #     if self.sleep_until_local_time is not None:
+        #         self.sleep_until_local_time += correction
+        #     if self.timer_1_end_local_time is not None:
+        #         self.timer_1_end_local_time += correction
+        #     if self.timer_2_end_local_time is not None:
+        #         self.timer_2_end_local_time += correction
 
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.local_time - current_global_tick}")
+        #     self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {local_time - current_global_tick}")
 
         # update timers
         set_timers = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SET_TIMER)

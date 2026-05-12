@@ -7,17 +7,8 @@
     "description": "10 nodes + 1 gateway in a straight horizontal line for testing"
   },
   "nodes": {
-    "1":  {"point": [1.000, 1.000], "neighbours": ["2"]},
-    "2":  {"point": [2.000, 1.000], "neighbours": ["1", "3"]},
-    "3":  {"point": [3.000, 1.000], "neighbours": ["2", "4"]},
-    "4":  {"point": [4.000, 1.000], "neighbours": ["3", "5"]},
-    "5":  {"point": [5.000, 1.000], "neighbours": ["4", "6"]},
-    "6":  {"point": [6.000, 1.000], "neighbours": ["5", "7"]},
-    "7":  {"point": [7.000, 1.000], "neighbours": ["6", "8"]},
-    "8":  {"point": [8.000, 1.000], "neighbours": ["7", "9"]},
-    "9":  {"point": [9.000, 1.000], "neighbours": ["8", "10"]},
-    "10": {"point": [10.000, 1.000], "neighbours": ["9", "11"]},
-    "11": {"point": [11.000, 1.000], "neighbours": ["10"]}
+    "1":  {"point": [9.000, 11.000],"neighbours": ["2"]},
+    "2":  {"point": [11.000, 11.000],"neighbours": ["1"]}
   },
   "gateways": {
     "1": {"point": [310.500, 1.000]}

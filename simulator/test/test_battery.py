@@ -229,7 +229,7 @@ class TestBatteryScenarios:
     def test_real_world_lorawan_node(self):
         """Realistic LoRaWAN node: high consumption drains despite recharge."""
         # 7.9 J capacity, 5.4 J/s recharge (from simulator)
-        battery = Battery(capacity_joule=7.9, recharge_rate_joule_per_second=5.4, second_to_global_tick=0.001)
+        battery = Battery(capacity_joule=7.9, recharge_rate_joule_per_second=0.0054, second_to_global_tick=0.001)
 
         # Simulate: high consumption (e.g., TX) for 100 ticks that exceeds recharge
         high_consumption = 0.396  # TX power from LoRaD2D

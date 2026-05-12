@@ -107,10 +107,10 @@ class MegaSync:
 
     @property
     def length(self) -> int:
-        return 8 + 2
+        return 8 + 4
 
     def to_bytes(self) -> bytes:
-        return self.time.to_bytes(8, "big", signed=False) + self.total_handle_time.to_bytes(2, "big", signed=False)
+        return self.time.to_bytes(8, "big", signed=False) + self.total_handle_time.to_bytes(4, "big", signed=False)
 
 
 @dataclass

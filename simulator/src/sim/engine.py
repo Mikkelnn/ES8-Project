@@ -185,7 +185,7 @@ class NetworkTopologyLoader:
 
         # Calculate gateway ID offset: max node ID + 1
         max_node_id = max(int(nid) for nid in nodes_data.keys()) if nodes_data else 0
-        gw_id_offset = max_node_id + 1
+        gw_id_offset = max_node_id
 
         # Run BFS topology analysis
         visited_nodes, gateway_initials, node_to_gateway = BFSTopologyAnalyzer.analyze(nodes_data, gateways_data, m_per_svg_x, m_per_svg_y, radius_m, gw_id_offset)
@@ -259,7 +259,7 @@ class Simulation:
         # Cap workers to physical cores — hyperthreads don't help CPU-bound Python
         logical_cpus = os.cpu_count() or 4
         phys_cores = max(1, logical_cpus // 2)
-        n_workers = max(1, min(phys_cores, num_devices))
+        n_workers = 1 #max(1, min(phys_cores, num_devices))
 
         sorted_ids = sorted(device_neighbors_dict.keys())
         partitions: list[list[int]] = [[] for _ in range(n_workers)]
@@ -455,6 +455,8 @@ class Engine:
         # Load topology from JSON if provided, otherwise use device_neighbors
         if topology_json_path:
             self.device_neighbors = NetworkTopologyLoader.from_file(topology_json_path)
+            #print(self.device_neighbors)
+            #exit()
         else:
             self.device_neighbors = device_neighbors
 

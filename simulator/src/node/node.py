@@ -25,7 +25,7 @@ class Node(IDevice):
         self.local_event_queue = LocalEventQueue()
         self.accumulated_state = AccumulatedState()
 
-        self.battery = Battery(capacity_joule=7.9, recharge_rate_joule_per_second=5.4, second_to_global_tick=second_to_global_tick)
+        self.battery = Battery(capacity_joule=7.9, recharge_rate_joule_per_second=0.0054, second_to_global_tick=second_to_global_tick)
         self.clock = Clock(log, self.node_id, self.local_event_queue, second_to_global_tick)
         self.transceiver = TransceiverService(self.node_id, medium_service, self.local_event_queue, second_to_global_tick, log)
         # self.protocol = PingPongProtocol(self.node_id, self.local_event_queue, second_to_global_tick, log)
@@ -56,6 +56,7 @@ class Node(IDevice):
         node_sleep_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP)
         if len(node_sleep_events) > 0 and self.state == State.WAKE:
             self.state = State.SLEEP
+            self.accumulated_state.update((0, current_global_tick + 1))
             self.log.add(Severity.INFO, Area.NODE, current_global_tick, f"Node {self.node_id} is going to sleep, Battery charge {self.battery.current_charge}")
 
         node_wake_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_WAKE_UP)

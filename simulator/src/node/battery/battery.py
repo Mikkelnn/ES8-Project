@@ -5,7 +5,7 @@ from node.Imodule import IModule
 class Battery(IModule):
     def __init__(self, capacity_joule: float, recharge_rate_joule_per_second: float, second_to_global_tick: float):
         self.capacity = capacity_joule
-        self.current_charge = capacity_joule
+        self.current_charge = 0
 
         self.recharge_rate = recharge_rate_joule_per_second * second_to_global_tick  # jules charged per global tick
         self.prev_net_change_joule: float = 0  # the consumption during warp

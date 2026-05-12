@@ -6,7 +6,7 @@ from logger.ILogger import ILogger
 from loraWanFrameHelper import MACPayload, make_uplink
 from node.event_local_queue import LocalEventQueue
 from node.transceiver.lora_tx_duration_calculator import LoRaTxDurationCalculator
-from payload_types import MegaSyncReq, PayloadData
+from payload_types import MegaSync, MegaSyncReq, PayloadData
 
 
 class LinkState(Enum):
@@ -136,6 +136,9 @@ class WANDLL:
                 if current_reception:
                     reception_data = cast(LoRaWanPHYPayload, current_reception[0].data)
                     if reception_data.mac_payload and reception_data.mac_payload.dev_addr == self.node_id:
+                        if isinstance(reception_data, MegaSync):
+                            reception_data.local_rx_time = current_local_clock_info.current_local_time
+
                         self._rx_buffer.append(reception_data)
                         got_rx = True
 

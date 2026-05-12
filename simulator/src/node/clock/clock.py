@@ -46,10 +46,10 @@ class Clock(IModule):
         # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
         if sync_events:
-            drift_before_correction = self.local_time - current_global_tick
+            drift_before_correction = self.localtime - current_global_tick
 
             correction = int(sync_events[0].data)
-            self.local_time += correction  # +1 Because this time was scheduled 1 tick before
+            self.localtime += correction  # +1 Because this time was scheduled 1 tick before
             if self.sleep_until_local_time is not None:
                 self.sleep_until_local_time += correction
             if self.timer_1_end_local_time is not None:
@@ -57,7 +57,7 @@ class Clock(IModule):
             if self.timer_2_end_local_time is not None:
                 self.timer_2_end_local_time += correction
 
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.local_time - current_global_tick}")
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtime - current_global_tick}")
 
         # calculate next clock skew
         self.alpha = self.ar_constant * self.alpha + self.random_vector[0]

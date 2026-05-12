@@ -12,6 +12,7 @@ from node.event_local_queue import LocalEventQueue
 from node.helpers.accumulated_state import AccumulatedState
 from node.transceiver.transceiver_service import TransceiverService
 from payload_types import MegaSync, MegaSyncReq
+from node.transceiver.lora_tx_duration_calculator import  LoRaTxDurationCalculator
 
 
 class Gateway(IDevice):
@@ -24,6 +25,8 @@ class Gateway(IDevice):
         self.transceiver = TransceiverService(self.gateway_id, medium_service, self.local_event_queue, second_to_global_tick, log)
         self.second_to_global_tick = second_to_global_tick
         self.rx_at_tick: dict[int, list[LoRaWanPHYPayload]] = defaultdict(list)
+        self._tx_window_time = 1000
+        self._calculator = LoRaTxDurationCalculator(second_to_global_tick)
 
     def tick(self, current_global_tick: int) -> int | None:
         self.accumulated_state.reset()
@@ -51,8 +54,9 @@ class Gateway(IDevice):
             if data.is_ack():
                 pass  # we should send ACK with no payload but this is not currently possible...
                 # self.rx_at_tick.setdefault(rx1_tick, []).append(make_downlink_ack(data.mac_payload.dev_addr, frame_count=0, ))
-            elif data.mac_payload and isinstance(MegaSyncReq, data.mac_payload.frm_payload):
+            elif data.mac_payload and isinstance(data.mac_payload.frm_payload, MegaSyncReq):
                 frame = make_downlink_ack(dev_addr=data.mac_payload.dev_addr, frame_count=0, payload=MegaSync(time=current_global_tick))
+                frame.mac_payload.frm_payload.total_handle_time = self._calculator.get_duration(frame.length) + self._tx_window_time + 1
                 self.rx_at_tick.setdefault(rx1_tick, []).append(frame)
 
         if self.rx_at_tick:

@@ -201,12 +201,16 @@ class D2DDLL:
 
         if self.discovery_state == DiscoverStates.WAIT_REQ_ACK_SENT and period_finished:
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
+            self.slot_period_counter += 1
+            self.estimated_period_start = self._slot_period_start
             return True  # signal wait for next period
 
         if self.discovery_state == DiscoverStates.WAITING_FOR_ACK and period_finished:
             # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing,
             # if we do not receive it before the end of the period we will need to retry in the next period
             self.discovery_state = DiscoverStates.REQ_ACK
+            self.slot_period_counter += 1
+            self.estimated_period_start = self._slot_period_start
 
         if self.discovery_state == DiscoverStates.REQ_ACK:
             if current_transceiver_states[MediumTypes.LORA_D2D] == TransceiverState.RECEIVING:
@@ -315,6 +319,9 @@ class D2DDLL:
                 # we have been instructed to change our hop count, update our hop count to the instructed hop count
                 # implied ACk, we can assume discovery complete
                 if self._node_id in frame.destination_node_id:
+                    if self.discovery_state != DiscoverStates.DISCOVERED:
+                        self.estimated_period_start = self._slot_period_start
+
                     self.discovery_state = DiscoverStates.DISCOVERED
 
                     payload = cast(PayloadHopCntMid, frame.payload)
@@ -415,7 +422,7 @@ class D2DDLL:
                 prev_rssi = neighbor.last_rssi
                 current_hop += 1  # increment by one for each "layer"
 
-            if neighbor.hopcount_to_gateway == current_hop:
+            if neighbor.hopcount_to_gateway == current_hop and neighbor.in_slot > -1:
                 continue  # no chaange
 
             neighbor.hopcount_to_gateway = current_hop
@@ -471,6 +478,8 @@ class D2DDLL:
         packet.total_handle_time += current_local_time - packet.local_rx_time
 
         # calculate local time diff from synced time
+        # relative correction, negative means we are ahead while positive means behind
+        # fx. own_time: 102, sync_time: 100 -> 100 - 102 = -2
         self.estimated_period_correction = current_local_time - packet.time + packet.total_handle_time
 
         # add tx time for nex node
