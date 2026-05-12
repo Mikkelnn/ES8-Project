@@ -85,13 +85,14 @@ class DLL:
                         self.slot_period_counter = self.d2d_layer.slot_period_counter
                         self._increment_slot_period_counter()
 
-                        sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms  # ty: ignore[unsupported-operator]
+                        sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)  # ty: ignore[unsupported-operator]
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
-                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery with D2D route to gateway, sleeping until next slot period for {sleep_ms} ms")
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery with D2D route to gateway, period counter {self.slot_period_counter}, sleeping until next slot period for {sleep_ms} ms")
                     elif finished and not self.d2d_layer.link_established:
                         # sleep before retrying discovery
                         if self.d2d_layer.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]:
-                            sleep_ms = (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start) + self.slot_period_ms  # ty: ignore[unsupported-operator]
+                            # print(f"node id: {self.node_id} estimated start: {self.d2d_layer.estimated_period_start}, ago: {(current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)}")
+                            sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)  # ty: ignore[unsupported-operator]
                             if self.d2d_layer.slot_period_counter + 1 >= self.lora_wan_slot_interleave:
                                 # sleep next period as it is LORA WAN -> no D2D
                                 sleep_ms += self.slot_period_ms
@@ -125,7 +126,7 @@ class DLL:
                     sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                     self.current_period_start_time = None
-                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished {'WAN' if self.slot_period_counter == 0 else 'D2D'} forwarding period, sleeping until next slot period ({sleep_ms} ms)")
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished {'WAN' if is_wan_slot else 'D2D'} forwarding period, sleeping until next slot period ({sleep_ms} ms)")
                     self._increment_slot_period_counter()
 
                 self._route_app_packets(current_global_tick)
