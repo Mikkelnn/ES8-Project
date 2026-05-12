@@ -352,7 +352,7 @@ class D2DDLL:
         existing = next((n for n in self._known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing:
             if existing.last_seen < self._slot_period_start:
-                existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self._duration_calculator.get_duration(frame.length)
+                existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self._duration_calculator.get_duration(frame.length) - 2 # account for local_event_queue in TX and RX (2 ticks)
                 if self._current_slot > -1:
                     existing.in_slot = self._current_slot
 
@@ -454,7 +454,7 @@ class D2DDLL:
 
             # calculate diff between local start time of slot and the observed tx time
             slot_start = self._slot_period_start + (n.in_slot * self._slot_duration) + self._tx_start_end_buffer
-            observed_start = n.first_tx_start_time_in_period - 2 # account for local_event_queue in TX and RX (2 ticks)
+            observed_start = n.first_tx_start_time_in_period
             # relative correction, negative means we are ahead while positive means behind
             # fx. observed: 102, start: 100 -> 100 - 102 = -2
             correction = observed_start - slot_start
