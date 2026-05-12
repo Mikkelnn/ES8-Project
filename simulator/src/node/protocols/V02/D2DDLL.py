@@ -197,6 +197,8 @@ class D2DDLL:
                 else:
                     self.discovery_state = DiscoverStates.NOT_DISCOVERED
                     self._local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=MediumTypes.LORA_D2D, data=TransceiverState.IDLE)
+                    self.estimated_period_start = 0
+                    self.slot_period_counter = 0
                     return True
 
         if self.discovery_state == DiscoverStates.WAIT_REQ_ACK_SENT and period_finished:
@@ -234,7 +236,7 @@ class D2DDLL:
         return False
 
     def _advance_slot(self, current_local_clock_info: LocalClockInfo) -> bool:
-        if not (self.link_established or self.discovery_state in [DiscoverStates.LISTENING, DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]):
+        if not (self.link_established or self.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]):
             return False
 
         timer_1 = current_local_clock_info.timer_1_remaining

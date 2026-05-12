@@ -94,6 +94,7 @@ class DLL:
                             # print(f"node id: {self.node_id} estimated start: {self.d2d_layer.estimated_period_start}, ago: {(current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)}")
                             sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)  # ty: ignore[unsupported-operator]
                             if self.d2d_layer.slot_period_counter + 1 >= self.lora_wan_slot_interleave:
+                                self.d2d_layer.slot_period_counter = 1 # set to one as WAN has completed after sleep
                                 # sleep next period as it is LORA WAN -> no D2D
                                 sleep_ms += self.slot_period_ms
 
@@ -111,16 +112,15 @@ class DLL:
                 current_local_time = current_local_clock_info.current_local_time
 
                 is_wan_slot = self.slot_period_counter == 0
-                if self._have_direct_wan_connection() and is_wan_slot and abs(current_local_time - self._last_megasync_req_local_time) >= self._megasync_req_interval_ms:
-                    self.wan_layer.request_mega_sync()
-                    self._last_megasync_req_local_time = current_local_time
-                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} sent periodic MegaSyncReq")
+                # if self._have_direct_wan_connection() and is_wan_slot and abs(current_local_time - self._last_megasync_req_local_time) >= self._megasync_req_interval_ms:
+                #     self.wan_layer.request_mega_sync()
+                #     self._last_megasync_req_local_time = current_local_time
+                #     self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} sent periodic MegaSyncReq")
 
                 finished = self.wan_layer.tick(current_global_tick, current_local_clock_info) if is_wan_slot else self.d2d_layer.tick(current_global_tick, current_local_clock_info, slot_period_counter=self.slot_period_counter)
 
                 if finished:
                     if not is_wan_slot:
-                        # TODO: should we only do this if abs(diff) > 0 ?
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=self.d2d_layer.estimated_period_correction)
 
                     sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
