@@ -31,10 +31,14 @@ from sim.global_time import GlobalTime
 
 REFRESH_RATE_MS = 50
 
-TOPOLOGY_OPTIONS = [
-    "tools/uplinkNodeLoad/test_line/node_outputs.json",
-    "tools/uplinkNodeLoad/final_selected/node_outputs.json",
-]
+TOPOLOGY_OPTIONS = []
+
+# Add JSON files from maps folder in root
+_maps_dir = os.path.join(os.path.dirname(__file__), "..", "maps")
+if os.path.isdir(_maps_dir):
+    for filename in sorted(os.listdir(_maps_dir)):
+        if filename.endswith(".json"):
+            TOPOLOGY_OPTIONS.append(os.path.join("maps", filename))
 
 
 def _topology_label(path: str) -> str:
@@ -47,7 +51,7 @@ def _topology_label(path: str) -> str:
         count = int(m.group(1)) if m else "?"
     except Exception:
         count = "?"
-    name = os.path.basename(os.path.dirname(path))
+    name = os.path.splitext(os.path.basename(path))[0]
     return f"{name} ({count} nodes)"
 
 

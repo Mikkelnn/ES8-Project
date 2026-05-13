@@ -32,6 +32,8 @@ class LoRaD2D(BaseTransceiver):
         if self._current_reception_start_global_tick is None:
             return successful_receptions
 
+        self._receive_queue.sort(key=lambda x: x.time_start)
+
         cancellations = [e for e in self._receive_queue if e.type == EventNetTypes.CANCELED]
         canc_by_node: dict[int, List[EventNet]] = {}
         for c in cancellations:

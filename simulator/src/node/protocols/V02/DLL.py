@@ -44,31 +44,69 @@ class DLL:
         self._last_megasync_req_local_time: int = 0
         self._megasync_req_due: bool = False
 
-    def _remove_duplicates_from_buffers(self) -> None:  # Should also be made for TX buffer comparing RX, but TX must win over RX
-        """Remove duplicate frames across D2D and WAN buffers based on CRC/MIC. TX buffers kept, RX duplicates removed."""
-        seen_checksums = set()
+    def _remove_duplicates_from_buffers(self) -> None:
+        """Remove duplicates: TX wins over RX. Also remove duplicate frames within RX buffers."""
+        tx_checksums = set()
 
-        for buffer_name, buffer_list in [("d2d_rx", self.d2d_layer._rx_buffer), ("wan_rx", self.wan_layer._rx_buffer)]:
-            i = 0
-            while i < len(buffer_list):
-                frame = buffer_list[i]
-                checksum = frame.crc if hasattr(frame, "crc") else frame.mic
+        for frame in self.d2d_layer._tx_buffer:
+            checksum = frame.crc if hasattr(frame, "crc") else frame.mic
+            if isinstance(checksum, bytes):
+                checksum = int.from_bytes(checksum, "big")
+            tx_checksums.add(checksum)
 
-                if isinstance(checksum, bytes):
-                    checksum = int.from_bytes(checksum, "big")
+        for frame in self.wan_layer._tx_buffer:
+            checksum = frame.crc if hasattr(frame, "crc") else frame.mic
+            if isinstance(checksum, bytes):
+                checksum = int.from_bytes(checksum, "big")
+            tx_checksums.add(checksum)
 
-                payload_guid = "unknown"
-                if hasattr(frame, "mac_payload") and hasattr(frame.mac_payload.frm_payload, "guid"):
-                    payload_guid = frame.mac_payload.frm_payload.guid
-                elif hasattr(frame, "payload") and hasattr(frame.payload, "guid"):
-                    payload_guid = frame.payload.guid
+        seen_rx = set()
+        i = 0
+        while i < len(self.d2d_layer._rx_buffer):
+            frame = self.d2d_layer._rx_buffer[i]
+            checksum = frame.crc if hasattr(frame, "crc") else frame.mic
+            if isinstance(checksum, bytes):
+                checksum = int.from_bytes(checksum, "big")
 
-                if checksum in seen_checksums:
-                    self.log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self.node_id} dedup removed GUID={payload_guid} from {buffer_name} buffer, checksum={checksum}")
-                    buffer_list.pop(i)
-                else:
-                    seen_checksums.add(checksum)
-                    i += 1
+            payload_guid = 'unknown'
+            if hasattr(frame, 'mac_payload') and hasattr(frame.mac_payload, 'frm_payload') and hasattr(frame.mac_payload.frm_payload, 'guid'):
+                payload_guid = frame.mac_payload.frm_payload.guid
+            elif hasattr(frame, 'payload') and hasattr(frame.payload, 'guid'):
+                payload_guid = frame.payload.guid
+
+            if checksum in tx_checksums:
+                self.log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self.node_id} duplicate removed GUID={payload_guid} from d2d_rx (in TX buffer)")
+                self.d2d_layer._rx_buffer.pop(i)
+            elif checksum in seen_rx:
+                self.log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self.node_id} duplicate removed GUID={payload_guid} from d2d_rx (duplicate in RX)")
+                self.d2d_layer._rx_buffer.pop(i)
+            else:
+                seen_rx.add(checksum)
+                i += 1
+
+        seen_rx = set()
+        i = 0
+        while i < len(self.wan_layer._rx_buffer):
+            frame = self.wan_layer._rx_buffer[i]
+            checksum = frame.crc if hasattr(frame, "crc") else frame.mic
+            if isinstance(checksum, bytes):
+                checksum = int.from_bytes(checksum, "big")
+
+            payload_guid = 'unknown'
+            if hasattr(frame, 'mac_payload') and hasattr(frame.mac_payload, 'frm_payload') and hasattr(frame.mac_payload.frm_payload, 'guid'):
+                payload_guid = frame.mac_payload.frm_payload.guid
+            elif hasattr(frame, 'payload') and hasattr(frame.payload, 'guid'):
+                payload_guid = frame.payload.guid
+
+            if checksum in tx_checksums:
+                self.log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self.node_id} duplicate removed GUID={payload_guid} from wan_rx (in TX buffer)")
+                self.wan_layer._rx_buffer.pop(i)
+            elif checksum in seen_rx:
+                self.log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self.node_id} duplicate removed GUID={payload_guid} from wan_rx (duplicate in RX)")
+                self.wan_layer._rx_buffer.pop(i)
+            else:
+                seen_rx.add(checksum)
+                i += 1
 
     def tick(self, current_global_tick: int) -> None:
         current_local_clock_info = cast(LocalClockInfo, self.local_event_queue.get_current_events_by_type(LocalEventTypes.LOCAL_TIME)[0].data)
