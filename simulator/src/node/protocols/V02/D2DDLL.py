@@ -78,8 +78,9 @@ class D2DDLL:
             self._own_tx_slot = 1
             self.discovery_state = DiscoverStates.DISCOVERED
 
-    def enqueue_payload(self, payload: PayloadHopCntSimple | PayloadHopCntFull | PayloadData | MegaSync) -> None:
+    def enqueue_payload(self, payload: PayloadData | MegaSync) -> None:
 
+        type = LoRaD2DFrameType.DATA_TO_GW
         destination_node_ids = set()
         if isinstance(payload, PayloadData):
             # get the two nodeids with lowest lower hopcount than own hop count
@@ -90,6 +91,7 @@ class D2DDLL:
                 destination_node_ids.add(n.neighbor_id)
         elif isinstance(payload, MegaSync):
             # get all nodeids with higher hopcount than own hop count
+            type = LoRaD2DFrameType.DATA_FROM_GW
             for n in self._known_neighbors:
                 if n.hopcount_to_gateway < self.hopcount_to_gateway:
                     continue
@@ -105,7 +107,7 @@ class D2DDLL:
         msg = LoRaD2DFrame(
             source_node_id=self._node_id,
             destination_node_id=destination_node_ids,
-            type=LoRaD2DFrameType.DATA_TO_GW,
+            type=type,
             payload=payload,
         )
 
@@ -306,12 +308,12 @@ class D2DDLL:
 
             case LoRaD2DFrameType.DATA_TO_GW:
                 if self._node_id in frame.destination_node_id:
-                    if isinstance(frame.payload, MegaSync):
-                        frame.payload.local_rx_time = current_local_clock_info.current_local_time
                     self._rx_buffer.append(frame)
 
             case LoRaD2DFrameType.DATA_FROM_GW:
                 if self._node_id in frame.destination_node_id:
+                    if isinstance(frame.payload, MegaSync):
+                        frame.payload.local_rx_time = current_local_clock_info.current_local_time
                     self._rx_buffer.append(frame)
 
             case LoRaD2DFrameType.REQ_HOP_ACK:
@@ -387,6 +389,9 @@ class D2DDLL:
             self._known_neighbors.append(neighbor_info)
         else:
             existing.hopcount_to_gateway = frame_hop_cnt.cnt
+
+
+
 
     def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
 
