@@ -78,6 +78,10 @@ class Clock(IModule):
             self.sleep_until_local_time = local_time + sleep_milliseconds - 2  # static 2 as 1 tick corresponds to 1 ms
             self.local_event_queue.add_event_to_current_tick(LocalEventTypes.NODE_SLEEP, None)
 
+            # stop timers before sleeping
+            self.timer_1_end_local_time = None
+            self.timer_2_end_local_time = None
+
         if self.sleep_until_local_time is not None:
             # determine next tick to evaluate.
             self.global_tick_for_wake_up = self.sleep_until_local_time * self.global_ticks_per_local_time_increment  # TODO: chyange from ideal linear

@@ -89,6 +89,9 @@ class Clock(IModule):
             # We subtract 2 ticks to ensure we wake up a bit before the sleep time, this is to account for delays in the processing of events.
             self.sleep_until_local_time = self.localtime + sleep_milliseconds - 2  # static 2 as 1 tick corresponds to 1 ms
             self.local_event_queue.add_event_to_current_tick(LocalEventTypes.NODE_SLEEP, None)
+            # stop timers before sleeping
+            self.timer_1_end_local_time = None
+            self.timer_2_end_local_time = None
 
         if self.sleep_until_local_time is not None:
             if self.localtime >= self.sleep_until_local_time:
