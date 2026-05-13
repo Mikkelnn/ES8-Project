@@ -11,9 +11,8 @@ from payload_types import PayloadData
 class AppState(Enum):
     INITIAL_SLEEP = 0
     SENSOR = 1
-    MEASURING = 2
-    DEDUP = 3
-    FORWARDING = 4
+    DEDUP = 2
+    FORWARDING = 3
 
 
 class APP:
@@ -25,7 +24,6 @@ class APP:
         self.random = Random(self.node_id)
         self.app_to_dll_tx = app_to_dll_tx
         self.dll_to_app_rx = dll_to_app_rx
-        self.payload_data = PayloadData(id={self.node_id})
         self.sensor_buffer: list[tuple[int, int]] = []
         self.measurement_interval_ms = 3_600_000
         self.required_samples = 12
@@ -48,42 +46,40 @@ class APP:
 
             case AppState.SENSOR:
                 current_local_time = self._get_local_time()
-                s1 = self.random.randint(0, 30)
-                s2 = self.random.randint(0, 30)
-                self.sensor_buffer.append((s1, s2))
-                self.last_measurement_time = current_local_time
-                self.state = AppState.MEASURING
-                self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} first sensor measurement: s1={s1}, s2={s2}, entering MEASURING state")
 
-            case AppState.MEASURING:
-                current_local_time = self._get_local_time()
                 if self.last_measurement_time is None:
-                    return
-                time_since_last = abs(current_local_time - self.last_measurement_time)
-                if time_since_last >= self.measurement_interval_ms:
+                    self.last_measurement_time = current_local_time
+
+                if abs(current_local_time - self.last_measurement_time) >= self.measurement_interval_ms:
                     s1 = self.random.randint(0, 30)
                     s2 = self.random.randint(0, 30)
                     self.sensor_buffer.append((s1, s2))
                     self.last_measurement_time = current_local_time
-                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} measurement {len(self.sensor_buffer)}/12: s1={s1}, s2={s2}")
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} measurement {len(self.sensor_buffer)}/{self.required_samples}: s1={s1}, s2={s2}")
+
                     if len(self.sensor_buffer) == self.required_samples:
                         avg_s1 = sum(s[0] for s in self.sensor_buffer) // self.required_samples
                         avg_s2 = sum(s[1] for s in self.sensor_buffer) // self.required_samples
-                        self.payload_data.data.sensor1 = avg_s1
-                        self.payload_data.data.sensor2 = avg_s2
-                        self.payload_data.time = float(current_local_time)
-                        self.payload_data.length_calc()
-                        self.enqueue_payload(self.payload_data)
-                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} enqueued averaged payload: avg_s1={avg_s1}, avg_s2={avg_s2}, GUID={self.payload_data.guid}")
+                        payload_data = PayloadData({self.node_id})
+                        payload_data.data.sensor1 = avg_s1
+                        payload_data.data.sensor2 = avg_s2
+                        payload_data.time = float(current_local_time)
+                        payload_data.length_calc()
+                        self.enqueue_payload(payload_data)
+                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} enqueued averaged payload: avg_s1={avg_s1}, avg_s2={avg_s2}, GUID={payload_data.guid}")
                         self.sensor_buffer.clear()
+                        self.state = AppState.DEDUP
+
+            case AppState.DEDUP:  # TODO
+                self._deduplication()
+                self.state = AppState.FORWARDING
 
             case AppState.FORWARDING:
                 while self.dll_to_app_rx:
                     packet = self.dll_to_app_rx.pop(0)
                     self.enqueue_payload(packet)
 
-            case AppState.DEDUP:  # TODO
-                self._deduplication()
+                self.state = AppState.SENSOR
 
     def enqueue_payload(self, payload: PayloadData) -> None:
         self.app_to_dll_tx.append(payload)
