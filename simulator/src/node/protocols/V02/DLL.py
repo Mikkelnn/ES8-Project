@@ -44,13 +44,11 @@ class DLL:
         self._last_megasync_req_local_time: int = 0
         self._megasync_req_due: bool = False
 
-    def _remove_duplicates_from_buffers(self) -> None:
+    def _remove_duplicates_from_buffers(self) -> None:  # Should also be made for TX buffer comparing RX, but TX must win over RX
         """Remove duplicate frames across D2D and WAN buffers based on CRC/MIC. TX buffers kept, RX duplicates removed."""
         seen_checksums = set()
 
-        # TODO: Does this work? -> below seems to be a 2D array....
-        # also why O(n²)? -> we can just run over the list once, if we have checksum slice current packet...
-        for buffer_list in [self.d2d_layer._tx_buffer, self.wan_layer._tx_buffer, self.d2d_layer._rx_buffer, self.wan_layer._rx_buffer]:
+        for buffer_name, buffer_list in [("d2d_rx", self.d2d_layer._rx_buffer), ("wan_rx", self.wan_layer._rx_buffer)]:
             i = 0
             while i < len(buffer_list):
                 frame = buffer_list[i]
@@ -59,8 +57,15 @@ class DLL:
                 if isinstance(checksum, bytes):
                     checksum = int.from_bytes(checksum, "big")
 
+                payload_guid = "unknown"
+                if hasattr(frame, "mac_payload") and hasattr(frame.mac_payload.frm_payload, "guid"):
+                    payload_guid = frame.mac_payload.frm_payload.guid
+                elif hasattr(frame, "payload") and hasattr(frame.payload, "guid"):
+                    payload_guid = frame.payload.guid
+
                 if checksum in seen_checksums:
-                    buffer_list.pop(i)  # So we remove from our local array but not from the actual buffers?
+                    self.log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self.node_id} dedup removed GUID={payload_guid} from {buffer_name} buffer, checksum={checksum}")
+                    buffer_list.pop(i)
                 else:
                     seen_checksums.add(checksum)
                     i += 1
@@ -94,7 +99,7 @@ class DLL:
                             # print(f"node id: {self.node_id} estimated start: {self.d2d_layer.estimated_period_start}, ago: {(current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)}")
                             sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)  # ty: ignore[unsupported-operator]
                             if self.d2d_layer.slot_period_counter + 1 >= self.lora_wan_slot_interleave:
-                                self.d2d_layer.slot_period_counter = 1 # set to one as WAN has completed after sleep
+                                self.d2d_layer.slot_period_counter = 1  # set to one as WAN has completed after sleep
                                 # sleep next period as it is LORA WAN -> no D2D
                                 sleep_ms += self.slot_period_ms
 

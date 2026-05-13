@@ -62,7 +62,7 @@ class SimpleLogger(ILogger):
         """Remove blacklisted severities from log output."""
 
         blocked = {
-            #"DEBUG",
+            "DEBUG",
         }
 
         return [line for line in lines if not any(line.startswith(f"[{level}]") for level in blocked)]

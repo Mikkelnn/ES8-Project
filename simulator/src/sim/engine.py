@@ -259,7 +259,7 @@ class Simulation:
         # Cap workers to physical cores — hyperthreads don't help CPU-bound Python
         logical_cpus = os.cpu_count() or 4
         phys_cores = max(1, logical_cpus // 2)
-        n_workers = 1 #max(1, min(phys_cores, num_devices))
+        n_workers = 1  # max(1, min(phys_cores, num_devices))
 
         sorted_ids = sorted(device_neighbors_dict.keys())
         partitions: list[list[int]] = [[] for _ in range(n_workers)]
@@ -455,8 +455,8 @@ class Engine:
         # Load topology from JSON if provided, otherwise use device_neighbors
         if topology_json_path:
             self.device_neighbors = NetworkTopologyLoader.from_file(topology_json_path)
-            #print(self.device_neighbors)
-            #exit()
+            # print(self.device_neighbors)
+            # exit()
         else:
             self.device_neighbors = device_neighbors
 

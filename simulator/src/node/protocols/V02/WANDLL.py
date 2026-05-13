@@ -116,6 +116,7 @@ class WANDLL:
 
             case TransmitState.TRANSMITTING_WAITING_FOR_RX:
                 if current_transceiver_states[MediumTypes.LORA_WAN] != TransceiverState.TRANSMITTING:
+                    self.tx_counter = 0
                     self.log.add(Severity.DEBUG, Area.PROTOCOL, 0000000, f"Node {self.node_id} finished transmitting, waiting for ACK")
                     # timer until RX_1 slot
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SET_TIMER, sub_type=LocalEventSubTypes.TIMER_1, data=1000 - 10)
