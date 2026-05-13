@@ -341,7 +341,7 @@ class D2DDLL:
         existing = next((n for n in self._known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing:
             if existing.last_seen < self._slot_period_start:
-                existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self._duration_calculator.get_duration(frame.length) - 2 # account for local_event_queue in TX and RX (2 ticks)
+                existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self._duration_calculator.get_duration(frame.length) - 2  # account for local_event_queue in TX and RX (2 ticks)
                 if self._current_slot > -1:
                     existing.in_slot = self._current_slot
 
@@ -438,11 +438,11 @@ class D2DDLL:
 
         # order list by lowest hopcount then by best RSSI
         # self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
-        self._known_neighbors.sort(key=lambda x: (-x.last_rssi))
+        self._known_neighbors.sort(key=lambda x: -x.last_rssi)
 
         # only iterate on neighbors with higher hopcount than own
-        # of_interest = (neighbor for neighbor in self._known_neighbors if neighbor.hopcount_to_gateway > from_hop) # neighbor.hopcount_to_gateway >= from_hop
-        of_interest = self._known_neighbors
+        of_interest = (neighbor for neighbor in self._known_neighbors if neighbor.hopcount_to_gateway >= from_hop)  # neighbor.hopcount_to_gateway > from_hop
+        # of_interest = self._known_neighbors
         current_hop = self.hopcount_to_gateway
         prev_rssi = 0
         rssi_threshold = 6
@@ -464,6 +464,7 @@ class D2DDLL:
                 self._tx_buffer[existing_frame_index] = change_frame
             else:
                 self._tx_buffer.append(change_frame)
+
 
         self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
 
