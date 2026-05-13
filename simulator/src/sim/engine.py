@@ -259,7 +259,7 @@ class Simulation:
         # Cap workers to physical cores — hyperthreads don't help CPU-bound Python
         logical_cpus = os.cpu_count() or 4
         phys_cores = max(1, logical_cpus // 2)
-        n_workers = 1  # max(1, min(phys_cores, num_devices))
+        n_workers = max(1, min(phys_cores, num_devices))
 
         sorted_ids = sorted(device_neighbors_dict.keys())
         partitions: list[list[int]] = [[] for _ in range(n_workers)]
