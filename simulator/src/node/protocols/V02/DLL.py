@@ -166,7 +166,7 @@ class DLL:
                     if not is_wan_slot:
                         self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=self.d2d_layer.estimated_period_correction)
 
-                    sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.current_period_start_time)
+                    sleep_ms = self.slot_period_ms - (current_local_time - self.current_period_start_time)
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                     self.current_period_start_time = None
                     self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished {'WAN' if is_wan_slot else 'D2D'} forwarding period, slot period count: {self.slot_period_counter}, sleeping until next slot period ({sleep_ms} ms)")
