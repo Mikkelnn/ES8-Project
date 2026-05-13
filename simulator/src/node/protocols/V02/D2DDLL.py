@@ -76,8 +76,7 @@ class D2DDLL:
     def set_has_gateway_link(self) -> None:
         if not self.link_established:
             self._set_own_hop_count(0)
-            self._own_tx_slot = 1
-            # self._own_tx_slot = self._next_available_slot()
+            self._set_own_tx_slot(1)
             self.discovery_state = DiscoverStates.DISCOVERED
 
     def enqueue_payload(self, payload: PayloadData | MegaSync) -> None:
@@ -154,7 +153,7 @@ class D2DDLL:
         self._run_slot(current_global_tick, current_local_clock_info, current_transceiver_states)
 
         # process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
-        self._process_receptions(current_global_tick, current_local_clock_info)
+        self._process_receptions(current_global_tick, current_local_clock_info, slot_period_counter)
 
         # handle MINI SYNC here
         if period_finished:
@@ -221,7 +220,6 @@ class D2DDLL:
 
         if self.discovery_state == DiscoverStates.WAIT_REQ_ACK_SENT and period_finished:
             self.discovery_state = DiscoverStates.WAITING_FOR_ACK
-            self.slot_period_counter += 1
             self.estimated_period_start = self._slot_period_start
             return True  # signal wait for next period
 
@@ -229,7 +227,6 @@ class D2DDLL:
             # we wait for ACK, if we receive it we will set our state to DISCOVERED in the reception processing,
             # if we do not receive it before the end of the period we will need to retry in the next period
             self.discovery_state = DiscoverStates.REQ_ACK
-            self.slot_period_counter += 1
             self.estimated_period_start = self._slot_period_start
 
         if self.discovery_state == DiscoverStates.REQ_ACK:
@@ -310,7 +307,7 @@ class D2DDLL:
 
             self._local_event_queue.add_event_to_next_tick(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=MediumTypes.LORA_D2D, data=packet)
 
-    def _process_receptions(self, current_global_tick: int, current_local_clock_info: LocalClockInfo) -> None:
+    def _process_receptions(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, current_slot_period_counter: int) -> None:
         current_receptions = self._local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, MediumTypes.LORA_D2D)
         if not current_receptions:
             return
@@ -319,7 +316,7 @@ class D2DDLL:
         frame = cast(LoRaD2DFrame, current_receptions[0].data)
         match frame.type:
             case LoRaD2DFrameType.CURRENT_HOP_COUNT:
-                self._process_current_hopcount(frame, current_local_clock_info.current_local_time)
+                self._process_current_hopcount(frame, current_local_clock_info.current_local_time, current_slot_period_counter)
 
             case LoRaD2DFrameType.DATA_TO_GW:
                 if self._node_id in frame.destination_node_id:
@@ -333,10 +330,10 @@ class D2DDLL:
 
             case LoRaD2DFrameType.REQ_HOP_ACK:
                 if self._node_id in frame.destination_node_id:
-                    self._process_req_hop_ack(frame, current_local_clock_info.current_local_time)
+                    self._process_req_hop_ack(frame, current_local_clock_info.current_local_time, current_slot_period_counter)
 
             case LoRaD2DFrameType.CHANGE_HOP_COUNT:
-                self._process_change_hop_count(frame, current_global_tick)
+                self._process_change_hop_count(frame, current_global_tick, current_slot_period_counter)
 
             case LoRaD2DFrameType.REDISCOVER:
                 # we have been dead and now been directly synced
@@ -347,7 +344,7 @@ class D2DDLL:
                     self.estimated_period_start = current_local_clock_info.current_local_time - (payload.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
                     self.slot_period_counter = payload.slot_period_counter
                     self._set_own_hop_count(payload.cnt)
-                    self._own_tx_slot = payload.use_slot
+                    self._set_own_tx_slot(payload.use_slot)
 
                     self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} discovery complete with hop count {self.hopcount_to_gateway}, use TX slot: {self._own_tx_slot}")
 
@@ -362,7 +359,7 @@ class D2DDLL:
             existing.last_seen = current_local_clock_info.current_local_time
             existing.last_rssi = frame.rssi
 
-    def _process_current_hopcount(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
+    def _process_current_hopcount(self, frame: LoRaD2DFrame, current_local_time: int, current_slot_period_counter: int) -> None:
         frame_hop_cnt = cast(PayloadHopCntFull, frame.payload)
 
         # update observed slot registry (all nodes in range, not just known neighbors)
@@ -379,11 +376,9 @@ class D2DDLL:
         else:
             existing.hopcount_to_gateway = frame_hop_cnt.cnt
 
-        #TODO: resole upstream
-        self._resolve_upstream_hopcount_and_slot(self.hopcount_to_gateway)
+        self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
 
-
-    def _process_change_hop_count(self, frame: LoRaD2DFrame, current_global_tick: int) -> None:
+    def _process_change_hop_count(self, frame: LoRaD2DFrame, current_global_tick: int, current_slot_period_counter: int) -> None:
 
         # we have been instructed to change our hop count, update our hop count to the instructed hop count
         # implied ACk, we can assume discovery complete
@@ -391,14 +386,12 @@ class D2DDLL:
         if self._node_id in frame.destination_node_id:
             if self.discovery_state != DiscoverStates.DISCOVERED:
                 self.estimated_period_start = self._slot_period_start
-                self.slot_period_counter += 1
+                self.slot_period_counter = payload.slot_period_counter
 
             self.discovery_state = DiscoverStates.DISCOVERED
 
-            # from_hop = self.hopcount_to_gateway # min(self.hopcount_to_gateway, payload.cnt)
             self._set_own_hop_count(payload.cnt)
-            self._own_tx_slot = payload.use_slot
-            # self._resolve_upstream_hopcount_and_slot(from_hop)
+            self._set_own_tx_slot(payload.use_slot)
 
             self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} discovery complete with hop count {self.hopcount_to_gateway}, use TX slot: {self._own_tx_slot}")
             self._observed_slots[self._node_id] = self._own_tx_slot  # keep registry self-consistent
@@ -413,12 +406,9 @@ class D2DDLL:
                 existing.hopcount_to_gateway = payload.cnt
                 existing.in_slot = payload.use_slot
 
-        # TODO: resolve upstream
-        self._resolve_upstream_hopcount_and_slot(self.hopcount_to_gateway)
+        self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
 
-
-
-    def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int) -> None:
+    def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int, current_slot_period_counter: int) -> None:
 
         # TODO: handle edge case where we have more neighbors than slots... (we currently log the event)
         # TODO: handle where slot conflicts amung lower hopcount nodes e.g. V sahpe where both nodes have GW connection
@@ -437,7 +427,9 @@ class D2DDLL:
             neighbor.hopcount_to_gateway = validate_hopcount
             neighbor.last_rssi = frame.rssi
 
-        self._resolve_upstream_hopcount_and_slot(self.hopcount_to_gateway)
+        self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
+
+
 
     def _next_available_slot(self, neighbor: D2DNeighborInfo) -> int:
         # if current used slot is valid, return the current
@@ -459,7 +451,7 @@ class D2DDLL:
         self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"Node {self._node_id} slot exhaustion")
         return 0
 
-    def _resolve_upstream_hopcount_and_slot(self, from_hop: int) -> None:
+    def _resolve_upstream_hopcount_and_slot(self, current_slot_period_counter: int) -> None:
 
         # order list by best RSSI
         self._known_neighbors.sort(key=lambda x: -x.last_rssi)
@@ -481,7 +473,7 @@ class D2DDLL:
             neighbor.hopcount_to_gateway = current_hop
             neighbor.in_slot = use_slot
             self._observed_slots[neighbor.neighbor_id] = neighbor.in_slot
-            change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=current_hop, use_slot=neighbor.in_slot))
+            change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=current_hop, use_slot=neighbor.in_slot, slot_period_counter=current_slot_period_counter))
             change_frame.crc_calc()
 
             existing_frame_index = next((i for i, f in enumerate(self._tx_buffer) if neighbor.neighbor_id in f.destination_node_id and f.type == LoRaD2DFrameType.CHANGE_HOP_COUNT), None)
@@ -553,3 +545,15 @@ class D2DDLL:
 
         if self._tx_buffer[0].type == LoRaD2DFrameType.CURRENT_HOP_COUNT and isinstance(self._tx_buffer[0].payload, PayloadHopCntFull):
             self._tx_buffer[0].payload.cnt = hop_count
+
+    def _set_own_tx_slot(self, tx_slot: int) -> None:
+        if self._own_tx_slot == tx_slot:
+            return
+
+        self._own_tx_slot = tx_slot
+        # update scheduled CURRENT_HOP_COUNT frames in tx_buffer
+        if not self._tx_buffer:
+            return
+
+        if self._tx_buffer[0].type == LoRaD2DFrameType.CURRENT_HOP_COUNT and isinstance(self._tx_buffer[0].payload, PayloadHopCntFull):
+            self._tx_buffer[0].payload.use_slot = tx_slot

@@ -136,14 +136,14 @@ class DLL:
                         if self.d2d_layer.discovery_state in [DiscoverStates.WAIT_REQ_ACK_SENT, DiscoverStates.WAITING_FOR_ACK]:
                             # print(f"node id: {self.node_id} estimated start: {self.d2d_layer.estimated_period_start}, ago: {(current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)}")
                             sleep_ms = self.slot_period_ms - (current_local_clock_info.current_local_time - self.d2d_layer.estimated_period_start)  # ty: ignore[unsupported-operator]
-                            if self.d2d_layer.slot_period_counter + 1 >= self.lora_wan_slot_interleave:
+                            self.d2d_layer.slot_period_counter += 1
+                            if self.d2d_layer.slot_period_counter >= self.lora_wan_slot_interleave:
                                 self.d2d_layer.slot_period_counter = 1  # set to one as WAN has completed after sleep
                                 # sleep next period as it is LORA WAN -> no D2D
                                 sleep_ms += self.slot_period_ms
 
                             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
-                            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery waiting for ACK, sleeping until next slot period to retry with D2D for {sleep_ms} ms")
-                            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} period_counter: {self.d2d_layer.slot_period_counter} ")
+                            self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery waiting for ACK, period counter: {self.d2d_layer.slot_period_counter}, sleeping until next slot period to retry with D2D for {sleep_ms} ms")
                         else:
                             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=self.d2d_rety_period_ms)
                             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D for {self.d2d_rety_period_ms} ms")

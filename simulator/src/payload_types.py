@@ -72,13 +72,14 @@ class PayloadHopCntMid(ILength):
 
     cnt: int  # uint16
     use_slot: int  # uint8
+    slot_period_counter: int  # uint8
 
     @property
     def length(self) -> int:
-        return 2 + 1
+        return 2 + 1 + 1
 
     def to_bytes(self) -> bytes:
-        return self.cnt.to_bytes(2, "big", signed=False) + self.use_slot.to_bytes(1, "big", signed=False)
+        return self.cnt.to_bytes(2, "big", signed=False) + self.use_slot.to_bytes(1, "big", signed=False) + self.slot_period_counter.to_bytes(1, "big", signed=False)
 
 
 @dataclass
