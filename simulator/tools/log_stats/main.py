@@ -634,6 +634,36 @@ class packet_forwarding_delay:
 
 
 #===================Parallel processing===================
+def read_and_process_region(args: tuple) -> list:
+    """Read file region via mmap and process. Returns analyzer instances."""
+    path, start_byte, end_byte = args
+    analyzers = [
+        deadnodecounter(),
+        sync_interval_counter(),
+        battery_capacity_analyser(num_bins=5),
+        packet_forwarding_delay(),
+    ]
+
+    with open(path, 'rb') as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mmapped:
+            # Seek to start, skip partial line
+            if start_byte > 0:
+                mmapped.seek(start_byte)
+                mmapped.readline()  # Skip partial line
+                start_byte = mmapped.tell()
+
+            # Read until end_byte
+            while start_byte < end_byte and start_byte < len(mmapped):
+                line_bytes = mmapped.readline()
+                if not line_bytes:
+                    break
+                line = line_bytes.decode('utf-8')
+                execute(analyzers, line)
+                start_byte = mmapped.tell()
+
+    return analyzers
+
+
 def process_chunk(chunk_lines: list[str]) -> list:
     """Process chunk with fresh analyzer instances."""
     analyzers = [
@@ -783,19 +813,21 @@ def main():
     parser.add_argument('--workers', type=int, default=None, help='Number of worker processes (default: CPU count)')
     args = parser.parse_args()
 
-    pbar = tqdm(desc="Loading chunks", unit="chunk", ncols=80)
-    chunks = []
-    for chunk in read_in_batches(args.log):
-        chunks.append(chunk)
-        pbar.update(1)
-    pbar.close()
-
     num_workers = args.workers or cpu_count()
+    file_size = Path(args.log).stat().st_size
+    region_size = file_size // num_workers
 
-    pbar = tqdm(total=len(chunks), desc="Processing chunks", unit="chunk", ncols=80)
+    # Create byte ranges for each worker
+    regions = []
+    for i in range(num_workers):
+        start = i * region_size
+        end = file_size if i == num_workers - 1 else (i + 1) * region_size
+        regions.append((args.log, start, end))
+
+    pbar = tqdm(total=num_workers, desc="Processing regions", unit="region", ncols=80)
     with Pool(num_workers) as pool:
         results = []
-        for analyzer_group in pool.imap(process_chunk, chunks):
+        for analyzer_group in pool.imap(read_and_process_region, regions):
             results.append(analyzer_group)
             pbar.update(1)
     pbar.close()
