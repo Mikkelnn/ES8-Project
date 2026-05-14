@@ -87,31 +87,31 @@ class TestPayloadHopCntMid:
     """Test mid hop count payload class (for CHANGE_HOP_COUNT ACK frames)"""
 
     def test_length_property(self):
-        """Test length property returns 3 (cnt + slot)"""
-        payload = PayloadHopCntMid(cnt=5, use_slot=1)
-        assert payload.length == 3
+        """Test length property returns 4 (cnt + slot_period_counter + use_slot)"""
+        payload = PayloadHopCntMid(cnt=5, use_slot=1, slot_period_counter=0)
+        assert payload.length == 4
 
     def test_to_bytes_basic(self):
         """Test to_bytes serialization"""
-        payload = PayloadHopCntMid(cnt=0x0102, use_slot=0x03)
+        payload = PayloadHopCntMid(cnt=0x0102, use_slot=0x03, slot_period_counter=0x04)
         result = payload.to_bytes()
 
-        assert len(result) == 3
-        assert result == b"\x01\x02\x03"
+        assert len(result) == 4
+        assert result == b"\x01\x02\x03\x04"
 
     def test_to_bytes_zero(self):
         """Test to_bytes with zero values"""
-        payload = PayloadHopCntMid(cnt=0, use_slot=0)
+        payload = PayloadHopCntMid(cnt=0, use_slot=0, slot_period_counter=0)
         result = payload.to_bytes()
 
-        assert result == b"\x00\x00\x00"
+        assert result == b"\x00\x00\x00\x00"
 
     def test_to_bytes_max_values(self):
         """Test to_bytes with max values"""
-        payload = PayloadHopCntMid(cnt=0xFFFF, use_slot=0xFF)
+        payload = PayloadHopCntMid(cnt=0xFFFF, use_slot=0xFF, slot_period_counter=0xFF)
         result = payload.to_bytes()
 
-        assert result == b"\xff\xff\xff"
+        assert result == b"\xff\xff\xff\xff"
 
 
 class TestPayloadData:
@@ -198,8 +198,8 @@ class TestLoRaD2DFrame:
         hop_payload = PayloadHopCntFull(cnt=5, slot_period_counter=0, use_slot=1, time_offset_from_period_start=0)
         frame = LoRaD2DFrame(source_node_id=10, destination_node_id={3}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_payload)
 
-        # source (4) + destinations (4*1) + type (1) + payload.length (8) + crc (2)
-        expected = 4 + 4 + 1 + 8 + 2
+        # source (4) + destinations (4*1) + type (1) + payload.length (6) + crc (2)
+        expected = 4 + 4 + 1 + 6 + 2
         assert frame.length == expected
 
     def test_to_crc_bytes_serialization(self):
@@ -209,12 +209,15 @@ class TestLoRaD2DFrame:
 
         result = frame.to_crc_bytes()
 
-        # source (4) + destination (4) + type (1) + hop_count (2)
-        assert len(result) == 11
+        # source (4) + destination (4) + type (1) + hop_count (6: cnt+slot_period_counter+use_slot+time_offset)
+        assert len(result) == 15
         assert result[0:4] == b"\x00\x00\x00\x01"  # source
         assert result[4:8] == b"\x00\x00\x00\x02"  # destination
         assert result[8] == 5  # type value (CURRENT_HOP_COUNT = 5)
         assert result[9:11] == b"\x00\x01"  # hop count
+        assert result[11:12] == b"\x00"  # slot_period_counter
+        assert result[12:13] == b"\x00"  # use_slot
+        assert result[13:15] == b"\x00\x00"  # time_offset_from_period_start
 
     def test_to_crc_bytes_multiple_destinations_sorted(self):
         """Test to_crc_bytes sorts destinations"""
@@ -405,7 +408,7 @@ class TestEdgeCases:
         frame = LoRaD2DFrame(source_node_id=1, destination_node_id=large_id_set, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_payload)
 
         # Should calculate length correctly
-        expected = 4 + (4 * len(large_id_set)) + 1 + 8 + 2
+        expected = 4 + (4 * len(large_id_set)) + 1 + 6 + 2
         assert frame.length == expected
 
     def test_time_float_precision(self):

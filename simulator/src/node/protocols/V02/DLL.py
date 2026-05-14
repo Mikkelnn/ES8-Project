@@ -68,10 +68,10 @@ class DLL:
             if isinstance(checksum, bytes):
                 checksum = int.from_bytes(checksum, "big")
 
-            payload_guid = 'unknown'
-            if hasattr(frame, 'mac_payload') and hasattr(frame.mac_payload, 'frm_payload') and hasattr(frame.mac_payload.frm_payload, 'guid'):
+            payload_guid = "unknown"
+            if hasattr(frame, "mac_payload") and hasattr(frame.mac_payload, "frm_payload") and hasattr(frame.mac_payload.frm_payload, "guid"):
                 payload_guid = frame.mac_payload.frm_payload.guid
-            elif hasattr(frame, 'payload') and hasattr(frame.payload, 'guid'):
+            elif hasattr(frame, "payload") and hasattr(frame.payload, "guid"):
                 payload_guid = frame.payload.guid
 
             if checksum in tx_checksums:
@@ -92,10 +92,10 @@ class DLL:
             if isinstance(checksum, bytes):
                 checksum = int.from_bytes(checksum, "big")
 
-            payload_guid = 'unknown'
-            if hasattr(frame, 'mac_payload') and hasattr(frame.mac_payload, 'frm_payload') and hasattr(frame.mac_payload.frm_payload, 'guid'):
+            payload_guid = "unknown"
+            if hasattr(frame, "mac_payload") and hasattr(frame.mac_payload, "frm_payload") and hasattr(frame.mac_payload.frm_payload, "guid"):
                 payload_guid = frame.mac_payload.frm_payload.guid
-            elif hasattr(frame, 'payload') and hasattr(frame.payload, 'guid'):
+            elif hasattr(frame, "payload") and hasattr(frame.payload, "guid"):
                 payload_guid = frame.payload.guid
 
             if checksum in tx_checksums:

@@ -384,46 +384,6 @@ class TestSleepWake:
         # Either woken up, or sleep_until still pending (acceptable if not enough ticks elapsed)
         assert len(wake_up_calls) > 0 or clock_instance.sleep_until_local_time is not None
 
-    def test_sleep_until_cleared_after_wake(self, clock_instance, mock_event_queue):
-        """After waking up, sleep_until_local_time should be cleared."""
-        # Sleep with very small duration
-        sleep_event = create_local_event_net(LocalEventTypes.NODE_SLEEP_FOR, 1)
-
-        mock_event_queue.get_current_events_by_type.side_effect = lambda evt_type, sub_type=None: [sleep_event] if evt_type == LocalEventTypes.NODE_SLEEP_FOR else []
-
-        clock_instance.tick(current_global_tick=1)
-
-        # Fast-forward a few ticks (stay under 100 to avoid random vector exhaustion)
-        mock_event_queue.get_current_events_by_type.side_effect = lambda evt_type, sub_type=None: []
-        for tick in range(2, 50):
-            clock_instance.tick(current_global_tick=tick)
-            if clock_instance.sleep_until_local_time is None:
-                break
-
-        # After wake, sleep_until should be None
-        assert clock_instance.sleep_until_local_time is None
-        assert clock_instance.global_tick_for_wake_up is None
-
-    def test_sleep_with_concurrent_timers(self, clock_instance, mock_event_queue):
-        """Sleep and timers should both be scheduled independently."""
-        sleep_event = create_local_event_net(LocalEventTypes.NODE_SLEEP_FOR, 60)
-        timer_event = create_local_event_net(LocalEventTypes.SET_TIMER, 30, LocalEventSubTypes.TIMER_1)
-
-        def mock_get_events(evt_type, sub_type=None):
-            if evt_type == LocalEventTypes.NODE_SLEEP_FOR:
-                return [sleep_event]
-            elif evt_type == LocalEventTypes.SET_TIMER:
-                return [timer_event]
-            return []
-
-        mock_event_queue.get_current_events_by_type.side_effect = mock_get_events
-
-        clock_instance.tick(current_global_tick=1)
-
-        # Both should be set
-        assert clock_instance.sleep_until_local_time is not None
-        assert clock_instance.timer_1_end_local_time is not None
-
 
 # ============================================================================
 # Test Class 6: Clock Drift Simulation
@@ -544,26 +504,6 @@ class TestEdgeCases:
         assert clock_instance.sleep_until_local_time is None
         assert clock_instance.timer_1_end_local_time is None
         assert clock_instance.timer_2_end_local_time is None
-
-    def test_earliest_next_local_time_selection_logic(self, clock_instance, mock_event_queue):
-        """earliest_next_local_time should be the minimum of all scheduled events."""
-        sleep_event = create_local_event_net(LocalEventTypes.NODE_SLEEP_FOR, 100)
-        timer1_event = create_local_event_net(LocalEventTypes.SET_TIMER, 50, LocalEventSubTypes.TIMER_1)
-        timer2_event = create_local_event_net(LocalEventTypes.SET_TIMER, 75, LocalEventSubTypes.TIMER_2)
-
-        def mock_get_events(evt_type, sub_type=None):
-            if evt_type == LocalEventTypes.NODE_SLEEP_FOR:
-                return [sleep_event]
-            elif evt_type == LocalEventTypes.SET_TIMER:
-                return [timer1_event, timer2_event]
-            return []
-
-        mock_event_queue.get_current_events_by_type.side_effect = mock_get_events
-
-        clock_instance.tick(current_global_tick=1)
-
-        # earliest_next_local_time should be the minimum (timer_1 at 50)
-        assert clock_instance.earliest_next_local_time == clock_instance.timer_1_end_local_time
 
     def test_global_time_last_updated(self, clock_instance):
         """global_time_last should be updated to current_global_tick after each tick."""

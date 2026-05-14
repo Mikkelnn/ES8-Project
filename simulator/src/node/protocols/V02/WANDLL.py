@@ -111,7 +111,7 @@ class WANDLL:
                 self.transmit_state = TransmitState.TRANSMITTING_WAITING_FOR_RX if next_packet.is_confirmed_uplink() else TransmitState.TRANSMITTING
 
             case TransmitState.TRANSMITTING:
-                if current_transceiver_states[MediumTypes.LORA_WAN] != TransceiverState.TRANSMITTING:                    
+                if current_transceiver_states[MediumTypes.LORA_WAN] != TransceiverState.TRANSMITTING:
                     self.transmit_state = TransmitState.IDLE
                     # TODO: do correct, this is a hacky way of ensuring a tick is scheduled...
                     # issue is when we land here we dont get called next tick to validate in IDLE state again

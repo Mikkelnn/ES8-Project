@@ -7,7 +7,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pytest
 
-from main import deadnodecounter, execute, post_process_and_plot, sync_interval_counter
+from ..main import deadnodecounter, execute, post_process_and_plot, sync_interval_counter
 
 LOG_PATH = Path(__file__).parent / "test_simulation.log"
 
