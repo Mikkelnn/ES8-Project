@@ -8,8 +8,8 @@
 [x] dont print forwarding
 [x] Mega sync must not circle
 [x] Mega sync duplicates
-[] Mega sync send from gateway
-[] Mega sync request gateway from node hopcnt=0
+[x] Mega sync send from gateway
+[x] Mega sync request gateway from node hopcnt=0
 
 ## Stuff the protocol should get, if time was for it?
 - Check if we dont have time in TDMA slot to send the current package, do we have smaller packet we could send in buffer?
