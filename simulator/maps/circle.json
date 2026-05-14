@@ -1,0 +1,60 @@
+{
+  "metadata": {
+    "input_file": "circle_with_entrance",
+    "total_nodes": 41,
+    "m_per_svg_x": 1,
+    "m_per_svg_y": 1,
+    "description": "40 nodes arranged in a circle with 1 entrance node placed to the side"
+  },
+  "nodes": {
+    "1":  { "point": [30.000, 20.000], "neighbours": [2, 40] },
+    "2":  { "point": [29.877, 21.564], "neighbours": [1, 3] },
+    "3":  { "point": [29.511, 23.090], "neighbours": [2, 4] },
+    "4":  { "point": [28.910, 24.540], "neighbours": [3, 5] },
+    "5":  { "point": [28.090, 25.878], "neighbours": [4, 6] },
+    "6":  { "point": [27.071, 27.071], "neighbours": [5, 7] },
+    "7":  { "point": [25.878, 28.090], "neighbours": [6, 8] },
+    "8":  { "point": [24.540, 28.910], "neighbours": [7, 9] },
+    "9":  { "point": [23.090, 29.511], "neighbours": [8, 10] },
+    "10": { "point": [21.564, 29.877], "neighbours": [9, 11] },
+
+    "11": { "point": [20.000, 30.000], "neighbours": [10, 12] },
+    "12": { "point": [18.436, 29.877], "neighbours": [11, 13] },
+    "13": { "point": [16.910, 29.511], "neighbours": [12, 14] },
+    "14": { "point": [15.460, 28.910], "neighbours": [13, 15] },
+    "15": { "point": [14.122, 28.090], "neighbours": [14, 16] },
+    "16": { "point": [12.929, 27.071], "neighbours": [15, 17] },
+    "17": { "point": [11.910, 25.878], "neighbours": [16, 18] },
+    "18": { "point": [11.090, 24.540], "neighbours": [17, 19] },
+    "19": { "point": [10.489, 23.090], "neighbours": [18, 20] },
+    "20": { "point": [10.123, 21.564], "neighbours": [19, 21] },
+
+    "21": { "point": [10.000, 20.000], "neighbours": [20, 22, 41] },
+    "22": { "point": [10.123, 18.436], "neighbours": [21, 23] },
+    "23": { "point": [10.489, 16.910], "neighbours": [22, 24] },
+    "24": { "point": [11.090, 15.460], "neighbours": [23, 25] },
+    "25": { "point": [11.910, 14.122], "neighbours": [24, 26] },
+    "26": { "point": [12.929, 12.929], "neighbours": [25, 27] },
+    "27": { "point": [14.122, 11.910], "neighbours": [26, 28] },
+    "28": { "point": [15.460, 11.090], "neighbours": [27, 29] },
+    "29": { "point": [16.910, 10.489], "neighbours": [28, 30] },
+    "30": { "point": [18.436, 10.123], "neighbours": [29, 31] },
+
+    "31": { "point": [20.000, 10.000], "neighbours": [30, 32] },
+    "32": { "point": [21.564, 10.123], "neighbours": [31, 33] },
+    "33": { "point": [23.090, 10.489], "neighbours": [32, 34] },
+    "34": { "point": [24.540, 11.090], "neighbours": [33, 35] },
+    "35": { "point": [25.878, 11.910], "neighbours": [34, 36] },
+    "36": { "point": [27.071, 12.929], "neighbours": [35, 37] },
+    "37": { "point": [28.090, 14.122], "neighbours": [36, 38] },
+    "38": { "point": [28.910, 15.460], "neighbours": [37, 39] },
+    "39": { "point": [29.511, 16.910], "neighbours": [38, 40] },
+    "40": { "point": [29.877, 18.436], "neighbours": [39, 1] },
+
+    "41": { "point": [5.000, 20.000], "neighbours": [21] }
+  },
+
+  "gateways": {
+    "1": { "point": [-292.5, 20.000] }
+  }
+}

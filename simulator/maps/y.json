@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "input_file": "y_shape",
+    "total_nodes": 30,
+    "m_per_svg_x": 1,
+    "m_per_svg_y": 1,
+    "description": "Y-shaped topology with 3 segments of 10 nodes each. Top endpoints are 299.5 units from the gateway."
+  },
+  "nodes": {
+    "1":  { "point": [0, 1],  "neighbours": [2] },
+    "2":  { "point": [0, 2],  "neighbours": [1,3] },
+    "3":  { "point": [0, 3],  "neighbours": [2,4] },
+    "4":  { "point": [0, 4],  "neighbours": [3,5] },
+    "5":  { "point": [0, 5],  "neighbours": [4,6] },
+    "6":  { "point": [0, 6],  "neighbours": [5,7] },
+    "7":  { "point": [0, 7],  "neighbours": [6,8] },
+    "8":  { "point": [0, 8],  "neighbours": [7,9] },
+    "9":  { "point": [0, 9],  "neighbours": [8,10] },
+
+    "10": { "point": [0, 10], "neighbours": [9,11,21] },
+
+    "11": { "point": [1,  11], "neighbours": [10,12] },
+    "12": { "point": [2,  12], "neighbours": [11,13] },
+    "13": { "point": [3,  13], "neighbours": [12,14] },
+    "14": { "point": [4,  14], "neighbours": [13,15] },
+    "15": { "point": [5,  15], "neighbours": [14,16] },
+    "16": { "point": [6,  16], "neighbours": [15,17] },
+    "17": { "point": [7,  17], "neighbours": [16,18] },
+    "18": { "point": [8,  18], "neighbours": [17,19] },
+    "19": { "point": [9,  19], "neighbours": [18,20] },
+    "20": { "point": [10, 20], "neighbours": [19] },
+
+    "21": { "point": [-1,  11], "neighbours": [10,22] },
+    "22": { "point": [-2,  12], "neighbours": [21,23] },
+    "23": { "point": [-3,  13], "neighbours": [22,24] },
+    "24": { "point": [-4,  14], "neighbours": [23,25] },
+    "25": { "point": [-5,  15], "neighbours": [24,26] },
+    "26": { "point": [-6,  16], "neighbours": [25,27] },
+    "27": { "point": [-7,  17], "neighbours": [26,28] },
+    "28": { "point": [-8,  18], "neighbours": [27,29] },
+    "29": { "point": [-9,  19], "neighbours": [28,30] },
+    "30": { "point": [-10, 20], "neighbours": [29] }
+  },
+  "gateways": {
+    "1": {
+      "point": [0, 319.5]
+    }
+  }
+}
