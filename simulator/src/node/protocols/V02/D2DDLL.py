@@ -35,13 +35,13 @@ class D2DDLL:
     NEIGHBOR_DEAD_THREASHHOLD_MS = 120_000
     MAX_HOPCOUNT = 65535
 
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 110, slot_count: int = 17):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 110, slot_count: int = 18):
 
         self._node_id = node_id
         self._local_event_queue = local_event_queue
         self._log = log
         self._slot_duration = slot_duration
-        self._slot_count = 18 #slot_count
+        self._slot_count = slot_count
         self._mini_slot_count: int = 3
         self._duration_calculator = LoRaTxDurationCalculator(second_to_global_tick=0.001)  # in ms
         self.reset(0)
@@ -131,8 +131,9 @@ class D2DDLL:
         current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self._local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
         self.estimated_period_correction = 0
 
-        # Add REDISCOVER for DEAD Nodes -> use last_seen to determine (only one for now)
-        if self.link_established and self._current_slot == -1:
+        is_start_and_has_valid_TX_slot = self.link_established and self._current_slot == -1 and self._own_tx_slot < self._slot_count
+        # Add REDISCOVER for DEAD Nodes -> use last_seen to determine (only one for now)        
+        if is_start_and_has_valid_TX_slot:
             dead_node = next((n for n in self._known_neighbors if n.hopcount_to_gateway > self.hopcount_to_gateway and n.last_seen < current_local_clock_info.current_local_time - self.NEIGHBOR_DEAD_THREASHHOLD_MS), None)
             if dead_node:
                 hop_cnt = PayloadHopCntFull(dead_node.hopcount_to_gateway, slot_period_counter=slot_period_counter, use_slot=dead_node.in_slot, time_offset_from_period_start=self._period_start_to_tx)
@@ -142,7 +143,7 @@ class D2DDLL:
 
         # add idle packet -> used for discovery
         # only add one for each period,and only if we know about two neighbors -> prevent situations where wrong hopcounts are calculated due to lack of info
-        if not self._tx_buffer and self.link_established and self._current_slot == -1:
+        if not self._tx_buffer and is_start_and_has_valid_TX_slot:
             hop_cnt = PayloadHopCntFull(self.hopcount_to_gateway, slot_period_counter=slot_period_counter, time_offset_from_period_start=self._period_start_to_tx, use_slot=self._own_tx_slot)
             msg = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={0xFFFFFFFF}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
             msg.crc_calc()
@@ -440,23 +441,42 @@ class D2DDLL:
         # otherwise find new valid slot
 
         # have slot -> check if still valid
-        if neighbor.in_slot > -1:
+        if neighbor.in_slot > -1 and neighbor.in_slot < self._slot_count:
             conflicting = next((nid for (nid, sidx) in self._observed_slots.items() if sidx == neighbor.in_slot and nid != neighbor.neighbor_id), None)
             if not conflicting:
                 return neighbor.in_slot
 
         # if self._node_id == 11:
-        # self._log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor.neighbor_id}, used slots: {self._observed_slots}")
+        self._log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor.neighbor_id}, used slots: {self._observed_slots}")
 
-        # find new slot
+        # we have observed all slots used, we try to remove all where we havent heared directly from
+        if len(self._observed_slots) == self._slot_count -1:
+            self._log.add(Severity.WARNING, Area.PROTOCOL, 0, f"Node {self._node_id} have used all slots, trying to remove unused...")    
+            known = {n.neighbor_id for n in self._known_neighbors}
+            for nid in list(self._observed_slots.keys()):
+                if nid not in known:
+                    del self._observed_slots[nid]
+
+        # find new slot deterministic
+        # used = set(self._observed_slots.values()) | {self._own_tx_slot}
+        # start = (self._own_tx_slot % (self._slot_count - 1)) + 1
+        # for i in range(1, self._slot_count):
+        #     slot = (start - 1 + i) % (self._slot_count - 1) + 1
+        #     if slot not in used:
+        #         return slot
+        # self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"Node {self._node_id} slot exhaustion to node {neighbor.neighbor_id}")
+        # return 0
+
+
+        # find new random slot        
         used = set(self._observed_slots.values()) | {self._own_tx_slot}
-        start = (self._own_tx_slot % (self._slot_count - 1)) + 1
-        for i in range(self._slot_count - 1):
-            slot = (start - 1 + i) % (self._slot_count - 1) + 1
-            if slot not in used:
-                return slot
-        self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"Node {self._node_id} slot exhaustion")
-        return 0
+        valid = set(range(1, self._slot_count))
+        available = valid.difference(used)
+        if not available:
+            self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"Node {self._node_id} slot exhaustion to node {neighbor.neighbor_id}")
+            return self._slot_count # invalid slot -> no TX
+        return self._rnd.choice(list(available))
+
 
     def _resolve_upstream_hopcount_and_slot(self, current_slot_period_counter: int) -> None:
 
