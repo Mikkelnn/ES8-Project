@@ -405,6 +405,12 @@ class D2DDLL:
             if existing is not None:
                 existing.hopcount_to_gateway = payload.cnt
                 existing.in_slot = payload.use_slot
+        else:
+            # Remove destination nodes whose hopcount has increased by more than 2 from our own
+            for node_id in frame.destination_node_id & self._observed_slots.keys():  # only observed nodes
+                if abs(payload.cnt - self.hopcount_to_gateway) > 2:
+                    self._observed_slots.pop(node_id)
+                    self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} removed node {node_id} from observed slots")
 
         self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
 
@@ -440,6 +446,9 @@ class D2DDLL:
             conflicting = next((nid for (nid, sidx) in self._observed_slots.items() if sidx == neighbor.in_slot and nid != neighbor.neighbor_id), None)
             if not conflicting:
                 return neighbor.in_slot
+
+        if self._node_id == 11:
+            self._log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor.neighbor_id}, used slots: {self._observed_slots}")
 
         # find new slot
         used = set(self._observed_slots.values()) | {self._own_tx_slot}

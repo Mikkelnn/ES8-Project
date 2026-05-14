@@ -4,7 +4,7 @@ import matplotlib.patches as patches
 import sys
 
 # Get map filename from args or use default
-map_file = sys.argv[1] if len(sys.argv) > 1 else "maps/final_boss.json"
+map_file = sys.argv[1] if len(sys.argv) > 1 else "maps/intersection.json"
 plot_gateways = "--no-gateways" not in sys.argv
 
 # Load the JSON file
