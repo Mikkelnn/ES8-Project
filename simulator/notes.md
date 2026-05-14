@@ -10,6 +10,13 @@
 [x] Mega sync duplicates
 [x] Mega sync send from gateway
 [x] Mega sync request gateway from node hopcnt=0
+[] Duplicate removal works and is not behaving bad
+[] Hopcnt can do all maps
+[] Megasync can adjust time to is needed
+[] Minisync can adjust time to is needed
+[] Implement unlinear clock and make it behave using minisync and megasync
+[] Add deduplication compression, when buffers are filling up, due to congestion
+
 
 ## Stuff the protocol should get, if time was for it?
 - Check if we dont have time in TDMA slot to send the current package, do we have smaller packet we could send in buffer?
