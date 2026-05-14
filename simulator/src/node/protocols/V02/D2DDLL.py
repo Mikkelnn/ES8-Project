@@ -41,7 +41,7 @@ class D2DDLL:
         self._local_event_queue = local_event_queue
         self._log = log
         self._slot_duration = slot_duration
-        self._slot_count = slot_count
+        self._slot_count = 18 #slot_count
         self._mini_slot_count: int = 3
         self._duration_calculator = LoRaTxDurationCalculator(second_to_global_tick=0.001)  # in ms
         self.reset(0)
@@ -445,8 +445,8 @@ class D2DDLL:
             if not conflicting:
                 return neighbor.in_slot
 
-        if self._node_id == 11:
-            self._log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor.neighbor_id}, used slots: {self._observed_slots}")
+        # if self._node_id == 11:
+        # self._log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor.neighbor_id}, used slots: {self._observed_slots}")
 
         # find new slot
         used = set(self._observed_slots.values()) | {self._own_tx_slot}
