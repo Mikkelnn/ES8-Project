@@ -136,7 +136,6 @@ class WANDLL:
 
             case TransmitState.RX:
                 current_reception = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, MediumTypes.LORA_WAN)
-                self.log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self.node_id} current_reception: {current_reception}")
                 got_rx = False
                 if current_reception:
                     for reception in current_reception:
