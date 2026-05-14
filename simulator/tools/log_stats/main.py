@@ -1,9 +1,11 @@
 import re
 import math
 import argparse
+import mmap
 from pathlib import Path
 from itertools import islice
 from collections.abc import Iterator
+from multiprocessing import Pool, cpu_count
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 from uuid import UUID
@@ -30,16 +32,9 @@ class deadnodecounter:
 
         Only processes [CRITICAL] (NODE) lines matching:
         [CRITICAL] (NODE) @ <tick>: Node <node_id> DIED
-
-        example output:
-        {
-            1: 3,
-            2: 2,
-            3: 1
-        }
         """
         if not line.startswith('[CRITICAL]'):
-            return None
+            return
         match = self._PATTERN.match(line)
         if match:
             node_id = int(match.group('node_id'))
@@ -139,6 +134,11 @@ class deadnodecounter:
 
         return ax
 
+    def merge(self, other):
+        """Merge another deadnodecounter into this one."""
+        for node_id, count in other.dict.items():
+            self.dict[node_id] = self.dict.get(node_id, 0) + count
+
 class sync_interval_counter:
     """initializes the sets to keep a track of the syncronised and unsynchronised Node IDs
      and the maximum tick at which the last 'Sync' event recorded globally among the syncronised nodes"""
@@ -184,10 +184,11 @@ class sync_interval_counter:
     max_sync_tick = 500
     """
     def build_dict(self, line):
+        if not line.startswith('[INFO]'):
+            return
         match = self._ATTEMPT_PATTERN.match(line)
         if match:
             node_id = int(match.group('node_id'))
-            # Special case 1 & 2: ignore if already synced or already waiting
             if node_id not in self.sync_node_set and node_id not in self.unsync_node_set:
                 self.unsync_node_set.add(node_id)
             return
@@ -196,10 +197,8 @@ class sync_interval_counter:
         if match:
             node_id = int(match.group('node_id'))
             tick    = int(match.group('tick'))
-            if node_id in self.unsync_node_set:
-                self.unsync_node_set.discard(node_id)
-                self.sync_node_set.add(node_id)
-                self.max_sync_tick = tick
+            self.sync_node_set.add(node_id)
+            self.max_sync_tick = tick
 
     def sync_counter(self):
         """Returns (synced_nodes, unsynced_nodes, max_tick) as sorted lists and int."""
@@ -212,12 +211,23 @@ class sync_interval_counter:
         if ax is None:
             fig, ax = plt.subplots()
 
-        ax.bar(['Synced', 'Unsynced'], [len(synced), len(unsynced)],
-               color=['steelblue', 'salmon'])
+        ax.bar(['Unsynced', 'Synced'], [len(unsynced), len(synced)],
+               color=['salmon', 'steelblue'])
         ax.set_ylabel("Node count")
         ax.set_title(f"Sync state  (Time taken to complete synchronization: {tick})")
 
         return ax
+
+    def merge(self, other):
+        """Merge another sync_interval_counter into this one."""
+        # Merge sync sets first
+        self.sync_node_set.update(other.sync_node_set)
+        self.unsync_node_set.update(other.unsync_node_set)
+
+        # Remove any node from unsync if it successfully synced
+        self.unsync_node_set -= self.sync_node_set
+
+        self.max_sync_tick = max(self.max_sync_tick, other.max_sync_tick)
 
 class battery_capacity_analyser:
     """Tracks battery charge at wake-up and sleep events per node.
@@ -270,6 +280,8 @@ class battery_capacity_analyser:
 
     def build_dict(self, line):
         """Parse one log line and update the appropriate histogram."""
+        if not line.startswith('[INFO]') and not line.startswith('[CRITICAL]'):
+            return
         match = self._WAKE_PATTERN.match(line)
         if match:
             node_id = int(match.group('node_id'))
@@ -385,6 +397,20 @@ class battery_capacity_analyser:
             for i in range(self.num_bins)
         ]
 
+    def merge(self, other):
+        """Merge another battery_capacity_analyser into this one."""
+        for node_id, bins in other.dict_op_range.items():
+            if node_id not in self.dict_op_range:
+                self.dict_op_range[node_id] = [0] * self.num_bins
+            for i, count in enumerate(bins):
+                self.dict_op_range[node_id][i] += count
+
+        for node_id, bins in other.dict_operating_range.items():
+            if node_id not in self.dict_operating_range:
+                self.dict_operating_range[node_id] = [0] * self.num_bins
+            for i, count in enumerate(bins):
+                self.dict_operating_range[node_id][i] += count
+
 
 class packet_forwarding_delay:
     """Tracks packet forwarding delay and packet loss per node.
@@ -443,6 +469,8 @@ class packet_forwarding_delay:
 
     def build_dict(self, line):
         """Parse one log line; record node origin or compute delivery stats."""
+        if not line.startswith('[INFO]'):
+            return
         match = self._NODE_PATTERN.match(line)
         if match:
             guid = UUID(match.group('guid'))
@@ -580,6 +608,58 @@ class packet_forwarding_delay:
         if node_id not in self._stats:
             self._stats[node_id] = [0, 0, 0]  # [diff, successful_count, lost]
 
+    def merge(self, other):
+        """Merge another packet_forwarding_delay. Reconcile UUIDs across chunks."""
+        # Remove UUIDs from other's unmatched that are in this analyzer's delivered set
+        for uuid in list(other._node_origin.keys()):
+            if uuid in self._delivered_uuids:
+                del other._node_origin[uuid]
+
+        # Remove UUIDs from this analyzer's delivered that are in other's unmatched
+        for uuid in list(other._delivered_uuids):
+            if uuid in self._node_origin:
+                del self._node_origin[uuid]
+
+        # Merge stats
+        for node_id, stats in other._stats.items():
+            self._ensure_node(node_id)
+            self._stats[node_id][0] += stats[0]  # diff
+            self._stats[node_id][1] += stats[1]  # successful_count
+            self._stats[node_id][2] += stats[2]  # lost
+
+        self._delivered_uuids.update(other._delivered_uuids)
+        self._node_origin.update(other._node_origin)
+        self._orphan_uuids.update(other._orphan_uuids)
+        self._finalized = self._finalized or other._finalized
+
+
+#===================Parallel processing===================
+def process_chunk(chunk_lines: list[str]) -> list:
+    """Process chunk with fresh analyzer instances."""
+    analyzers = [
+        deadnodecounter(),
+        sync_interval_counter(),
+        battery_capacity_analyser(num_bins=5),
+        packet_forwarding_delay(),
+    ]
+    for line in chunk_lines:
+        execute(analyzers, line)
+    return analyzers
+
+
+def merge_all_analyzers(analyzer_groups: list[list]) -> list:
+    """Merge all results into single set."""
+    merged = [
+        deadnodecounter(),
+        sync_interval_counter(),
+        battery_capacity_analyser(num_bins=5),
+        packet_forwarding_delay(),
+    ]
+    for group in analyzer_groups:
+        for i, analyzer in enumerate(group):
+            merged[i].merge(analyzer)
+    return merged
+
 
 #===================Helper functions===================
 def count_lines(path: str | Path) -> int:
@@ -589,19 +669,55 @@ def count_lines(path: str | Path) -> int:
 
 
 def read_in_batches(path: str | Path, batch_size: int = 1000) -> Iterator[list[str]]:
-    """Yield successive batches of lines read from the file at path.
+    """Yield successive batches of lines read from the file at path using mmap.
 
     Each batch is a list of at most batch_size lines (strings including newlines).
     The last batch may be smaller if the file does not divide evenly.
-    Reading in batches amortises per-call I/O overhead compared to iterating
-    line-by-line, which is the main source of parsing latency on large logs.
+    Reads mmap in 100MB chunks for faster I/O amortization.
     """
-    with open(path, 'r') as f:
-        while True:
-            batch = list(islice(f, batch_size))
-            if not batch:
-                break
-            yield batch
+    chunk_size = 100 * 1024 * 1024  # 100MB chunks
+
+    with open(path, 'rb') as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mmapped:
+            batch = []
+            remainder = b''
+            pos = 0
+            file_size = len(mmapped)
+
+            while pos < file_size:
+                # Read next chunk, but not past file end
+                end_pos = min(pos + chunk_size, file_size)
+                chunk = remainder + mmapped[pos:end_pos]
+                pos = end_pos
+
+                # Find last newline to avoid splitting lines mid-chunk
+                last_newline = chunk.rfind(b'\n')
+                if last_newline == -1:
+                    # No newline in chunk; if more file remains, defer this chunk
+                    if pos < file_size:
+                        remainder = chunk
+                        continue
+                    # At EOF with no newline; process entire chunk
+                    to_process = chunk
+                    remainder = b''
+                else:
+                    # Process up to last newline, save rest for next iteration
+                    to_process = chunk[:last_newline + 1]
+                    remainder = chunk[last_newline + 1:]
+
+                # Decode and split this batch of complete lines
+                text = to_process.decode('utf-8')
+                lines = text.splitlines(keepends=True)
+
+                for line in lines:
+                    batch.append(line)
+                    if len(batch) >= batch_size:
+                        yield batch
+                        batch = []
+
+            # Yield any remaining lines
+            if batch:
+                yield batch
 
 
 def save_report(text: str, folder: str | Path, filename: str) -> Path:
@@ -617,28 +733,23 @@ def save_report(text: str, folder: str | Path, filename: str) -> Path:
     return report_path
 
 
-def extract_area(line: str) -> str | None:
-    """Extract the area tag from a log line, e.g. 'NODE', 'PROTOCOL', 'GATEWAY'.
-
-    Log format: [SEVERITY] (AREA) @ tick: message
-    Returns None if the line does not contain a recognisable area tag.
-    """
-    try:
-        parts = line.split('(', 1)[1].split(')', 1)
-        return parts[0] if len(parts) == 2 else None
-    except IndexError:
+def extract_area_fast(line: str) -> str | None:
+    """Extract area tag. Log format: [SEVERITY] (AREA) @ tick: message"""
+    paren_idx = line.find('(')
+    if paren_idx < 0:
         return None
+    close_idx = line.find(')', paren_idx)
+    if close_idx < 0:
+        return None
+    return line[paren_idx + 1:close_idx]
 
 
 def execute(executable_list, line):
-    """Pass each log line only to analysers whose declared AREAS include the line's area.
-
-    Analysers without an AREAS attribute receive every line (backwards-compatible).
-    """
-    area = extract_area(line)
+    """Route line to analyzers whose AREAS match."""
+    area = extract_area_fast(line)
     for exe in executable_list:
         areas = getattr(exe, 'AREAS', None)
-        if areas is None or area in areas:
+        if areas is None or (area and area in areas):
             exe.build_dict(line)
 
 
@@ -669,20 +780,27 @@ def main():
     parser.add_argument('--log',    default='Log_debugging\\simulation.log', help='Path to log file')
     parser.add_argument('--bins',   type=int, default=5, help='Number of histogram bins for battery metric')
     parser.add_argument('--output', default=None,        help='Folder to write text reports (skipped if omitted)')
+    parser.add_argument('--workers', type=int, default=None, help='Number of worker processes (default: CPU count)')
     args = parser.parse_args()
 
-    executable_list = [
-        deadnodecounter(),
-        sync_interval_counter(),
-        battery_capacity_analyser(num_bins=args.bins),
-        packet_forwarding_delay(),
-    ]
+    pbar = tqdm(desc="Loading chunks", unit="chunk", ncols=80)
+    chunks = []
+    for chunk in read_in_batches(args.log):
+        chunks.append(chunk)
+        pbar.update(1)
+    pbar.close()
 
-    with tqdm(desc="Parsing log", unit="lines") as progress:
-        for batch in read_in_batches(args.log):
-            for line in batch:
-                execute(executable_list, line)
-            progress.update(len(batch))
+    num_workers = args.workers or cpu_count()
+
+    pbar = tqdm(total=len(chunks), desc="Processing chunks", unit="chunk", ncols=80)
+    with Pool(num_workers) as pool:
+        results = []
+        for analyzer_group in pool.imap(process_chunk, chunks):
+            results.append(analyzer_group)
+            pbar.update(1)
+    pbar.close()
+
+    executable_list = merge_all_analyzers(results)
 
     if args.output:
         for exe in executable_list:
