@@ -111,7 +111,7 @@ class WANDLL:
                 self.transmit_state = TransmitState.TRANSMITTING_WAITING_FOR_RX if next_packet.is_confirmed_uplink() else TransmitState.TRANSMITTING
 
             case TransmitState.TRANSMITTING:
-                if current_transceiver_states[MediumTypes.LORA_WAN] != TransceiverState.TRANSMITTING:                    
+                if current_transceiver_states[MediumTypes.LORA_WAN] != TransceiverState.TRANSMITTING:
                     self.transmit_state = TransmitState.IDLE
                     # TODO: do correct, this is a hacky way of ensuring a tick is scheduled...
                     # issue is when we land here we dont get called next tick to validate in IDLE state again
@@ -136,15 +136,17 @@ class WANDLL:
 
             case TransmitState.RX:
                 current_reception = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, MediumTypes.LORA_WAN)
+                self.log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self.node_id} current_reception: {current_reception}")
                 got_rx = False
                 if current_reception:
-                    reception_data = cast(LoRaWanPHYPayload, current_reception[0].data)
-                    if reception_data.mac_payload and reception_data.mac_payload.dev_addr == self.node_id:
-                        if isinstance(reception_data, MegaSync):
-                            reception_data.local_rx_time = current_local_clock_info.current_local_time
+                    for reception in current_reception:
+                        reception_data = cast(LoRaWanPHYPayload, reception.data)
+                        if reception_data.mac_payload and reception_data.mac_payload.dev_addr == self.node_id:
+                            if isinstance(reception_data, MegaSync):
+                                reception_data.local_rx_time = current_local_clock_info.current_local_time
 
-                        self._rx_buffer.append(reception_data)
-                        got_rx = True
+                            self._rx_buffer.append(reception_data)
+                            got_rx = True
 
                 timer_1 = current_local_clock_info.timer_1_remaining
                 if (timer_1 is not None and timer_1 <= 0) or got_rx:

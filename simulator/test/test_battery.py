@@ -7,6 +7,7 @@ class TestBatteryLinear:
     def test_constant_discharge_linear(self):
         """Constant consumption → linear discharge."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 100
         consumption_per_tick = 10
 
         charges = []
@@ -21,6 +22,7 @@ class TestBatteryLinear:
     def test_constant_recharge_linear(self):
         """Constant recharge with no consumption → stays at capacity (already full)."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=10, second_to_global_tick=1)
+        battery.current_charge = 100
         # Battery starts at capacity (100), recharging with no consumption keeps it at capacity
 
         charges = []
@@ -36,6 +38,7 @@ class TestBatteryLinear:
         """Recharge rate == consumption → constant charge."""
         recharge = 5
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=recharge, second_to_global_tick=1)
+        battery.current_charge = 100
 
         charges = []
         for tick in range(1, 11):
@@ -48,6 +51,7 @@ class TestBatteryLinear:
     def test_discharge_to_zero_clamped(self):
         """Discharge below 0 → clamped to 0."""
         battery = Battery(capacity_joule=10, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 10
 
         charges = []
         for tick in range(1, 15):
@@ -79,6 +83,7 @@ class TestBatteryDeathPrediction:
     def test_death_prediction_exact(self):
         """Predict death when consuming more than recharging."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 100
         consumption = 10
 
         _, next_tick = battery.tick(1, consumption)
@@ -89,6 +94,7 @@ class TestBatteryDeathPrediction:
     def test_death_prediction_small_consumption(self):
         """Predict death with small consumption rate."""
         battery = Battery(capacity_joule=50, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 50
         consumption = 1
 
         _, next_tick = battery.tick(1, consumption)
@@ -99,6 +105,7 @@ class TestBatteryDeathPrediction:
     def test_no_death_prediction_when_recharging(self):
         """No death predicted when recharging."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=10, second_to_global_tick=1)
+        battery.current_charge = 100
 
         _, next_tick = battery.tick(1, current_consumption_joule=5)
         # net_change = 10 - 5 = 5 (positive), no death
@@ -107,6 +114,7 @@ class TestBatteryDeathPrediction:
     def test_no_death_prediction_when_net_zero(self):
         """No death when consumption == recharge."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=5, second_to_global_tick=1)
+        battery.current_charge = 100
 
         _, next_tick = battery.tick(1, current_consumption_joule=5)
         assert next_tick is None, f"Expected no death prediction at net zero, got {next_tick}"
@@ -126,6 +134,7 @@ class TestBatteryWarp:
     def test_warp_applies_prev_consumption(self):
         """Skipped ticks apply previous consumption rate."""
         battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 1000
 
         # Tick 1: consume 10, charge = 990
         battery.tick(1, current_consumption_joule=10)
@@ -142,6 +151,7 @@ class TestBatteryWarp:
     def test_warp_zero_skipped_ticks(self):
         """No warp when ticking sequentially."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 100
 
         battery.tick(1, current_consumption_joule=10)
         battery.tick(2, current_consumption_joule=10)
@@ -153,6 +163,7 @@ class TestBatteryWarp:
     def test_warp_with_recharge(self):
         """Warp applies previous net change (recharge - consumption)."""
         battery = Battery(capacity_joule=1000, recharge_rate_joule_per_second=50, second_to_global_tick=1)
+        battery.current_charge = 1000
 
         # Tick 1: recharge 50, consume 20, net +30, charge = 1000 (clamped)
         battery.tick(1, current_consumption_joule=20)
@@ -171,6 +182,7 @@ class TestBatteryEdgeCases:
     def test_zero_recharge_rate(self):
         """Battery with no recharge source."""
         battery = Battery(capacity_joule=10, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 10
         assert battery.current_charge == 10
         battery.tick(1, current_consumption_joule=0)
         assert battery.current_charge == 10
@@ -184,20 +196,21 @@ class TestBatteryEdgeCases:
     def test_is_not_dead_above_zero(self):
         """is_dead() returns False at charge > 0."""
         battery = Battery(capacity_joule=10, recharge_rate_joule_per_second=0, second_to_global_tick=1)
+        battery.current_charge = 10
         battery.tick(1, current_consumption_joule=5)
         assert not battery.is_dead()
 
     def test_fractional_consumption(self):
         """Handle fractional joule consumption."""
-        battery = Battery(capacity_joule=10, recharge_rate_joule_per_second=0, second_to_global_tick=0.001)
-
         battery = Battery(capacity_joule=10, recharge_rate_joule_per_second=5, second_to_global_tick=0.001)
+        battery.current_charge = 10
         battery.tick(1, current_consumption_joule=0.002)
         assert 9.998 < battery.current_charge < 10.01  # Allow floating point variance
 
     def test_reset_clears_state(self):
         """reset() does not reset charge level, only internal state."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=10, second_to_global_tick=1)
+        battery.current_charge = 100
         battery.tick(1, current_consumption_joule=5)
         charge_before_reset = battery.current_charge
         battery.reset(1)
@@ -211,6 +224,7 @@ class TestBatteryScenarios:
     def test_discharge_then_recharge_cycle(self):
         """Battery discharges, then switches to recharging."""
         battery = Battery(capacity_joule=100, recharge_rate_joule_per_second=20, second_to_global_tick=1)
+        battery.current_charge = 100
 
         # Ticks 1-5: discharge (consume 50, recharge 20, net -30/tick)
         for tick in range(1, 6):
@@ -230,6 +244,7 @@ class TestBatteryScenarios:
         """Realistic LoRaWAN node: high consumption drains despite recharge."""
         # 7.9 J capacity, 5.4 J/s recharge (from simulator)
         battery = Battery(capacity_joule=7.9, recharge_rate_joule_per_second=0.0054, second_to_global_tick=0.001)
+        battery.current_charge = 7.9
 
         # Simulate: high consumption (e.g., TX) for 100 ticks that exceeds recharge
         high_consumption = 0.396  # TX power from LoRaD2D

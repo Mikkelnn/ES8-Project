@@ -41,6 +41,10 @@ class BaseTransceiver(IModule):
         self._housekeep_receive_queue(current_global_tick)
         self._receive_queue.extend(self._medium_service.receive(self._node_id, self.medium_type))
 
+        self.log.add(
+            Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} transceiver beginning {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self._receive_queue]}"
+        )  # TODO maybe remove, since "heavy" write all time.
+
         state_change = self._local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_SET_STATE, sub_type=self.medium_type)
         transmit_data_events = self._local_event_queue.get_current_events_by_type(type=LocalEventTypes.TRANCEIVER_TRANSMIT_DATA, sub_type=self.medium_type)
 
@@ -83,7 +87,7 @@ class BaseTransceiver(IModule):
                 self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} successfully received data {event.data} on {self.medium_type} from node {event.node_id}")  # TODO add guid to track payload between nodes?
 
         self.log.add(
-            Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} transceiver {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self._receive_queue]}"
+            Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} transceiver end {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self._receive_queue]}"
         )  # TODO maybe remove, since "heavy" write all time.
 
         match self.state:

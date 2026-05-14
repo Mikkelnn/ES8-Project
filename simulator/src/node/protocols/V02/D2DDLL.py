@@ -435,8 +435,6 @@ class D2DDLL:
 
         self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
 
-
-
     def _next_available_slot(self, neighbor: D2DNeighborInfo) -> int:
         # if current used slot is valid, return the current
         # otherwise find new valid slot
@@ -490,7 +488,6 @@ class D2DDLL:
                 self._tx_buffer[existing_frame_index] = change_frame
             else:
                 self._tx_buffer.append(change_frame)
-
 
         self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
 
