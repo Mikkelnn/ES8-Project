@@ -136,15 +136,17 @@ class WANDLL:
 
             case TransmitState.RX:
                 current_reception = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, MediumTypes.LORA_WAN)
+                self.log.add(Severity.INFO, Area.PROTOCOL, 0, f"Node {self.node_id} current_reception: {current_reception}")
                 got_rx = False
                 if current_reception:
-                    reception_data = cast(LoRaWanPHYPayload, current_reception[0].data)
-                    if reception_data.mac_payload and reception_data.mac_payload.dev_addr == self.node_id:
-                        if isinstance(reception_data, MegaSync):
-                            reception_data.local_rx_time = current_local_clock_info.current_local_time
+                    for reception in current_reception:
+                        reception_data = cast(LoRaWanPHYPayload, reception.data)
+                        if reception_data.mac_payload and reception_data.mac_payload.dev_addr == self.node_id:
+                            if isinstance(reception_data, MegaSync):
+                                reception_data.local_rx_time = current_local_clock_info.current_local_time
 
-                        self._rx_buffer.append(reception_data)
-                        got_rx = True
+                            self._rx_buffer.append(reception_data)
+                            got_rx = True
 
                 timer_1 = current_local_clock_info.timer_1_remaining
                 if (timer_1 is not None and timer_1 <= 0) or got_rx:

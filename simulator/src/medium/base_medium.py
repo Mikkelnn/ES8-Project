@@ -76,6 +76,7 @@ class BaseMedium(ABC):
     def pop_received_event_for_node(self, to_node_id: int) -> List[EventNet]:
         events = []
         if to_node_id in self.node_receptions:
+            self.log.add(Severity.DEBUG, Area.MEDIUM, 0, f"node receptions: {self.node_receptions}")
             events = self.node_receptions[to_node_id]
             del self.node_receptions[to_node_id]  # Clear the reception queue for this node after popping the events
 

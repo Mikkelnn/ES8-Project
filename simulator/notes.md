@@ -11,7 +11,7 @@
 [x] Mega sync send from gateway
 [x] Mega sync request gateway from node hopcnt=0
 [x] Add last maps
-[] Duplicate removal works and is not behaving bad
+[x] Duplicate removal works and is not behaving bad
 [] Hopcnt can do all maps
 [] Megasync can adjust time to is needed
 [] Minisync can adjust time to is needed
