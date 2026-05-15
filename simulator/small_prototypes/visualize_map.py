@@ -5,7 +5,7 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 
 # Get map filename from args or use default
-map_file = sys.argv[1] if len(sys.argv) > 1 else "maps/intersection.json"
+map_file = sys.argv[1] if len(sys.argv) > 1 else "maps/final_boss.json"
 plot_gateways = "--no-gateways" not in sys.argv
 
 # Load the JSON file
@@ -22,7 +22,7 @@ for node_id, node_info in nodes.items():
     x1, y1 = node_info["point"]
     for neighbor_id in node_info.get("neighbours", []):
         neighbor_id_str = str(neighbor_id)
-        if neighbor_id_str in nodes:
+        if neighbor_id_str in nodes and int(node_id) in nodes[neighbor_id_str].get("neighbours", []):
             x2, y2 = nodes[neighbor_id_str]["point"]
             ax.plot([x1, x2], [y1, y2], color="red", alpha=0.5, linewidth=1, zorder=1)
 
