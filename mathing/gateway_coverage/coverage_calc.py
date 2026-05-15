@@ -177,9 +177,9 @@ def run_coverage_simulation() -> dict:
     d0_m = 1.0
 
     dirt_loss_db = {
-        "dry": 0.087,
-        "slightly wet": 32.0,
-        "wet": 60.0,
+        "dry": 0.86,
+        "slightly wet": 21.15,
+        "wet": 75.61,
     }
 
     spreading_factor = LoRaSpreadingFactor.SF7
