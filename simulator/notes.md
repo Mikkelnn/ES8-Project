@@ -13,8 +13,8 @@
 [x] Add last maps
 [x] Duplicate removal works and is not behaving bad
 [] Hopcnt can do all maps
-[] Megasync can adjust time to is needed
-[] Minisync can adjust time to is needed
+[] Megasync and minisync 
+[] Calculate optimal + lean tdma slot size with respect to unlinear 5% drift
 [] Implement unlinear clock and make it behave using minisync and megasync
 [] Add deduplication compression, when buffers are filling up, due to congestion
 

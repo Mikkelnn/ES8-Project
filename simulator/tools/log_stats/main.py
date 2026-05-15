@@ -1,17 +1,18 @@
-import re
-import math
 import argparse
+import math
 import mmap
-from pathlib import Path
-from itertools import islice
+import re
 from collections.abc import Iterator
 from multiprocessing import Pool, cpu_count
+from pathlib import Path
+from uuid import UUID
+
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-from uuid import UUID
 from tqdm import tqdm
 
-#===================Analyser classes===================
+
+# ===================Analyser classes===================
 class deadnodecounter:
     """Tracks how many times each node has died.
 
@@ -20,9 +21,7 @@ class deadnodecounter:
 
     AREAS = frozenset({"NODE"})
 
-    _PATTERN = re.compile(
-        r'\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED'
-    )
+    _PATTERN = re.compile(r"\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED")
 
     def __init__(self):
         self.dict = {}
@@ -33,11 +32,11 @@ class deadnodecounter:
         Only processes [CRITICAL] (NODE) lines matching:
         [CRITICAL] (NODE) @ <tick>: Node <node_id> DIED
         """
-        if not line.startswith('[CRITICAL]'):
+        if not line.startswith("[CRITICAL]"):
             return
         match = self._PATTERN.match(line)
         if match:
-            node_id = int(match.group('node_id'))
+            node_id = int(match.group("node_id"))
             self.dict[node_id] = self.dict.get(node_id, 0) + 1
 
     def deathcounter(self):
@@ -74,7 +73,7 @@ class deadnodecounter:
         if not self.dict:
             return "No death events recorded.\n"
 
-        total_nodes  = len(self.dict)
+        total_nodes = len(self.dict)
         total_deaths = sum(self.dict.values())
         distribution = self.death_distribution()
 
@@ -117,14 +116,13 @@ class deadnodecounter:
 
         if not distribution:
             ax.set_title("Death Count Distribution")
-            ax.text(0.5, 0.5, "No death events recorded",
-                    ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.5, 0.5, "No death events recorded", ha="center", va="center", transform=ax.transAxes)
             return ax
 
         x_vals = sorted(distribution.keys())
         y_vals = [distribution[x] for x in x_vals]
 
-        ax.bar(x_vals, y_vals, color='steelblue')
+        ax.bar(x_vals, y_vals, color="steelblue")
         ax.set_xlabel("Number of deaths per node")
         ax.set_ylabel("Count")
         ax.set_title("Death Count Distribution")
@@ -139,19 +137,20 @@ class deadnodecounter:
         for node_id, count in other.dict.items():
             self.dict[node_id] = self.dict.get(node_id, 0) + count
 
+
 class sync_interval_counter:
     """initializes the sets to keep a track of the syncronised and unsynchronised Node IDs
-     and the maximum tick at which the last 'Sync' event recorded globally among the syncronised nodes"""
+    and the maximum tick at which the last 'Sync' event recorded globally among the syncronised nodes"""
 
     AREAS = frozenset({"PROTOCOL"})
 
     _ATTEMPT_PATTERN = re.compile(
-        r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+attempts gateway connect via WAN'
+        r"\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)"
+        r"\s+attempts gateway connect via WAN"
     )
     _SYNCED_PATTERN = re.compile(
-        r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+(connected to gateway via WAN|discovery complete with hop count \d+)'
+        r"\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)"
+        r"\s+(connected to gateway via WAN|discovery complete with hop count \d+)"
     )
 
     def __init__(self):
@@ -183,20 +182,21 @@ class sync_interval_counter:
     unsync_node_set = {4, 5}
     max_sync_tick = 500
     """
+
     def build_dict(self, line):
-        if not line.startswith('[INFO]'):
+        if not line.startswith("[INFO]"):
             return
         match = self._ATTEMPT_PATTERN.match(line)
         if match:
-            node_id = int(match.group('node_id'))
+            node_id = int(match.group("node_id"))
             if node_id not in self.sync_node_set and node_id not in self.unsync_node_set:
                 self.unsync_node_set.add(node_id)
             return
 
         match = self._SYNCED_PATTERN.match(line)
         if match:
-            node_id = int(match.group('node_id'))
-            tick    = int(match.group('tick'))
+            node_id = int(match.group("node_id"))
+            tick = int(match.group("tick"))
             self.sync_node_set.add(node_id)
             self.max_sync_tick = tick
 
@@ -211,8 +211,7 @@ class sync_interval_counter:
         if ax is None:
             fig, ax = plt.subplots()
 
-        ax.bar(['Unsynced', 'Synced'], [len(unsynced), len(synced)],
-               color=['salmon', 'steelblue'])
+        ax.bar(["Unsynced", "Synced"], [len(unsynced), len(synced)], color=["salmon", "steelblue"])
         ax.set_ylabel("Node count")
         ax.set_title(f"Sync state  (Time taken to complete synchronization: {tick})")
 
@@ -228,6 +227,7 @@ class sync_interval_counter:
         self.unsync_node_set -= self.sync_node_set
 
         self.max_sync_tick = max(self.max_sync_tick, other.max_sync_tick)
+
 
 class battery_capacity_analyser:
     """Tracks battery charge at wake-up and sleep events per node.
@@ -255,37 +255,35 @@ class battery_capacity_analyser:
     dict_operating_range = {1: [1, 0, 0, 0, 0], 2: [0, 1, 0, 0, 0]}
     """
 
-    MAX_CHARGE = 7.9   # total battery capacity in Joules
-    plot_count = 2     # signals post_process_and_plot to allocate two subplots
+    MAX_CHARGE = 7.9  # total battery capacity in Joules
+    plot_count = 2  # signals post_process_and_plot to allocate two subplots
     AREAS = frozenset({"NODE"})
 
     _WAKE_PATTERN = re.compile(
-        r'\[INFO\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+woke up,\s*,\s*Battery charge\s+(?P<battery>[\d.]+)'
+        r"\[INFO\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)"
+        r"\s+woke up,\s*,\s*Battery charge\s+(?P<battery>[\d.]+)"
     )
     _SLEEP_PATTERN = re.compile(
-        r'\[INFO\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+is going to sleep,\s+Battery charge\s+(?P<battery>[\d.]+)'
+        r"\[INFO\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)"
+        r"\s+is going to sleep,\s+Battery charge\s+(?P<battery>[\d.]+)"
     )
     # Death is treated as sleep with charge=0 — the battery was fully drained
-    _DEATH_PATTERN = re.compile(
-        r'\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED'
-    )
+    _DEATH_PATTERN = re.compile(r"\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED")
 
     def __init__(self, num_bins=5):
         self.num_bins = num_bins
-        self._pending_wake = {}        # {node_id: wake_charge} — unmatched wake events
-        self.dict_op_range = {}        # histogram 1: wake-up charge level
-        self.dict_operating_range = {} # histogram 2: charge consumed per cycle
+        self._pending_wake = {}  # {node_id: wake_charge} — unmatched wake events
+        self.dict_op_range = {}  # histogram 1: wake-up charge level
+        self.dict_operating_range = {}  # histogram 2: charge consumed per cycle
 
     def build_dict(self, line):
         """Parse one log line and update the appropriate histogram."""
-        if not line.startswith('[INFO]') and not line.startswith('[CRITICAL]'):
+        if not line.startswith("[INFO]") and not line.startswith("[CRITICAL]"):
             return
         match = self._WAKE_PATTERN.match(line)
         if match:
-            node_id = int(match.group('node_id'))
-            charge  = float(match.group('battery'))
+            node_id = int(match.group("node_id"))
+            charge = float(match.group("battery"))
             self._pending_wake[node_id] = charge
             self._ensure_node(node_id)
             self.dict_op_range[node_id][self._charge_to_bin(charge)] += 1
@@ -293,14 +291,14 @@ class battery_capacity_analyser:
 
         match = self._SLEEP_PATTERN.match(line)
         if match:
-            node_id = int(match.group('node_id'))
-            charge  = float(match.group('battery'))
+            node_id = int(match.group("node_id"))
+            charge = float(match.group("battery"))
             self._record_delta(node_id, sleep_charge=charge)
             return
 
         match = self._DEATH_PATTERN.match(line)
         if match:
-            node_id = int(match.group('node_id'))
+            node_id = int(match.group("node_id"))
             self._record_delta(node_id, sleep_charge=0.0)
 
     def _record_delta(self, node_id, sleep_charge):
@@ -332,15 +330,14 @@ class battery_capacity_analyser:
         """Histogram 1 — total wake-up events per charge bin across all nodes."""
         if not self.dict_op_range:
             ax.set_title("Battery charge at wake-up")
-            ax.text(0.5, 0.5, "No wake-up events recorded",
-                    ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.5, 0.5, "No wake-up events recorded", ha="center", va="center", transform=ax.transAxes)
             return ax
 
         total_counts = self._aggregate(self.dict_op_range)
         x = list(range(self.num_bins))
-        ax.bar(x, total_counts, color='steelblue')
+        ax.bar(x, total_counts, color="steelblue")
         ax.set_xticks(x)
-        ax.set_xticklabels(self._bin_labels(), rotation=45, ha='right')
+        ax.set_xticklabels(self._bin_labels(), rotation=45, ha="right")
         ax.set_xlabel("Battery charge (J)")
         ax.set_ylabel("Event count")
         ax.set_title("Battery charge at wake-up")
@@ -350,15 +347,14 @@ class battery_capacity_analyser:
         """Histogram 2 — total charge-consumed events per delta bin across all nodes."""
         if not self.dict_operating_range:
             ax.set_title("Battery delta (wake - sleep)")
-            ax.text(0.5, 0.5, "No complete sleep cycles recorded",
-                    ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.5, 0.5, "No complete sleep cycles recorded", ha="center", va="center", transform=ax.transAxes)
             return ax
 
         total_counts = self._aggregate(self.dict_operating_range)
         x = list(range(self.num_bins))
-        ax.bar(x, total_counts, color='salmon')
+        ax.bar(x, total_counts, color="salmon")
         ax.set_xticks(x)
-        ax.set_xticklabels(self._bin_labels(), rotation=45, ha='right')
+        ax.set_xticklabels(self._bin_labels(), rotation=45, ha="right")
         ax.set_xlabel("Charge consumed (J)")
         ax.set_ylabel("Event count")
         ax.set_title("Battery delta (wake - sleep)")
@@ -392,10 +388,7 @@ class battery_capacity_analyser:
     def _bin_labels(self):
         """Generate human-readable range labels for each bin."""
         bin_width = self.MAX_CHARGE / self.num_bins
-        return [
-            f"{i * bin_width:.2f}-{(i + 1) * bin_width:.2f}"
-            for i in range(self.num_bins)
-        ]
+        return [f"{i * bin_width:.2f}-{(i + 1) * bin_width:.2f}" for i in range(self.num_bins)]
 
     def merge(self, other):
         """Merge another battery_capacity_analyser into this one."""
@@ -446,20 +439,20 @@ class packet_forwarding_delay:
     AREAS = frozenset({"PROTOCOL", "GATEWAY"})
 
     _NODE_PATTERN = re.compile(
-        r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+enqueued averaged payload:\s+avg_s1=[\d.]+,\s+avg_s2=[\d.]+,'
-        r'\s+GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
+        r"\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)"
+        r"\s+enqueued averaged payload:\s+avg_s1=[\d.]+,\s+avg_s2=[\d.]+,"
+        r"\s+GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})"
     )
     _GATEWAY_PATTERN = re.compile(
-        r'\[INFO\]\s+\(GATEWAY\)\s+@\s+(?P<tick>\d+):\s+Gateway\s+(?P<gateway_id>\d+)'
-        r'\s+received\s+data:.*GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
+        r"\[INFO\]\s+\(GATEWAY\)\s+@\s+(?P<tick>\d+):\s+Gateway\s+(?P<gateway_id>\d+)"
+        r"\s+received\s+data:.*GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})"
     )
 
     def __init__(self):
-        self._node_origin = {}    # {UUID: [tick, node_id]} — first enqueue per UUID
+        self._node_origin = {}  # {UUID: [tick, node_id]} — first enqueue per UUID
         self._delivered_uuids = set()  # UUIDs successfully delivered to a gateway
-        self._orphan_uuids = set()     # UUIDs received at gateway with no node origin
-        self._stats = {}          # {node_id: [diff, successful_count, lost]}
+        self._orphan_uuids = set()  # UUIDs received at gateway with no node origin
+        self._stats = {}  # {node_id: [diff, successful_count, lost]}
         self._finalized = False
 
     @property
@@ -469,18 +462,18 @@ class packet_forwarding_delay:
 
     def build_dict(self, line):
         """Parse one log line; record node origin or compute delivery stats."""
-        if not line.startswith('[INFO]'):
+        if not line.startswith("[INFO]"):
             return
         match = self._NODE_PATTERN.match(line)
         if match:
-            guid = UUID(match.group('guid'))
+            guid = UUID(match.group("guid"))
             if guid not in self._node_origin:
-                self._node_origin[guid] = [int(match.group('tick')), int(match.group('node_id'))]
+                self._node_origin[guid] = [int(match.group("tick")), int(match.group("node_id"))]
             return
 
         match = self._GATEWAY_PATTERN.match(line)
         if match:
-            guid = UUID(match.group('guid'))
+            guid = UUID(match.group("guid"))
             if guid not in self._node_origin:
                 # Count unique UUIDs that arrive at the gateway with no node origin.
                 # Skip UUIDs that were already delivered (popped from _node_origin earlier)
@@ -490,10 +483,10 @@ class packet_forwarding_delay:
                 return
             tick, node_id = self._node_origin.pop(guid)
             self._delivered_uuids.add(guid)
-            diff = int(match.group('tick')) - tick
+            diff = int(match.group("tick")) - tick
             self._ensure_node(node_id)
-            self._stats[node_id][0] += diff   # accumulate total delay
-            self._stats[node_id][1] += 1       # increment successful count
+            self._stats[node_id][0] += diff  # accumulate total delay
+            self._stats[node_id][1] += 1  # increment successful count
 
     def finalize(self):
         """Mark all undelivered UUIDs as lost. Idempotent after first call."""
@@ -576,12 +569,11 @@ class packet_forwarding_delay:
         distribution = self._binned_delay_distribution()
         if not distribution:
             ax.set_title("Packet Forwarding Delay Distribution")
-            ax.text(0.5, 0.5, "No delivered packets recorded",
-                    ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.5, 0.5, "No delivered packets recorded", ha="center", va="center", transform=ax.transAxes)
             return ax
         x_vals = sorted(distribution.keys())
         y_vals = [distribution[x] for x in x_vals]
-        ax.bar(x_vals, y_vals, color='steelblue')
+        ax.bar(x_vals, y_vals, color="steelblue")
         ax.set_xlabel("Average delay (ticks)")
         ax.set_ylabel("Count")
         ax.set_title("Packet Forwarding Delay Distribution")
@@ -594,10 +586,9 @@ class packet_forwarding_delay:
         lost_counts = [s[2] for s in self._stats.values() if s[2] > 0]
         if not lost_counts:
             ax.set_title("Packet Loss Distribution")
-            ax.text(0.5, 0.5, "No packet loss recorded",
-                    ha='center', va='center', transform=ax.transAxes)
+            ax.text(0.5, 0.5, "No packet loss recorded", ha="center", va="center", transform=ax.transAxes)
             return ax
-        ax.hist(lost_counts, bins=10, color='salmon')
+        ax.hist(lost_counts, bins=10, color="salmon")
         ax.set_xlabel("Lost packets per node")
         ax.set_ylabel("Number of nodes")
         ax.set_title("Packet Loss Distribution")
@@ -633,7 +624,7 @@ class packet_forwarding_delay:
         self._finalized = self._finalized or other._finalized
 
 
-#===================Parallel processing===================
+# ===================Parallel processing===================
 def read_and_process_region(args: tuple) -> list:
     """Read file region via mmap and process. Returns analyzer instances."""
     path, start_byte, end_byte = args
@@ -644,7 +635,7 @@ def read_and_process_region(args: tuple) -> list:
         packet_forwarding_delay(),
     ]
 
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mmapped:
             # Seek to start, skip partial line
             if start_byte > 0:
@@ -657,7 +648,7 @@ def read_and_process_region(args: tuple) -> list:
                 line_bytes = mmapped.readline()
                 if not line_bytes:
                     break
-                line = line_bytes.decode('utf-8')
+                line = line_bytes.decode("utf-8")
                 execute(analyzers, line)
                 start_byte = mmapped.tell()
 
@@ -691,10 +682,10 @@ def merge_all_analyzers(analyzer_groups: list[list]) -> list:
     return merged
 
 
-#===================Helper functions===================
+# ===================Helper functions===================
 def count_lines(path: str | Path) -> int:
     """Return the number of lines in the file at path."""
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         return sum(1 for _ in f)
 
 
@@ -707,10 +698,10 @@ def read_in_batches(path: str | Path, batch_size: int = 1000) -> Iterator[list[s
     """
     chunk_size = 100 * 1024 * 1024  # 100MB chunks
 
-    with open(path, 'rb') as f:
+    with open(path, "rb") as f:
         with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mmapped:
             batch = []
-            remainder = b''
+            remainder = b""
             pos = 0
             file_size = len(mmapped)
 
@@ -721,7 +712,7 @@ def read_in_batches(path: str | Path, batch_size: int = 1000) -> Iterator[list[s
                 pos = end_pos
 
                 # Find last newline to avoid splitting lines mid-chunk
-                last_newline = chunk.rfind(b'\n')
+                last_newline = chunk.rfind(b"\n")
                 if last_newline == -1:
                     # No newline in chunk; if more file remains, defer this chunk
                     if pos < file_size:
@@ -729,14 +720,14 @@ def read_in_batches(path: str | Path, batch_size: int = 1000) -> Iterator[list[s
                         continue
                     # At EOF with no newline; process entire chunk
                     to_process = chunk
-                    remainder = b''
+                    remainder = b""
                 else:
                     # Process up to last newline, save rest for next iteration
-                    to_process = chunk[:last_newline + 1]
-                    remainder = chunk[last_newline + 1:]
+                    to_process = chunk[: last_newline + 1]
+                    remainder = chunk[last_newline + 1 :]
 
                 # Decode and split this batch of complete lines
-                text = to_process.decode('utf-8')
+                text = to_process.decode("utf-8")
                 lines = text.splitlines(keepends=True)
 
                 for line in lines:
@@ -765,20 +756,20 @@ def save_report(text: str, folder: str | Path, filename: str) -> Path:
 
 def extract_area_fast(line: str) -> str | None:
     """Extract area tag. Log format: [SEVERITY] (AREA) @ tick: message"""
-    paren_idx = line.find('(')
+    paren_idx = line.find("(")
     if paren_idx < 0:
         return None
-    close_idx = line.find(')', paren_idx)
+    close_idx = line.find(")", paren_idx)
     if close_idx < 0:
         return None
-    return line[paren_idx + 1:close_idx]
+    return line[paren_idx + 1 : close_idx]
 
 
 def execute(executable_list, line):
     """Route line to analyzers whose AREAS match."""
     area = extract_area_fast(line)
     for exe in executable_list:
-        areas = getattr(exe, 'AREAS', None)
+        areas = getattr(exe, "AREAS", None)
         if areas is None or (area and area in areas):
             exe.build_dict(line)
 
@@ -790,11 +781,11 @@ def post_process_and_plot(executable_list):
     Analysers with plot_count > 1 get side-by-side subplots within their own figure.
     """
     for exe in executable_list:
-        if hasattr(exe, 'finalize'):
+        if hasattr(exe, "finalize"):
             exe.finalize()
 
     for exe in executable_list:
-        n = getattr(exe, 'plot_count', 1)
+        n = getattr(exe, "plot_count", 1)
         # squeeze=False keeps axes as a 2-D array regardless of subplot count.
         fig, axes = plt.subplots(1, n, figsize=(6 * n, 5), squeeze=False)
         flat_axes = axes.flatten().tolist()
@@ -807,10 +798,10 @@ def post_process_and_plot(executable_list):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--log',    default='Log_debugging\\simulation.log', help='Path to log file')
-    parser.add_argument('--bins',   type=int, default=5, help='Number of histogram bins for battery metric')
-    parser.add_argument('--output', default=None,        help='Folder to write text reports (skipped if omitted)')
-    parser.add_argument('--workers', type=int, default=None, help='Number of worker processes (default: CPU count)')
+    parser.add_argument("--log", default="Log_debugging\\simulation.log", help="Path to log file")
+    parser.add_argument("--bins", type=int, default=5, help="Number of histogram bins for battery metric")
+    parser.add_argument("--output", default=None, help="Folder to write text reports (skipped if omitted)")
+    parser.add_argument("--workers", type=int, default=None, help="Number of worker processes (default: CPU count)")
     args = parser.parse_args()
 
     num_workers = args.workers or cpu_count()
@@ -836,7 +827,7 @@ def main():
 
     if args.output:
         for exe in executable_list:
-            report_fn = getattr(exe, 'report_text', None)
+            report_fn = getattr(exe, "report_text", None)
             if callable(report_fn):
                 filename = f"{type(exe).__name__}_report.txt"
                 save_report(report_fn(), args.output, filename)
