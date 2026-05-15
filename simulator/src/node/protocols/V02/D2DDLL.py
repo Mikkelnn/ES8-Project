@@ -76,7 +76,7 @@ class D2DDLL:
     def set_has_gateway_link(self) -> None:
         if not self.link_established:
             self._set_own_hop_count(0)
-            self._set_own_tx_slot(self._next_available_slot()) # get random slot
+            self._set_own_tx_slot(self._next_available_slot())  # get random slot
             self.discovery_state = DiscoverStates.DISCOVERED
 
     def enqueue_payload(self, payload: PayloadData | MegaSync) -> None:
@@ -132,7 +132,7 @@ class D2DDLL:
         self.estimated_period_correction = 0
 
         is_start_and_has_valid_TX_slot = self.link_established and self._current_slot == -1 and self._own_tx_slot < self._slot_count
-        # Add REDISCOVER for DEAD Nodes -> use last_seen to determine (only one for now)        
+        # Add REDISCOVER for DEAD Nodes -> use last_seen to determine (only one for now)
         if is_start_and_has_valid_TX_slot:
             dead_node = next((n for n in self._known_neighbors if n.hopcount_to_gateway > self.hopcount_to_gateway and n.last_seen < current_local_clock_info.current_local_time - self.NEIGHBOR_DEAD_THREASHHOLD_MS), None)
             if dead_node:
@@ -438,8 +438,8 @@ class D2DDLL:
 
     def _next_available_slot(self) -> int:
         # we have observed all slots used, we try to remove all where we havent heared directly from
-        if len(self._observed_slots) == self._slot_count -1:
-            self._log.add(Severity.WARNING, Area.PROTOCOL, 0, f"Node {self._node_id} have used all slots, trying to remove unused...")    
+        if len(self._observed_slots) == self._slot_count - 1:
+            self._log.add(Severity.WARNING, Area.PROTOCOL, 0, f"Node {self._node_id} have used all slots, trying to remove unused...")
             known = {n.neighbor_id for n in self._known_neighbors}
             for nid in list(self._observed_slots.keys()):
                 if nid not in known:
@@ -455,14 +455,13 @@ class D2DDLL:
         # self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"Node {self._node_id} slot exhaustion to node {neighbor.neighbor_id}")
         # return 0
 
-
-        # find new random slot        
+        # find new random slot
         used = set(self._observed_slots.values()) | {self._own_tx_slot}
         valid = set(range(1, self._slot_count))
         available = valid.difference(used)
         if not available:
             self._log.add(Severity.CRITICAL, Area.PROTOCOL, 0, f"Node {self._node_id} slot exhaustion")
-            return self._slot_count # invalid slot -> no TX
+            return self._slot_count  # invalid slot -> no TX
         return self._rnd.choice(list(available))
 
     def _get_slot_for_node(self, neighbor: D2DNeighborInfo) -> int:
@@ -474,9 +473,9 @@ class D2DDLL:
             conflicting = next((nid for (nid, sidx) in self._observed_slots.items() if sidx == neighbor.in_slot and nid != neighbor.neighbor_id), None)
             if not conflicting:
                 return neighbor.in_slot
-        
+
         self._log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor.neighbor_id}, used slots: {self._observed_slots}")
-        
+
         return self._next_available_slot()
 
     def _resolve_upstream_hopcount_and_slot(self, current_slot_period_counter: int) -> None:
