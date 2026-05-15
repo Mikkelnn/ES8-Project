@@ -8,12 +8,12 @@ from uuid import UUID
 import matplotlib.pyplot as plt
 import pytest
 
-from main import (
+from main import (  # noqa
     battery_capacity_analyser,
     count_lines,
     deadnodecounter,
     execute,
-    extract_area,
+    extract_area_fast,
     packet_forwarding_delay,
     post_process_and_plot,
     read_in_batches,
@@ -337,7 +337,7 @@ class TestPlot:
         c.build_dict(death(2, 200))
         _, ax = plt.subplots()
         c.plot(ax=ax)
-        heights = sorted(p.get_height() for p in ax.patches)
+        heights = sorted(p.get_height() for p in ax.patches)  # noqa
         assert heights == [2]  # one bar, height = 2 nodes
 
     def test_x_axis_label(self):
@@ -1529,26 +1529,26 @@ class TestExtractArea:
     """extract_area must parse the (AREA) tag from the standard log line format."""
 
     def test_extracts_node_area(self):
-        assert extract_area("[CRITICAL] (NODE) @ 100: Node 1 DIED, ") == "NODE"
+        assert extract_area_fast("[CRITICAL] (NODE) @ 100: Node 1 DIED, ") == "NODE"
 
     def test_extracts_protocol_area(self):
-        assert extract_area("[INFO] (PROTOCOL) @ 50: Node 1 attempts gateway connect via WAN, ") == "PROTOCOL"
+        assert extract_area_fast("[INFO] (PROTOCOL) @ 50: Node 1 attempts gateway connect via WAN, ") == "PROTOCOL"
 
     def test_extracts_gateway_area(self):
-        assert extract_area("[DEBUG] (GATEWAY) @ 200: Gateway 0 received data:x, ") == "GATEWAY"
+        assert extract_area_fast("[DEBUG] (GATEWAY) @ 200: Gateway 0 received data:x, ") == "GATEWAY"
 
     def test_extracts_battery_area(self):
-        assert extract_area("[INFO] (BATTERY) @ 30: some event, ") == "BATTERY"
+        assert extract_area_fast("[INFO] (BATTERY) @ 30: some event, ") == "BATTERY"
 
     def test_no_parentheses_returns_none(self):
-        assert extract_area("no area tag here") is None
+        assert extract_area_fast("no area tag here") is None
 
     def test_empty_string_returns_none(self):
-        assert extract_area("") is None
+        assert extract_area_fast("") is None
 
     def test_opening_paren_only_returns_none(self):
         """A line with '(' but no matching ')' must not raise — return None."""
-        assert extract_area("[INFO] (NODE without close") is None
+        assert extract_area_fast("[INFO] (NODE without close") is None
 
 
 # ---------------------------------------------------------------------------
