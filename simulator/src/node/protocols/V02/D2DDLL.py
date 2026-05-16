@@ -514,9 +514,14 @@ class D2DDLL:
     def _minisync(self) -> None:
         if not self.link_established or not self._known_neighbors:
             return
-
+        
         if self.estimated_period_correction > 0:
             return  # MegaSync has happened in current period
+
+        # if we are connected to a GW and only have one neighbor we should not try to correct to them
+        # the problem is we would drift apart more and more, since both would correct to same amount in opposite directions
+        if len(self._known_neighbors) <= 1 and self.hopcount_to_gateway == 0:
+            return
 
         slot_offsets = []
         for n in self._known_neighbors:
@@ -542,6 +547,11 @@ class D2DDLL:
         current_offset = statistics.median(slot_offsets)
 
         self.estimated_period_correction = int(current_offset)
+
+        # if we are connected to a GW and only have one neighbor we should not try to correct to them
+        # we should take half the drift amount and correct in opposite direction
+        # if len(self._known_neighbors) <= 1 and self.hopcount_to_gateway == 0:
+        #     self.estimated_period_correction *= -0.5
 
         # lowpass with prev correction to avoid oscillation and over-correction
         # alpha = 0.2

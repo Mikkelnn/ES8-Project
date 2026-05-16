@@ -41,7 +41,6 @@ class Clock(IModule):
         # # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
         if sync_events:
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock correction: {int(sync_events[0].data)}")
             drift_before_correction = local_time - current_global_tick
 
             # correction = int(sync_events[0].data)
@@ -54,7 +53,7 @@ class Clock(IModule):
             # if self.timer_2_end_local_time is not None:
             #     self.timer_2_end_local_time += correction
 
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {local_time - current_global_tick}")
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {local_time - current_global_tick}")
 
         # update timers
         set_timers = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SET_TIMER)
