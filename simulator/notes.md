@@ -12,9 +12,12 @@
 [x] Mega sync request gateway from node hopcnt=0
 [x] Add last maps
 [x] Duplicate removal works and is not behaving bad
-[] Hopcnt can do all maps
-[] Megasync and minisync 
+[] Megasync, minisync and clock
+[] Hop cnt resolve intersection node
 [] Calculate optimal + lean tdma slot size with respect to unlinear 5% drift
+[] Results
+
+## TODO if possible to make it
 [] Implement unlinear clock and make it behave using minisync and megasync
 [] Add deduplication compression, when buffers are filling up, due to congestion
 
