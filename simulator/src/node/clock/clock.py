@@ -27,8 +27,8 @@ class Clock(IModule):
         self.scheduled_global_tick: int | None = None
         self.earliest_next_local_time: int | None = None
 
-        self.trend: float = rnd.uniform(-5e-2, 5e-2)
-        self.noise_std: float = np.sqrt(20.970167331917025 * 3.915e-9)
+        self.trend: float = rnd.uniform(-40e-6, 40e-6)
+        self.noise_std: float = np.sqrt(20.970167331917025 * 3.915e-15)
         self.ar_constant: float = 0.9087642375247008
         self.random_vector: np.ndarray = rnd.normal(loc=0, scale=self.noise_std, size=100)
         self.alpha: float = self.random_vector[0]
@@ -43,13 +43,15 @@ class Clock(IModule):
             self.localtime = int((1 + self.alpha + self.trend) * (current_global_tick - self.global_time_last) + self.localtime)
         self.global_time_last = current_global_tick
 
+        # print(f"{self.node_id}: global time: {current_global_tick}, local time: {self.localtime}")
+
         # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
         if sync_events:
             drift_before_correction = self.localtime - current_global_tick
 
             correction = int(sync_events[0].data)
-            self.localtime += correction  # +1 Because this time was scheduled 1 tick before
+            self.localtime += correction
             if self.sleep_until_local_time is not None:
                 self.sleep_until_local_time += correction
             if self.timer_1_end_local_time is not None:
@@ -57,7 +59,7 @@ class Clock(IModule):
             if self.timer_2_end_local_time is not None:
                 self.timer_2_end_local_time += correction
 
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node id {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtime - current_global_tick}")
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtime - current_global_tick}")
 
         # calculate next clock skew
         self.alpha = self.ar_constant * self.alpha + self.random_vector[0]
