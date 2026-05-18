@@ -1,8 +1,7 @@
-import re
+import math
 import argparse
-import numpy as np
+import mmap
 from pathlib import Path
-from itertools import islice
 from collections.abc import Iterator
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
@@ -18,32 +17,52 @@ class deadnodecounter:
 
     AREAS = frozenset({"NODE"})
 
-    _PATTERN = re.compile(
-        r'\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED'
-    )
+    # Marker that separates the log prefix from the node_id in death lines.
+    # Format: [CRITICAL] (NODE) @ <tick>: Node <node_id> DIED, <data>
+    _NODE_MARKER = ': Node '
 
     def __init__(self):
         self.dict = {}
 
-    def build_dict(self, line):
+    def build_dict(self, line: str) -> None:
         """Parse one log line and increment the death count for the node.
 
         Only processes [CRITICAL] (NODE) lines matching:
         [CRITICAL] (NODE) @ <tick>: Node <node_id> DIED
 
-        example output:
-        {
-            1: 3,
-            2: 2,
-            3: 1
-        }
+        Uses plain string operations — no regex — for maximum throughput on
+        large log files where this method is called millions of times.
         """
         if not line.startswith('[CRITICAL]'):
-            return None
-        match = self._PATTERN.match(line)
-        if match:
-            node_id = int(match.group('node_id'))
-            self.dict[node_id] = self.dict.get(node_id, 0) + 1
+            return
+
+        # Area guard: only NODE lines carry death events.
+        if '(NODE)' not in line:
+            return
+
+        # Locate ': Node ' which immediately precedes the node_id.
+        idx = line.find(self._NODE_MARKER)
+        if idx == -1:
+            return
+
+        # rest = "<node_id> DIED, <data>"
+        rest = line[idx + len(self._NODE_MARKER):]
+
+        # node_id is the first whitespace-delimited token.
+        space_idx = rest.find(' ')
+        if space_idx == -1:
+            return
+
+        node_str = rest[:space_idx]
+        if not node_str.isdigit():
+            return
+
+        # Confirm the event type — must be followed by ' DIED'.
+        if not rest[space_idx:].startswith(' DIED'):
+            return
+
+        node_id = int(node_str)
+        self.dict[node_id] = self.dict.get(node_id, 0) + 1
 
     def deathcounter(self):
         """Return (node_ids, counts) where counts[i] is the death count for node_ids[i]."""
@@ -129,7 +148,7 @@ class deadnodecounter:
         x_vals = sorted(distribution.keys())
         y_vals = [distribution[x] for x in x_vals]
 
-        ax.bar(x_vals, y_vals, width=0.4, color='steelblue')
+        ax.bar(x_vals, y_vals, color='steelblue')
         ax.set_xlabel("Number of deaths per node")
         ax.set_ylabel("Count")
         ax.set_title("Death Count Distribution")
@@ -139,25 +158,26 @@ class deadnodecounter:
 
         return ax
 
+    def merge(self, other):
+        """Merge another deadnodecounter into this one."""
+        for node_id, count in other.dict.items():
+            self.dict[node_id] = self.dict.get(node_id, 0) + count
+
 class sync_interval_counter:
     """initializes the sets to keep a track of the syncronised and unsynchronised Node IDs
      and the maximum tick at which the last 'Sync' event recorded globally among the syncronised nodes"""
 
     AREAS = frozenset({"PROTOCOL"})
 
-    _ATTEMPT_PATTERN = re.compile(
-        r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+attempts gateway connect via WAN'
-    )
-    _SYNCED_PATTERN = re.compile(
-        r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+(connected to gateway via WAN|discovery complete with hop count \d+)'
-    )
+    # Markers used to locate fields within a PROTOCOL log line.
+    # Format: [INFO] (PROTOCOL) @ <tick>: Node <node_id> <message>, <data>
+    _AT_MARKER   = '@ '
+    _NODE_MARKER = ': Node '
 
     def __init__(self):
-        self.sync_node_set = set()  # Set to track synced nodes
-        self.unsync_node_set = set()  # Set to track unsynced nodes
-        self.max_sync_tick = 0  # Variable to track the maximum sync tick globally
+        self.sync_node_set = set()    # nodes that completed gateway sync
+        self.unsync_node_set = set()  # nodes that attempted but have not yet synced
+        self.max_sync_tick = 0        # tick of the most recent sync completion
 
     """Builds the dictionary by reading the log file (line-by-line) and appends the synced nodes and replaces the largest sync tick in the dictionary for each 'Sync' event found in the log file
     Input arguments: line - a line from the log file i.e., string
@@ -183,23 +203,59 @@ class sync_interval_counter:
     unsync_node_set = {4, 5}
     max_sync_tick = 500
     """
-    def build_dict(self, line):
-        match = self._ATTEMPT_PATTERN.match(line)
-        if match:
-            node_id = int(match.group('node_id'))
-            # Special case 1 & 2: ignore if already synced or already waiting
+    def build_dict(self, line: str) -> None:
+        if not line.startswith('[INFO]'):
+            return
+        if '(PROTOCOL)' not in line:
+            return
+
+        tick, node_id, suffix = self._parse_line(line)
+        if node_id is None:
+            return
+
+        if suffix.startswith('attempts gateway connect via WAN'):
+            # Only track the first attempt — ignore if already synced or pending.
             if node_id not in self.sync_node_set and node_id not in self.unsync_node_set:
                 self.unsync_node_set.add(node_id)
             return
 
-        match = self._SYNCED_PATTERN.match(line)
-        if match:
-            node_id = int(match.group('node_id'))
-            tick    = int(match.group('tick'))
-            if node_id in self.unsync_node_set:
-                self.unsync_node_set.discard(node_id)
-                self.sync_node_set.add(node_id)
-                self.max_sync_tick = tick
+        if suffix.startswith('connected to gateway via WAN') or \
+           suffix.startswith('discovery complete with hop count'):
+            self.sync_node_set.add(node_id)
+            # Remove from unsync immediately so sync_counter() is always consistent.
+            self.unsync_node_set.discard(node_id)
+            self.max_sync_tick = tick
+
+    def _parse_line(self, line: str) -> tuple[int, int | None, str]:
+        """Extract (tick, node_id, message_suffix) from a PROTOCOL INFO line.
+
+        Returns (0, None, '') if the line does not match the expected structure.
+        suffix is the text starting after '<node_id> '.
+        """
+        # Tick: between '@ ' and the following ':'
+        at_idx = line.find(self._AT_MARKER)
+        if at_idx == -1:
+            return 0, None, ''
+        colon_idx = line.find(':', at_idx + 2)
+        if colon_idx == -1:
+            return 0, None, ''
+        tick_str = line[at_idx + 2:colon_idx]
+        if not tick_str.isdigit():
+            return 0, None, ''
+
+        # node_id: first token after ': Node '
+        node_idx = line.find(self._NODE_MARKER, colon_idx)
+        if node_idx == -1:
+            return 0, None, ''
+        rest = line[node_idx + len(self._NODE_MARKER):]
+        space_idx = rest.find(' ')
+        if space_idx == -1:
+            return 0, None, ''
+        node_str = rest[:space_idx]
+        if not node_str.isdigit():
+            return 0, None, ''
+
+        return int(tick_str), int(node_str), rest[space_idx + 1:]
 
     def sync_counter(self):
         """Returns (synced_nodes, unsynced_nodes, max_tick) as sorted lists and int."""
@@ -212,12 +268,23 @@ class sync_interval_counter:
         if ax is None:
             fig, ax = plt.subplots()
 
-        ax.bar(['Synced', 'Unsynced'], [len(synced), len(unsynced)],
-               color=['steelblue', 'salmon'])
+        ax.bar(['Unsynced', 'Synced'], [len(unsynced), len(synced)],
+               color=['salmon', 'steelblue'])
         ax.set_ylabel("Node count")
         ax.set_title(f"Sync state  (Time taken to complete synchronization: {tick})")
 
         return ax
+
+    def merge(self, other):
+        """Merge another sync_interval_counter into this one."""
+        # Merge sync sets first
+        self.sync_node_set.update(other.sync_node_set)
+        self.unsync_node_set.update(other.unsync_node_set)
+
+        # Remove any node from unsync if it successfully synced
+        self.unsync_node_set -= self.sync_node_set
+
+        self.max_sync_tick = max(self.max_sync_tick, other.max_sync_tick)
 
 class battery_capacity_analyser:
     """Tracks battery charge at wake-up and sleep events per node.
@@ -249,18 +316,12 @@ class battery_capacity_analyser:
     plot_count = 2     # signals post_process_and_plot to allocate two subplots
     AREAS = frozenset({"NODE"})
 
-    _WAKE_PATTERN = re.compile(
-        r'\[INFO\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+woke up,\s*,\s*Battery charge\s+(?P<battery>[\d.]+)'
-    )
-    _SLEEP_PATTERN = re.compile(
-        r'\[INFO\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+is going to sleep,\s+Battery charge\s+(?P<battery>[\d.]+)'
-    )
-    # Death is treated as sleep with charge=0 — the battery was fully drained
-    _DEATH_PATTERN = re.compile(
-        r'\[CRITICAL\]\s+\(NODE\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)\s+DIED'
-    )
+    # Markers for locating fields in NODE log lines.
+    # Wake:  [INFO]     (NODE) @ <tick>: Node <id> woke up, , Battery charge <v>,
+    # Sleep: [INFO]     (NODE) @ <tick>: Node <id> is going to sleep, Battery charge <v>,
+    # Death: [CRITICAL] (NODE) @ <tick>: Node <id> DIED,
+    _NODE_MARKER    = ': Node '
+    _BATTERY_MARKER = 'Battery charge '
 
     def __init__(self, num_bins=5):
         self.num_bins = num_bins
@@ -268,28 +329,66 @@ class battery_capacity_analyser:
         self.dict_op_range = {}        # histogram 1: wake-up charge level
         self.dict_operating_range = {} # histogram 2: charge consumed per cycle
 
-    def build_dict(self, line):
+    def build_dict(self, line: str) -> None:
         """Parse one log line and update the appropriate histogram."""
-        match = self._WAKE_PATTERN.match(line)
-        if match:
-            node_id = int(match.group('node_id'))
-            charge  = float(match.group('battery'))
+        if not line.startswith('[INFO]') and not line.startswith('[CRITICAL]'):
+            return
+        if '(NODE)' not in line:
+            return
+
+        node_id, suffix = self._parse_node_line(line)
+        if node_id is None:
+            return
+
+        if suffix.startswith('woke up'):
+            charge = self._extract_charge(suffix)
+            if charge is None:
+                return
             self._pending_wake[node_id] = charge
             self._ensure_node(node_id)
             self.dict_op_range[node_id][self._charge_to_bin(charge)] += 1
             return
 
-        match = self._SLEEP_PATTERN.match(line)
-        if match:
-            node_id = int(match.group('node_id'))
-            charge  = float(match.group('battery'))
+        if suffix.startswith('is going to sleep'):
+            charge = self._extract_charge(suffix)
+            if charge is None:
+                return
             self._record_delta(node_id, sleep_charge=charge)
             return
 
-        match = self._DEATH_PATTERN.match(line)
-        if match:
-            node_id = int(match.group('node_id'))
+        if suffix.startswith('DIED'):
             self._record_delta(node_id, sleep_charge=0.0)
+
+    def _parse_node_line(self, line: str) -> tuple[int | None, str]:
+        """Extract (node_id, message_suffix) from a NODE log line.
+
+        Returns (None, '') if the line does not match the expected structure.
+        suffix is the text starting after '<node_id> '.
+        """
+        idx = line.find(self._NODE_MARKER)
+        if idx == -1:
+            return None, ''
+        rest = line[idx + len(self._NODE_MARKER):]
+        space_idx = rest.find(' ')
+        if space_idx == -1:
+            return None, ''
+        node_str = rest[:space_idx]
+        if not node_str.isdigit():
+            return None, ''
+        return int(node_str), rest[space_idx + 1:]
+
+    def _extract_charge(self, text: str) -> float | None:
+        """Extract the float after 'Battery charge ' in text. Returns None if absent."""
+        idx = text.find(self._BATTERY_MARKER)
+        if idx == -1:
+            return None
+        rest = text[idx + len(self._BATTERY_MARKER):]
+        comma_idx = rest.find(',')
+        charge_str = rest[:comma_idx].strip() if comma_idx != -1 else rest.strip()
+        try:
+            return float(charge_str)
+        except ValueError:
+            return None
 
     def _record_delta(self, node_id, sleep_charge):
         """Record a wake-to-sleep delta if a prior wake event exists for this node."""
@@ -326,7 +425,7 @@ class battery_capacity_analyser:
 
         total_counts = self._aggregate(self.dict_op_range)
         x = list(range(self.num_bins))
-        ax.bar(x, total_counts, width=0.4, color='steelblue')
+        ax.bar(x, total_counts, color='steelblue')
         ax.set_xticks(x)
         ax.set_xticklabels(self._bin_labels(), rotation=45, ha='right')
         ax.set_xlabel("Battery charge (J)")
@@ -344,7 +443,7 @@ class battery_capacity_analyser:
 
         total_counts = self._aggregate(self.dict_operating_range)
         x = list(range(self.num_bins))
-        ax.bar(x, total_counts, width=0.4, color='salmon')
+        ax.bar(x, total_counts, color='salmon')
         ax.set_xticks(x)
         ax.set_xticklabels(self._bin_labels(), rotation=45, ha='right')
         ax.set_xlabel("Charge consumed (J)")
@@ -385,6 +484,20 @@ class battery_capacity_analyser:
             for i in range(self.num_bins)
         ]
 
+    def merge(self, other):
+        """Merge another battery_capacity_analyser into this one."""
+        for node_id, bins in other.dict_op_range.items():
+            if node_id not in self.dict_op_range:
+                self.dict_op_range[node_id] = [0] * self.num_bins
+            for i, count in enumerate(bins):
+                self.dict_op_range[node_id][i] += count
+
+        for node_id, bins in other.dict_operating_range.items():
+            if node_id not in self.dict_operating_range:
+                self.dict_operating_range[node_id] = [0] * self.num_bins
+            for i, count in enumerate(bins):
+                self.dict_operating_range[node_id][i] += count
+
 class packet_forwarding_delay:
     """Tracks packet forwarding delay and packet loss per node.
 
@@ -418,21 +531,21 @@ class packet_forwarding_delay:
     plot_count = 2  # one stem + one histogram
     AREAS = frozenset({"PROTOCOL", "GATEWAY"})
 
-    _NODE_PATTERN = re.compile(
-        r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+enqueued averaged payload:\s+avg_s1=[\d.]+,\s+avg_s2=[\d.]+,'
-        r'\s+GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
-    )
-    _GATEWAY_PATTERN = re.compile(
-        r'\[INFO\]\s+\(GATEWAY\)\s+@\s+(?P<tick>\d+):\s+Gateway\s+(?P<gateway_id>\d+)'
-        r'\s+received\s+data:.*GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
-    )
+    # Markers for locating fields in PROTOCOL and GATEWAY log lines.
+    # Enqueue: [INFO] (PROTOCOL) @ <tick>: Node <id> enqueued averaged payload: ..., GUID=<uuid>,
+    # Gateway: [INFO] (GATEWAY)  @ <tick>: Gateway <id> received data: ..., GUID=<uuid>,
+    _AT_MARKER       = '@ '
+    _NODE_MARKER     = ': Node '
+    _ENQUEUE_SUFFIX  = 'enqueued averaged payload:'
+    _RECEIVED_MARKER = 'received data:'
+    _GUID_MARKER     = 'GUID='
+    _GUID_LENGTH     = 36   # length of a UUID string: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 
     def __init__(self):
-        self._node_origin = {}    # {UUID: [tick, node_id]} — first enqueue per UUID
+        self._node_origin = {}         # {UUID: [tick, node_id]} — first enqueue per UUID
         self._delivered_uuids = set()  # UUIDs successfully delivered to a gateway
         self._orphan_uuids = set()     # UUIDs received at gateway with no node origin
-        self._stats = {}          # {node_id: [diff, successful_count, lost]}
+        self._stats = {}               # {node_id: [diff, successful_count, lost]}
         self._finalized = False
 
     @property
@@ -440,31 +553,84 @@ class packet_forwarding_delay:
         """Count of unique UUIDs received at the gateway with no prior node enqueue."""
         return len(self._orphan_uuids)
 
-    def build_dict(self, line):
+    def build_dict(self, line: str) -> None:
         """Parse one log line; record node origin or compute delivery stats."""
-        match = self._NODE_PATTERN.match(line)
-        if match:
-            guid = UUID(match.group('guid'))
-            if guid not in self._node_origin:
-                self._node_origin[guid] = [int(match.group('tick')), int(match.group('node_id'))]
+        if not line.startswith('[INFO]'):
+            return
+        if '(PROTOCOL)' in line:
+            self._handle_protocol_line(line)
+        elif '(GATEWAY)' in line:
+            self._handle_gateway_line(line)
+
+    def _handle_protocol_line(self, line: str) -> None:
+        """Process a PROTOCOL enqueue line — store UUID origin if not already seen."""
+        node_idx = line.find(self._NODE_MARKER)
+        if node_idx == -1:
+            return
+        rest = line[node_idx + len(self._NODE_MARKER):]
+        space_idx = rest.find(' ')
+        if space_idx == -1:
+            return
+        node_str = rest[:space_idx]
+        if not node_str.isdigit():
+            return
+        if not rest[space_idx + 1:].startswith(self._ENQUEUE_SUFFIX):
             return
 
-        match = self._GATEWAY_PATTERN.match(line)
-        if match:
-            guid = UUID(match.group('guid'))
-            if guid not in self._node_origin:
-                # Count unique UUIDs that arrive at the gateway with no node origin.
-                # Skip UUIDs that were already delivered (popped from _node_origin earlier)
-                # so that duplicate gateway receipts of a delivered packet are not orphans.
-                if guid not in self._delivered_uuids:
-                    self._orphan_uuids.add(guid)
-                return
-            tick, node_id = self._node_origin.pop(guid)
-            self._delivered_uuids.add(guid)
-            diff = int(match.group('tick')) - tick
-            self._ensure_node(node_id)
-            self._stats[node_id][0] += diff   # accumulate total delay
-            self._stats[node_id][1] += 1       # increment successful count
+        tick = self._extract_tick(line)
+        guid = self._extract_guid(line)
+        if tick is None or guid is None:
+            return
+
+        if guid not in self._node_origin:
+            self._node_origin[guid] = [tick, int(node_str)]
+
+    def _handle_gateway_line(self, line: str) -> None:
+        """Process a GATEWAY receipt line — match UUID to origin and compute delay."""
+        if self._RECEIVED_MARKER not in line:
+            return
+
+        tick = self._extract_tick(line)
+        guid = self._extract_guid(line)
+        if tick is None or guid is None:
+            return
+
+        if guid not in self._node_origin:
+            # Count unique UUIDs that arrive at the gateway with no node origin.
+            # Skip UUIDs that were already delivered (popped from _node_origin earlier)
+            # so that duplicate gateway receipts of a delivered packet are not orphans.
+            if guid not in self._delivered_uuids:
+                self._orphan_uuids.add(guid)
+            return
+
+        enqueue_tick, node_id = self._node_origin.pop(guid)
+        self._delivered_uuids.add(guid)
+        diff = tick - enqueue_tick
+        self._ensure_node(node_id)
+        self._stats[node_id][0] += diff   # accumulate total delay
+        self._stats[node_id][1] += 1      # increment successful count
+
+    def _extract_tick(self, line: str) -> int | None:
+        """Extract the tick integer from '@ <tick>:' in line."""
+        at_idx = line.find(self._AT_MARKER)
+        if at_idx == -1:
+            return None
+        colon_idx = line.find(':', at_idx + 2)
+        if colon_idx == -1:
+            return None
+        tick_str = line[at_idx + 2:colon_idx]
+        return int(tick_str) if tick_str.isdigit() else None
+
+    def _extract_guid(self, line: str) -> UUID | None:
+        """Extract a UUID from 'GUID=<uuid>' in line. Returns None if absent or malformed."""
+        idx = line.find(self._GUID_MARKER)
+        if idx == -1:
+            return None
+        guid_str = line[idx + len(self._GUID_MARKER):idx + len(self._GUID_MARKER) + self._GUID_LENGTH]
+        try:
+            return UUID(guid_str)
+        except ValueError:
+            return None
 
     def finalize(self):
         """Mark all undelivered UUIDs as lost. Idempotent after first call."""
@@ -501,6 +667,30 @@ class packet_forwarding_delay:
                 distribution[avg] = distribution.get(avg, 0) + 1
         return distribution
 
+    def _binned_delay_distribution(self, max_bins: int = 10) -> dict[int, int]:
+        """Return delay_distribution() merged into at most max_bins equal-width buckets.
+
+        If distinct avg-delay values ≤ max_bins the raw distribution is returned unchanged.
+        Otherwise the range [min_delay, max_delay] is divided into equal-width bins and
+        each node's avg delay is mapped to its bin's lower bound (an integer).
+        The total node count across all bins is always preserved.
+        """
+        distribution = self.delay_distribution()
+        if len(distribution) <= max_bins:
+            return distribution
+
+        delays = sorted(distribution.keys())
+        min_delay = delays[0]
+        max_delay = delays[-1]
+        # +1 ensures max_delay always falls inside the last bin, not into an extra one.
+        bin_width = math.ceil((max_delay - min_delay + 1) / max_bins)
+
+        binned: dict[int, int] = {}
+        for delay, count in distribution.items():
+            bin_start = min_delay + ((delay - min_delay) // bin_width) * bin_width
+            binned[bin_start] = binned.get(bin_start, 0) + count
+        return binned
+
     def plot(self, axes=None):
         """Delay distribution histogram and loss histogram.
 
@@ -517,10 +707,10 @@ class packet_forwarding_delay:
     def _plot_delay_histogram(self, ax):
         """Histogram of average forwarding delay distribution across nodes.
 
-        x-axis — average delay (ticks), one bar per distinct rounded avg delay
+        x-axis — average delay (ticks), merged into at most 10 bins
         y-axis — count (number of nodes with that average delay)
         """
-        distribution = self.delay_distribution()
+        distribution = self._binned_delay_distribution()
         if not distribution:
             ax.set_title("Packet Forwarding Delay Distribution")
             ax.text(0.5, 0.5, "No delivered packets recorded",
@@ -528,7 +718,7 @@ class packet_forwarding_delay:
             return ax
         x_vals = sorted(distribution.keys())
         y_vals = [distribution[x] for x in x_vals]
-        ax.bar(x_vals, y_vals, width=0.4, color='steelblue')
+        ax.bar(x_vals, y_vals, color='steelblue')
         ax.set_xlabel("Average delay (ticks)")
         ax.set_ylabel("Count")
         ax.set_title("Packet Forwarding Delay Distribution")
@@ -537,27 +727,17 @@ class packet_forwarding_delay:
         return ax
 
     def _plot_loss_histogram(self, ax):
-        """Histogram of per-node lost-packet counts.
-
-        Lost-packet counts are discrete integers, so each distinct count gets its
-        own bar centered on that integer value — no binning that would misplace bars.
-        """
+        """Histogram of per-node lost-packet counts (10 bins)."""
         lost_counts = [s[2] for s in self._stats.values() if s[2] > 0]
         if not lost_counts:
             ax.set_title("Packet Loss Distribution")
             ax.text(0.5, 0.5, "No packet loss recorded",
                     ha='center', va='center', transform=ax.transAxes)
             return ax
-        from collections import Counter
-        value_counts = Counter(lost_counts)
-        x_vals = sorted(value_counts.keys())
-        y_vals = [value_counts[x] for x in x_vals]
-        ax.bar(x_vals, y_vals, width=0.4, color='salmon')
-        ax.set_xticks(x_vals)
+        ax.hist(lost_counts, bins=10, color='salmon')
         ax.set_xlabel("Lost packets per node")
         ax.set_ylabel("Number of nodes")
         ax.set_title("Packet Loss Distribution")
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         return ax
 
     def _ensure_node(self, node_id):
@@ -565,131 +745,29 @@ class packet_forwarding_delay:
         if node_id not in self._stats:
             self._stats[node_id] = [0, 0, 0]  # [diff, successful_count, lost]
 
-class clock_drift_analyser:
-    """Tracks per-node average clock drift corrections across the simulation.
+    def merge(self, other):
+        """Merge another packet_forwarding_delay. Reconcile UUIDs across chunks."""
+        # Remove UUIDs from other's unmatched that are in this analyzer's delivered set
+        for uuid in list(other._node_origin.keys()):
+            if uuid in self._delivered_uuids:
+                del other._node_origin[uuid]
 
-    Accumulates drift events keyed by node ID, then exposes per-node averages
-    via get_node_averages().  Each node entry stores:
-        _node_stats[node_id] = [sum_before, sum_after, event_count]
+        # Remove UUIDs from this analyzer's delivered that are in other's unmatched
+        for uuid in list(other._delivered_uuids):
+            if uuid in self._node_origin:
+                del self._node_origin[uuid]
 
-    get_node_averages() returns:
-        {node_id: [avg_before, avg_after, avg_correction]}
-    where avg_correction = avg_before - avg_after.
+        # Merge stats
+        for node_id, stats in other._stats.items():
+            self._ensure_node(node_id)
+            self._stats[node_id][0] += stats[0]  # diff
+            self._stats[node_id][1] += stats[1]  # successful_count
+            self._stats[node_id][2] += stats[2]  # lost
 
-    Produces three separate histogram windows (separate_windows = True):
-        window 1 — avg drift before correction, x = per-node avg, y = node count
-        window 2 — avg drift after correction,  x = per-node avg, y = node count
-        window 3 — avg correction magnitude,    x = per-node avg, y = node count
-
-    Log lines matched:
-    [INFO] (CLOCK) @ <tick>: Node id <node_id> clock drift before correction: <before>, after correction: <after>
-    """
-
-    AREAS = frozenset({"CLOCK"})
-    plot_count = 3
-    # Each histogram gets its own independent figure window via post_process_and_plot.
-    separate_windows = True
-
-    _PATTERN = re.compile(
-        r'\[INFO\]\s+\(CLOCK\)\s+@\s+(?P<tick>\d+):\s+Node id\s+(?P<node_id>\d+)'
-        r'\s+clock drift before correction:\s+(?P<drift_before>-?\d+(?:\.\d+)?),'
-        r'\s+after correction:\s+(?P<drift_after>-?\d+(?:\.\d+)?)'
-    )
-
-    def __init__(self):
-        # {node_id: [sum_before, sum_after, event_count]}
-        self._node_stats: dict[int, list] = {}
-
-    def build_dict(self, line: str) -> None:
-        """Accumulate one clock drift event into the per-node running totals."""
-        match = self._PATTERN.match(line)
-        if match:
-            node_id      = int(match.group('node_id'))
-            drift_before = float(match.group('drift_before'))
-            drift_after  = float(match.group('drift_after'))
-            if node_id not in self._node_stats:
-                self._node_stats[node_id] = [0.0, 0.0, 0]
-            self._node_stats[node_id][0] += drift_before
-            self._node_stats[node_id][1] += drift_after
-            self._node_stats[node_id][2] += 1
-
-    def get_node_averages(self) -> dict[int, list[float]]:
-        """Return {node_id: [avg_before, avg_after, avg_correction]} for all nodes.
-
-        avg_correction = avg_before - avg_after
-        """
-        result: dict[int, list[float]] = {}
-        for node_id, stats in self._node_stats.items():
-            sum_before, sum_after, count = stats
-            avg_before = sum_before / count
-            avg_after  = sum_after  / count
-            result[node_id] = [avg_before, avg_after, avg_before - avg_after]
-        return result
-
-    def plot(self, axes: list | None = None) -> list:
-        """Plot three histograms of per-node average drift values.
-
-        axes : list of 3 Axes — one Axes per histogram (each in its own figure
-               when called via post_process_and_plot with separate_windows=True).
-               Pass None to let this method create three figures itself.
-        Returns list of 3 Axes.
-        """
-        node_avgs = self.get_node_averages()
-
-        if axes is None:
-            axes = []
-            for _ in range(3):
-                _, ax = plt.subplots(1, 1, figsize=(6, 5))
-                axes.append(ax)
-
-        avg_befores     = [v[0] for v in node_avgs.values()]
-        avg_afters      = [v[1] for v in node_avgs.values()]
-        avg_corrections = [v[2] for v in node_avgs.values()]
-
-        self._plot_histogram(
-            axes[0], avg_befores,
-            "Avg Drift Before Correction per Node",
-            "Avg drift before correction (ticks)",
-            'steelblue',
-        )
-        self._plot_histogram(
-            axes[1], avg_afters,
-            "Avg Drift After Correction per Node",
-            "Avg drift after correction (ticks)",
-            'salmon',
-        )
-        self._plot_histogram(
-            axes[2], avg_corrections,
-            "Avg Correction Magnitude per Node",
-            "Avg correction magnitude (ticks)",
-            'mediumseagreen',
-        )
-        return axes
-
-    def _plot_histogram(
-        self, ax, values: list[float], title: str, xlabel: str, color: str
-    ):
-        """Render a histogram of per-node averages on ax, or show a no-data label."""
-        ax.set_title(title)
-        if not values:
-            ax.text(0.5, 0.5, "No clock drift events recorded",
-                    ha='center', va='center', transform=ax.transAxes)
-            return ax
-        min_val, max_val = min(values), max(values)
-        if min_val == max_val:
-            # Degenerate case: all nodes share the same average value.
-            # ax.hist with bins='auto' would create a phantom ±0.5 bin around
-            # the single value — use a bar instead to show the true point.
-            ax.bar([min_val], [len(values)], width=0.4, color=color, edgecolor='white')
-            ax.set_xticks([min_val])
-        else:
-            counts, bin_edges = np.histogram(values, bins='auto')
-            centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            ax.bar(centers, counts, width=0.4, color=color, edgecolor='white')
-        ax.set_xlabel(xlabel)
-        ax.set_ylabel("Node count")
-        ax.yaxis.set_major_locator(MaxNLocator(integer=True))
-        return ax
+        self._delivered_uuids.update(other._delivered_uuids)
+        self._node_origin.update(other._node_origin)
+        self._orphan_uuids.update(other._orphan_uuids)
+        self._finalized = self._finalized or other._finalized
 
 
 #===================Helper functions===================
@@ -700,19 +778,55 @@ def count_lines(path: str | Path) -> int:
 
 
 def read_in_batches(path: str | Path, batch_size: int = 1000) -> Iterator[list[str]]:
-    """Yield successive batches of lines read from the file at path.
+    """Yield successive batches of lines read from the file at path using mmap.
 
     Each batch is a list of at most batch_size lines (strings including newlines).
     The last batch may be smaller if the file does not divide evenly.
-    Reading in batches amortises per-call I/O overhead compared to iterating
-    line-by-line, which is the main source of parsing latency on large logs.
+    Reads mmap in 100MB chunks for faster I/O amortization.
     """
-    with open(path, 'r') as f:
-        while True:
-            batch = list(islice(f, batch_size))
-            if not batch:
-                break
-            yield batch
+    chunk_size = 100 * 1024 * 1024  # 100MB chunks
+
+    with open(path, 'rb') as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mmapped:
+            batch = []
+            remainder = b''
+            pos = 0
+            file_size = len(mmapped)
+
+            while pos < file_size:
+                # Read next chunk, but not past file end
+                end_pos = min(pos + chunk_size, file_size)
+                chunk = remainder + mmapped[pos:end_pos]
+                pos = end_pos
+
+                # Find last newline to avoid splitting lines mid-chunk
+                last_newline = chunk.rfind(b'\n')
+                if last_newline == -1:
+                    # No newline in chunk; if more file remains, defer this chunk
+                    if pos < file_size:
+                        remainder = chunk
+                        continue
+                    # At EOF with no newline; process entire chunk
+                    to_process = chunk
+                    remainder = b''
+                else:
+                    # Process up to last newline, save rest for next iteration
+                    to_process = chunk[:last_newline + 1]
+                    remainder = chunk[last_newline + 1:]
+
+                # Decode and split this batch of complete lines
+                text = to_process.decode('utf-8')
+                lines = text.splitlines(keepends=True)
+
+                for line in lines:
+                    batch.append(line)
+                    if len(batch) >= batch_size:
+                        yield batch
+                        batch = []
+
+            # Yield any remaining lines
+            if batch:
+                yield batch
 
 
 def save_report(text: str, folder: str | Path, filename: str) -> Path:
@@ -728,28 +842,23 @@ def save_report(text: str, folder: str | Path, filename: str) -> Path:
     return report_path
 
 
-def extract_area(line: str) -> str | None:
-    """Extract the area tag from a log line, e.g. 'NODE', 'PROTOCOL', 'GATEWAY'.
-
-    Log format: [SEVERITY] (AREA) @ tick: message
-    Returns None if the line does not contain a recognisable area tag.
-    """
-    try:
-        parts = line.split('(', 1)[1].split(')', 1)
-        return parts[0] if len(parts) == 2 else None
-    except IndexError:
+def extract_area_fast(line: str) -> str | None:
+    """Extract area tag. Log format: [SEVERITY] (AREA) @ tick: message"""
+    paren_idx = line.find('(')
+    if paren_idx < 0:
         return None
+    close_idx = line.find(')', paren_idx)
+    if close_idx < 0:
+        return None
+    return line[paren_idx + 1:close_idx]
 
 
 def execute(executable_list, line):
-    """Pass each log line only to analysers whose declared AREAS include the line's area.
-
-    Analysers without an AREAS attribute receive every line (backwards-compatible).
-    """
-    area = extract_area(line)
+    """Route line to analyzers whose AREAS match."""
+    area = extract_area_fast(line)
     for exe in executable_list:
         areas = getattr(exe, 'AREAS', None)
-        if areas is None or area in areas:
+        if areas is None or (area and area in areas):
             exe.build_dict(line)
 
 
@@ -757,66 +866,76 @@ def post_process_and_plot(executable_list):
     """Opens a separate figure window for each analyser.
 
     Calls finalize() on any analyser that exposes it before plotting.
-    Analysers with plot_count > 1 and separate_windows = True get one independent
-    figure per subplot (e.g. clock_drift_analyser → 3 separate windows).
-    All other analysers with plot_count > 1 get side-by-side subplots in one figure.
+    Analysers with plot_count > 1 get side-by-side subplots within their own figure.
     """
     for exe in executable_list:
         if hasattr(exe, 'finalize'):
             exe.finalize()
 
     for exe in executable_list:
-        n        = getattr(exe, 'plot_count', 1)
-        separate = getattr(exe, 'separate_windows', False)
-
-        if separate and n > 1:
-            # One independent figure window per subplot.
-            axes = []
-            for _ in range(n):
-                fig, ax = plt.subplots(1, 1, figsize=(6, 5))
-                fig.tight_layout()
-                axes.append(ax)
-            exe.plot(axes)
+        n = getattr(exe, 'plot_count', 1)
+        # squeeze=False keeps axes as a 2-D array regardless of subplot count.
+        fig, axes = plt.subplots(1, n, figsize=(6 * n, 5), squeeze=False)
+        flat_axes = axes.flatten().tolist()
+        if n == 1:
+            exe.plot(flat_axes[0])
         else:
-            # squeeze=False keeps axes as a 2-D array regardless of subplot count.
-            fig, axes = plt.subplots(1, n, figsize=(6 * n, 5), squeeze=False)
-            flat_axes = axes.flatten().tolist()
-            if n == 1:
-                exe.plot(flat_axes[0])
-            else:
-                exe.plot(flat_axes)
-            fig.tight_layout()
+            exe.plot(flat_axes)
+        fig.tight_layout()
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--log',    default='Log_debugging\\simulation.log', help='Path to log file')
-    parser.add_argument('--bins',   type=int, default=5, help='Number of histogram bins for battery metric')
-    parser.add_argument('--output', default=None,        help='Folder to write text reports (skipped if omitted)')
+    parser.add_argument('--bins',   type=int, default=5,  help='Number of histogram bins for battery metric')
+    parser.add_argument('--output', default=None,         help='Folder to write text reports (skipped if omitted)')
     args = parser.parse_args()
 
-    executable_list = [
+    analyzers = [
         deadnodecounter(),
         sync_interval_counter(),
         battery_capacity_analyser(num_bins=args.bins),
         packet_forwarding_delay(),
-        clock_drift_analyser(),
     ]
 
-    with tqdm(desc="Parsing log", unit="lines") as progress:
-        for batch in read_in_batches(args.log):
-            for line in batch:
-                execute(executable_list, line)
-            progress.update(len(batch))
+    file_size = Path(args.log).stat().st_size
+    chunk_size = 100 * 1024 * 1024  # read 100 MB at a time
+
+    with open(args.log, 'rb') as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
+            with tqdm(total=file_size, desc="Processing", unit='B', unit_scale=True, ncols=80) as pbar:
+                pos = 0
+                remainder = b''
+
+                while pos < file_size:
+                    end = min(pos + chunk_size, file_size)
+                    chunk = remainder + mm[pos:end]
+                    pos = end
+
+                    # Avoid splitting a line across chunks — keep the tail for next iteration.
+                    last_nl = chunk.rfind(b'\n')
+                    if last_nl == -1:
+                        if pos < file_size:
+                            remainder = chunk
+                            continue
+                        to_process = chunk
+                        remainder = b''
+                    else:
+                        to_process = chunk[:last_nl + 1]
+                        remainder = chunk[last_nl + 1:]
+
+                    for line in to_process.decode('utf-8').splitlines(keepends=True):
+                        execute(analyzers, line)
+
+                    pbar.update(len(to_process))
 
     if args.output:
-        for exe in executable_list:
+        for exe in analyzers:
             report_fn = getattr(exe, 'report_text', None)
             if callable(report_fn):
-                filename = f"{type(exe).__name__}_report.txt"
-                save_report(report_fn(), args.output, filename)
+                save_report(report_fn(), args.output, f"{type(exe).__name__}_report.txt")
 
-    post_process_and_plot(executable_list)
+    post_process_and_plot(analyzers)
     plt.show()
 
 

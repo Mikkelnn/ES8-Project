@@ -1,35 +1,35 @@
 import matplotlib
+matplotlib.use('Agg')  # non-interactive backend — must be set before importing pyplot
 
-matplotlib.use("Agg")  # non-interactive backend — must be set before importing pyplot
-
+import pytest
+import matplotlib.pyplot as plt
 from pathlib import Path
+
 from uuid import UUID
 
-import matplotlib.pyplot as plt
-import pytest
-
-from main import (  # noqa
-    battery_capacity_analyser,
-    count_lines,
+from main import (
     deadnodecounter,
     execute,
-    extract_area_fast,
-    packet_forwarding_delay,
+    extract_area,
     post_process_and_plot,
-    read_in_batches,
     save_report,
+    count_lines,
+    read_in_batches,
     sync_interval_counter,
+    battery_capacity_analyser,
+    packet_forwarding_delay,
+    clock_drift_analyser,
 )
 
-LOG_PATH = Path(__file__).parent / "test_simulation.log"
+LOG_PATH = Path(__file__).parent / 'test_simulation.log'
 
 # Ground truth derived from test_simulation.log
-SYNC_EXPECTED_SYNCED = [1, 2, 4, 5]
+SYNC_EXPECTED_SYNCED   = [1, 2, 4, 5]
 SYNC_EXPECTED_UNSYNCED = [3, 6]
-SYNC_EXPECTED_TICK = 140
+SYNC_EXPECTED_TICK     = 140
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope='session')
 def log_lines():
     with open(LOG_PATH) as f:
         return f.readlines()
@@ -43,8 +43,7 @@ def sync_full_counter(log_lines):
         c.build_dict(line)
     return c
 
-
-DEATH_LINE = "[CRITICAL] (NODE) @ {tick}: Node {node_id} DIED"
+DEATH_LINE = '[CRITICAL] (NODE) @ {tick}: Node {node_id} DIED'
 
 
 def death(node_id, tick):
@@ -55,7 +54,6 @@ def death(node_id, tick):
 # deadnodecounter.build_dict
 # ---------------------------------------------------------------------------
 
-
 class TestBuildDict:
     def test_valid_line_adds_entry(self):
         c = deadnodecounter()
@@ -64,17 +62,17 @@ class TestBuildDict:
 
     def test_non_critical_level_ignored(self):
         c = deadnodecounter()
-        c.build_dict("[DEBUG] (NODE) @ 100: Node 1 DIED")
+        c.build_dict('[DEBUG] (NODE) @ 100: Node 1 DIED')
         assert c.dict == {}
 
     def test_info_level_ignored(self):
         c = deadnodecounter()
-        c.build_dict("[INFO] (NODE) @ 100: Node 1 DIED")
+        c.build_dict('[INFO] (NODE) @ 100: Node 1 DIED')
         assert c.dict == {}
 
     def test_critical_wrong_component_ignored(self):
         c = deadnodecounter()
-        c.build_dict("[CRITICAL] (TRANCEIVER) @ 100: Node 1 DIED")
+        c.build_dict('[CRITICAL] (TRANCEIVER) @ 100: Node 1 DIED')
         assert c.dict == {}
 
     def test_multiple_deaths_same_node_accumulates_count(self):
@@ -93,13 +91,12 @@ class TestBuildDict:
 
     def test_returns_none_for_non_critical(self):
         c = deadnodecounter()
-        assert c.build_dict("[DEBUG] (NODE) @ 100: Node 1 DIED") is None
+        assert c.build_dict('[DEBUG] (NODE) @ 100: Node 1 DIED') is None
 
 
 # ---------------------------------------------------------------------------
 # deadnodecounter.deathcounter
 # ---------------------------------------------------------------------------
-
 
 class TestDeathcounter:
     def test_empty_dict_returns_empty_lists(self):
@@ -133,15 +130,14 @@ class TestDeathcounter:
         # Regression: self.count used to be an instance list that accumulated
         c = deadnodecounter()
         c.build_dict(death(1, 100))
-        c.deathcounter()  # first call
-        _, counts = c.deathcounter()  # second call
+        c.deathcounter()                    # first call
+        _, counts = c.deathcounter()        # second call
         assert counts == [1]
 
 
 # ---------------------------------------------------------------------------
 # deadnodecounter.death_distribution
 # ---------------------------------------------------------------------------
-
 
 class TestDeathDistribution:
     def test_empty_dict_returns_empty_dict(self):
@@ -181,15 +177,14 @@ class TestDeathDistribution:
     def test_repeated_calls_do_not_double_count(self):
         c = deadnodecounter()
         c.build_dict(death(1, 100))
-        c.death_distribution()  # first call
-        result = c.death_distribution()  # second call
+        c.death_distribution()               # first call
+        result = c.death_distribution()      # second call
         assert result == {1: 1}
 
 
 # ---------------------------------------------------------------------------
 # deadnodecounter.report_text
 # ---------------------------------------------------------------------------
-
 
 class TestReportText:
     def test_empty_contains_no_deaths_message(self):
@@ -201,7 +196,7 @@ class TestReportText:
         c = deadnodecounter()
         c.build_dict(death(1, 100))
         c.build_dict(death(2, 200))
-        c.build_dict(death(2, 300))  # 2 unique nodes
+        c.build_dict(death(2, 300))   # 2 unique nodes
         text = c.report_text()
         assert "Total nodes" in text
         assert "2" in text
@@ -211,7 +206,7 @@ class TestReportText:
         c = deadnodecounter()
         c.build_dict(death(1, 100))
         c.build_dict(death(1, 200))
-        c.build_dict(death(2, 300))  # 3 events total
+        c.build_dict(death(2, 300))   # 3 events total
         text = c.report_text()
         assert "Total deaths" in text
         assert "3" in text
@@ -225,7 +220,7 @@ class TestReportText:
         c = deadnodecounter()
         c.build_dict(death(7, 100))
         c.build_dict(death(7, 200))
-        c.build_dict(death(7, 300))  # node 7 died 3 times
+        c.build_dict(death(7, 300))   # node 7 died 3 times
         assert "3" in c.report_text()
 
     def test_contains_distribution_section(self):
@@ -242,7 +237,6 @@ class TestReportText:
 # ---------------------------------------------------------------------------
 # deadnodecounter.save_report
 # ---------------------------------------------------------------------------
-
 
 class TestSaveReport:
     """Tests for the standalone save_report(text, folder, filename) helper."""
@@ -281,16 +275,15 @@ class TestSaveReport:
 # deadnodecounter.plot
 # ---------------------------------------------------------------------------
 
-
 class TestPlot:
     def teardown_method(self):
-        plt.close("all")
+        plt.close('all')
 
     def test_empty_dict_plot_does_not_raise(self):
         """bar([], []) must not raise when no death events were recorded."""
         c = deadnodecounter()
-        ax = c.plot()  # should not raise
-        assert hasattr(ax, "bar")
+        ax = c.plot()          # should not raise
+        assert hasattr(ax, 'bar')
 
     def test_empty_dict_plot_shows_no_data_message(self):
         """When there is no data, the axes should carry an explanatory text label."""
@@ -304,7 +297,7 @@ class TestPlot:
         c = deadnodecounter()
         c.build_dict(death(1, 100))
         ax = c.plot()
-        assert hasattr(ax, "bar")
+        assert hasattr(ax, 'bar')
 
     def test_uses_provided_ax(self):
         c = deadnodecounter()
@@ -323,12 +316,12 @@ class TestPlot:
     def test_one_bar_per_distinct_death_count(self):
         """Two nodes with different death counts → two bars."""
         c = deadnodecounter()
-        c.build_dict(death(1, 100))  # node 1 died once
+        c.build_dict(death(1, 100))               # node 1 died once
         c.build_dict(death(2, 200))
-        c.build_dict(death(2, 300))  # node 2 died twice
+        c.build_dict(death(2, 300))               # node 2 died twice
         _, ax = plt.subplots()
         c.plot(ax=ax)
-        assert len(ax.patches) == 2  # one bar for count=1, one for count=2
+        assert len(ax.patches) == 2               # one bar for count=1, one for count=2
 
     def test_bar_height_equals_node_count(self):
         """Nodes 1 and 2 both died once → death_count=1 bar has height 2."""
@@ -337,8 +330,8 @@ class TestPlot:
         c.build_dict(death(2, 200))
         _, ax = plt.subplots()
         c.plot(ax=ax)
-        heights = sorted(p.get_height() for p in ax.patches)  # noqa
-        assert heights == [2]  # one bar, height = 2 nodes
+        heights = sorted(p.get_height() for p in ax.patches)
+        assert heights == [2]                     # one bar, height = 2 nodes
 
     def test_x_axis_label(self):
         c = deadnodecounter()
@@ -359,7 +352,7 @@ class TestPlot:
         c = deadnodecounter()
         c.build_dict(death(1, 100))
         c.build_dict(death(2, 200))
-        c.build_dict(death(2, 300))  # node 2 died twice → x ticks: [1, 2]
+        c.build_dict(death(2, 300))   # node 2 died twice → x ticks: [1, 2]
         _, ax = plt.subplots()
         c.plot(ax=ax)
         assert all(float(t).is_integer() for t in ax.get_xticks())
@@ -375,11 +368,19 @@ class TestPlot:
         visible_ticks = [t for t in ax.get_yticks() if ymin <= t <= ymax]
         assert all(float(t).is_integer() for t in visible_ticks)
 
+    def test_bar_width_is_0_4(self):
+        """All death-count bars must have width 0.4 — centered on their integer value."""
+        c = deadnodecounter()
+        c.build_dict(death(1, 100))
+        c.build_dict(death(2, 200))
+        _, ax = plt.subplots()
+        c.plot(ax=ax)
+        assert all(p.get_width() == pytest.approx(0.4) for p in ax.patches)
+
 
 # ---------------------------------------------------------------------------
 # count_lines
 # ---------------------------------------------------------------------------
-
 
 class TestCountLines:
     def test_empty_file_returns_zero(self, tmp_path):
@@ -411,7 +412,6 @@ class TestCountLines:
 # read_in_batches
 # ---------------------------------------------------------------------------
 
-
 class TestReadInBatches:
     def test_empty_file_yields_no_batches(self, tmp_path):
         f = tmp_path / "empty.log"
@@ -436,7 +436,7 @@ class TestReadInBatches:
         f = tmp_path / "multi.log"
         f.write_text("".join(f"line{i}\n" for i in range(12)), encoding="utf-8")
         batches = list(read_in_batches(f, batch_size=5))
-        assert len(batches) == 3  # batches of 5, 5, 2
+        assert len(batches) == 3   # batches of 5, 5, 2
 
     def test_last_batch_may_be_smaller_than_batch_size(self, tmp_path):
         f = tmp_path / "uneven.log"
@@ -471,7 +471,6 @@ class TestReadInBatches:
 # execute
 # ---------------------------------------------------------------------------
 
-
 class TestExecute:
     def test_calls_build_dict_on_every_analyser(self):
         c1, c2 = deadnodecounter(), deadnodecounter()
@@ -481,7 +480,7 @@ class TestExecute:
 
     def test_non_matching_line_leaves_dicts_empty(self):
         c = deadnodecounter()
-        execute([c], "[DEBUG] (NODE) @ 100: Node 1 DIED")
+        execute([c], '[DEBUG] (NODE) @ 100: Node 1 DIED')
         assert c.dict == {}
 
     def test_empty_executable_list_does_not_raise(self):
@@ -492,10 +491,9 @@ class TestExecute:
 # post_process_and_plot
 # ---------------------------------------------------------------------------
 
-
 class TestPostProcessAndPlot:
     def teardown_method(self):
-        plt.close("all")
+        plt.close('all')
 
     def test_single_analyser_produces_one_figure(self):
         c = deadnodecounter()
@@ -516,18 +514,17 @@ class TestPostProcessAndPlot:
 # sync_interval_counter.build_dict
 # ---------------------------------------------------------------------------
 
-
 class TestSyncBuildDict:
     def test_attempt_adds_to_unsync_set(self, log_lines):
-        line = next(ln for ln in log_lines if "Node 1 attempts gateway connect via WAN" in ln)
+        line = next(ln for ln in log_lines if 'Node 1 attempts gateway connect via WAN' in ln)
         c = sync_interval_counter()
         c.build_dict(line)
         assert c.unsync_node_set == {1}
         assert c.sync_node_set == set()
 
     def test_discovery_complete_moves_to_sync_set(self, log_lines):
-        attempt = next(ln for ln in log_lines if "Node 2 attempts gateway connect via WAN" in ln)
-        discovery = next(ln for ln in log_lines if "Node 2 discovery complete" in ln)
+        attempt   = next(ln for ln in log_lines if 'Node 2 attempts gateway connect via WAN' in ln)
+        discovery = next(ln for ln in log_lines if 'Node 2 discovery complete' in ln)
         c = sync_interval_counter()
         c.build_dict(attempt)
         c.build_dict(discovery)
@@ -535,8 +532,8 @@ class TestSyncBuildDict:
         assert c.unsync_node_set == set()
 
     def test_sync_tick_updated_on_discovery(self, log_lines):
-        attempt = next(ln for ln in log_lines if "Node 2 attempts gateway connect via WAN" in ln)
-        discovery = next(ln for ln in log_lines if "Node 2 discovery complete" in ln)
+        attempt   = next(ln for ln in log_lines if 'Node 2 attempts gateway connect via WAN' in ln)
+        discovery = next(ln for ln in log_lines if 'Node 2 discovery complete' in ln)
         c = sync_interval_counter()
         c.build_dict(attempt)
         c.build_dict(discovery)
@@ -544,27 +541,27 @@ class TestSyncBuildDict:
 
     def test_special_case1_already_synced_attempt_ignored(self, log_lines):
         # Node 1: first attempt (tick 10) → discovery (tick 140) → re-attempt (tick 160)
-        node1_attempts = [ln for ln in log_lines if "Node 1 attempts gateway connect via WAN" in ln]
-        discovery = next(ln for ln in log_lines if "Node 1 discovery complete" in ln)
+        node1_attempts = [ln for ln in log_lines if 'Node 1 attempts gateway connect via WAN' in ln]
+        discovery      = next(ln for ln in log_lines if 'Node 1 discovery complete' in ln)
         c = sync_interval_counter()
-        c.build_dict(node1_attempts[0])  # tick 10 → unsync
-        c.build_dict(discovery)  # tick 140 → sync
+        c.build_dict(node1_attempts[0])   # tick 10 → unsync
+        c.build_dict(discovery)            # tick 140 → sync
         c.build_dict(node1_attempts[-1])  # tick 160 → ignored (already synced)
         assert c.sync_node_set == {1}
         assert c.unsync_node_set == set()
 
     def test_special_case2_double_attempt_ignored(self, log_lines):
         # Node 6 attempts twice — second attempt must be ignored
-        node6_attempts = [ln for ln in log_lines if "Node 6 attempts gateway connect via WAN" in ln]
+        node6_attempts = [ln for ln in log_lines if 'Node 6 attempts gateway connect via WAN' in ln]
         c = sync_interval_counter()
-        c.build_dict(node6_attempts[0])  # tick 35 → unsync
-        c.build_dict(node6_attempts[1])  # tick 75 → ignored
+        c.build_dict(node6_attempts[0])   # tick 35 → unsync
+        c.build_dict(node6_attempts[1])   # tick 75 → ignored
         assert c.unsync_node_set == {6}
         assert c.sync_node_set == set()
 
     def test_discovery_without_prior_attempt_ignored(self, log_lines):
         # Node 7 has discovery complete but no prior attempt → must be ignored
-        discovery = next(ln for ln in log_lines if "Node 7 discovery complete" in ln)
+        discovery = next(ln for ln in log_lines if 'Node 7 discovery complete' in ln)
         c = sync_interval_counter()
         c.build_dict(discovery)
         assert c.sync_node_set == set()
@@ -572,7 +569,9 @@ class TestSyncBuildDict:
 
     def test_node1_death_and_reset_still_syncs(self, log_lines):
         # Node 1: attempt → die → reset attempt → discovery complete → synced
-        node1_lines = [ln for ln in log_lines if "Node 1 attempts gateway connect via WAN" in ln or "Node 1 discovery complete" in ln]
+        node1_lines = [ln for ln in log_lines
+                       if 'Node 1 attempts gateway connect via WAN' in ln
+                       or 'Node 1 discovery complete' in ln]
         c = sync_interval_counter()
         for line in node1_lines:
             c.build_dict(line)
@@ -580,7 +579,7 @@ class TestSyncBuildDict:
         assert 1 not in c.unsync_node_set
 
     def test_non_protocol_line_ignored(self, log_lines):
-        line = next(ln for ln in log_lines if ln.startswith("[DEBUG] (TRANCEIVER)"))
+        line = next(ln for ln in log_lines if ln.startswith('[DEBUG] (TRANCEIVER)'))
         c = sync_interval_counter()
         c.build_dict(line)
         assert c.sync_node_set == set()
@@ -590,7 +589,6 @@ class TestSyncBuildDict:
 # ---------------------------------------------------------------------------
 # sync_interval_counter.sync_counter
 # ---------------------------------------------------------------------------
-
 
 class TestSyncCounter:
     def test_empty_returns_empty_lists_and_zero(self):
@@ -615,14 +613,13 @@ class TestSyncCounter:
 # sync_interval_counter.plot
 # ---------------------------------------------------------------------------
 
-
 class TestSyncPlot:
     def teardown_method(self):
-        plt.close("all")
+        plt.close('all')
 
     def test_returns_axes_object(self, sync_full_counter):
         ax = sync_full_counter.plot()
-        assert hasattr(ax, "bar")
+        assert hasattr(ax, 'bar')
 
     def test_uses_provided_ax(self, sync_full_counter):
         _, ax = plt.subplots()
@@ -635,15 +632,15 @@ class TestSyncPlot:
 # Group A (nodes 8-57):  even→wake 6.5(bin4)/sleep 4.5, odd→wake 4.0(bin2)/sleep 2.0; delta 2.0(bin1)
 # Group B (nodes 58-82): wake 3.0(bin1)/death→delta 3.0(bin1)
 # Group C (nodes 83-107): wake1 7.5(bin4)/sleep1 5.5→delta2.0(bin1); wake2 5.0(bin3)/death→delta5.0(bin3)
-BATTERY_NODE_COUNT = 100  # nodes 8-107
-BATTERY_NODE8_OP_RANGE = [0, 0, 0, 0, 1]  # even group A: 6.5 → bin 4
-BATTERY_NODE9_OP_RANGE = [0, 0, 1, 0, 0]  # odd  group A: 4.0 → bin 2
-BATTERY_NODE58_OP_RANGE = [0, 1, 0, 0, 0]  # group B: 3.0 → bin 1
-BATTERY_NODE83_OP_RANGE = [0, 0, 0, 1, 1]  # group C: 7.5→bin4, 5.0→bin3
-BATTERY_NODE8_DELTA = [0, 1, 0, 0, 0]  # delta 2.0 → bin 1
-BATTERY_NODE9_DELTA = [0, 1, 0, 0, 0]  # delta 2.0 → bin 1
-BATTERY_NODE58_DELTA = [0, 1, 0, 0, 0]  # delta 3.0 → bin 1
-BATTERY_NODE83_DELTA = [0, 1, 0, 1, 0]  # deltas 2.0(bin1) + 5.0(bin3)
+BATTERY_NODE_COUNT            = 100          # nodes 8-107
+BATTERY_NODE8_OP_RANGE        = [0, 0, 0, 0, 1]   # even group A: 6.5 → bin 4
+BATTERY_NODE9_OP_RANGE        = [0, 0, 1, 0, 0]   # odd  group A: 4.0 → bin 2
+BATTERY_NODE58_OP_RANGE       = [0, 1, 0, 0, 0]   # group B: 3.0 → bin 1
+BATTERY_NODE83_OP_RANGE       = [0, 0, 0, 1, 1]   # group C: 7.5→bin4, 5.0→bin3
+BATTERY_NODE8_DELTA           = [0, 1, 0, 0, 0]   # delta 2.0 → bin 1
+BATTERY_NODE9_DELTA           = [0, 1, 0, 0, 0]   # delta 2.0 → bin 1
+BATTERY_NODE58_DELTA          = [0, 1, 0, 0, 0]   # delta 3.0 → bin 1
+BATTERY_NODE83_DELTA          = [0, 1, 0, 1, 0]   # deltas 2.0(bin1) + 5.0(bin3)
 
 
 @pytest.fixture
@@ -659,19 +656,16 @@ def battery_full_counter(log_lines):
 # battery_capacity_analyser helpers
 # ---------------------------------------------------------------------------
 
-
 def wake_line(node_id, tick, charge):
-    return f"[INFO] (NODE) @ {tick}: Node {node_id} woke up, , Battery charge {charge}, "
-
+    return f'[INFO] (NODE) @ {tick}: Node {node_id} woke up, , Battery charge {charge}, '
 
 def sleep_line(node_id, tick, charge):
-    return f"[INFO] (NODE) @ {tick}: Node {node_id} is going to sleep, Battery charge {charge}, "
+    return f'[INFO] (NODE) @ {tick}: Node {node_id} is going to sleep, Battery charge {charge}, '
 
 
 # ---------------------------------------------------------------------------
 # battery_capacity_analyser.build_dict
 # ---------------------------------------------------------------------------
-
 
 class TestBatteryBuildDict:
     def test_wake_line_adds_to_op_range(self):
@@ -714,7 +708,7 @@ class TestBatteryBuildDict:
 
     def test_non_matching_line_ignored(self):
         c = battery_capacity_analyser(num_bins=5)
-        c.build_dict("[DEBUG] (NODE) @ 100: Node 1 some other event, ")
+        c.build_dict('[DEBUG] (NODE) @ 100: Node 1 some other event, ')
         assert c.dict_op_range == {}
         assert c.dict_operating_range == {}
 
@@ -730,7 +724,7 @@ class TestBatteryBuildDict:
         """A DIED event after a wake must record delta = wake_charge - 0."""
         c = battery_capacity_analyser(num_bins=5)
         c.build_dict(wake_line(1, 1000, 5.0))
-        c.build_dict("[CRITICAL] (NODE) @ 2000: Node 1 DIED, ")
+        c.build_dict('[CRITICAL] (NODE) @ 2000: Node 1 DIED, ')
         assert sum(c.dict_operating_range[1]) == 1
 
     def test_node_death_delta_equals_wake_charge(self):
@@ -738,28 +732,27 @@ class TestBatteryBuildDict:
         # MAX_CHARGE=7.9, num_bins=5 → bin_width=1.58; wake=5.0 → delta=5.0 → bin 3
         c = battery_capacity_analyser(num_bins=5)
         c.build_dict(wake_line(1, 1000, 5.0))
-        c.build_dict("[CRITICAL] (NODE) @ 2000: Node 1 DIED, ")
+        c.build_dict('[CRITICAL] (NODE) @ 2000: Node 1 DIED, ')
         _, operating_range = c.get_histograms()
         assert operating_range[1][3] == 1
 
     def test_node_death_without_prior_wake_ignored(self):
         """Death with no prior wake must not write to dict_operating_range."""
         c = battery_capacity_analyser(num_bins=5)
-        c.build_dict("[CRITICAL] (NODE) @ 2000: Node 1 DIED, ")
+        c.build_dict('[CRITICAL] (NODE) @ 2000: Node 1 DIED, ')
         assert c.dict_operating_range == {}
 
     def test_node_death_clears_pending_wake(self):
         """After death, the pending wake entry must be removed."""
         c = battery_capacity_analyser(num_bins=5)
         c.build_dict(wake_line(1, 1000, 5.0))
-        c.build_dict("[CRITICAL] (NODE) @ 2000: Node 1 DIED, ")
+        c.build_dict('[CRITICAL] (NODE) @ 2000: Node 1 DIED, ')
         assert 1 not in c._pending_wake
 
 
 # ---------------------------------------------------------------------------
 # battery_capacity_analyser.get_histograms
 # ---------------------------------------------------------------------------
-
 
 class TestBatteryGetHistograms:
     def test_empty_returns_empty_dicts(self):
@@ -794,10 +787,9 @@ class TestBatteryGetHistograms:
 # battery_capacity_analyser.plot
 # ---------------------------------------------------------------------------
 
-
 class TestBatteryPlot:
     def teardown_method(self):
-        plt.close("all")
+        plt.close('all')
 
     def test_wakeup_histogram_aggregates_counts_across_nodes(self):
         """Three nodes all waking at 5.0 J (bin 3) must show bar height 3, not 1."""
@@ -841,6 +833,23 @@ class TestBatteryPlot:
     def test_plot_count_is_two(self):
         assert battery_capacity_analyser.plot_count == 2
 
+    def test_wakeup_bar_width_is_0_4(self):
+        """Wake-up histogram bars must be 0.4 units wide, centered on their bin index."""
+        c = battery_capacity_analyser(num_bins=5)
+        c.build_dict(wake_line(1, 1000, 5.0))
+        fig, axes = plt.subplots(1, 2)
+        c.plot(list(axes))
+        assert all(p.get_width() == pytest.approx(0.4) for p in axes[0].patches)
+
+    def test_delta_bar_width_is_0_4(self):
+        """Delta histogram bars must be 0.4 units wide, centered on their bin index."""
+        c = battery_capacity_analyser(num_bins=5)
+        c.build_dict(wake_line(1, 1000, 5.0))
+        c.build_dict(sleep_line(1, 2000, 3.5))
+        fig, axes = plt.subplots(1, 2)
+        c.plot(list(axes))
+        assert all(p.get_width() == pytest.approx(0.4) for p in axes[1].patches)
+
 
 # ---------------------------------------------------------------------------
 # post_process_and_plot — multi-plot analyser support
@@ -849,7 +858,6 @@ class TestBatteryPlot:
 # ---------------------------------------------------------------------------
 # battery_capacity_analyser — full log integration
 # ---------------------------------------------------------------------------
-
 
 class TestBatteryFullLog:
     def test_correct_node_count_in_op_range(self, battery_full_counter):
@@ -897,7 +905,7 @@ class TestBatteryFullLog:
         fig, axes = plt.subplots(1, 2)
         battery_full_counter.plot(list(axes))
         heights = [p.get_height() for p in axes[0].patches]
-        plt.close("all")
+        plt.close('all')
         assert heights == [0, 25, 25, 25, 50]
 
     def test_delta_histogram_correct_aggregated_bin_totals(self, battery_full_counter):
@@ -905,7 +913,7 @@ class TestBatteryFullLog:
         fig, axes = plt.subplots(1, 2)
         battery_full_counter.plot(list(axes))
         heights = [p.get_height() for p in axes[1].patches]
-        plt.close("all")
+        plt.close('all')
         assert heights == [0, 100, 0, 25, 0]
 
     def test_existing_deaths_without_wake_not_recorded(self, battery_full_counter):
@@ -929,17 +937,16 @@ GUID_E = "11111111-1111-4111-8111-111111111111"  # node 110 → lost (never deli
 
 
 def node_enqueue_line(node_id, tick, guid):
-    return f"[INFO] (PROTOCOL) @ {tick}: Node {node_id} enqueued averaged payload: avg_s1=42.5, avg_s2=17.0, GUID={guid}, "
+    return f'[INFO] (PROTOCOL) @ {tick}: Node {node_id} enqueued averaged payload: avg_s1=42.5, avg_s2=17.0, GUID={guid}, '
 
 
 def gateway_received_line(gateway_id, tick, guid):
-    return f"[INFO] (GATEWAY) @ {tick}: Gateway {gateway_id} received data:SomePayload, GUID={guid}, "
+    return f'[INFO] (GATEWAY) @ {tick}: Gateway {gateway_id} received data:SomePayload, GUID={guid}, '
 
 
 # ---------------------------------------------------------------------------
 # packet_forwarding_delay.build_dict
 # ---------------------------------------------------------------------------
-
 
 class TestPacketForwardingBuildDict:
     def test_node_enqueue_records_uuid_in_node_origin(self):
@@ -1052,16 +1059,16 @@ class TestPacketForwardingBuildDict:
     def test_diff_accumulates_across_multiple_deliveries(self):
         """Two deliveries from the same node: diff = delay1 + delay2."""
         c = packet_forwarding_delay()
-        c.build_dict(node_enqueue_line(1, 1000, GUID_A))  # delay 500
+        c.build_dict(node_enqueue_line(1, 1000, GUID_A))   # delay 500
         c.build_dict(gateway_received_line(1, 1500, GUID_A))
-        c.build_dict(node_enqueue_line(1, 2000, GUID_B))  # delay 700
+        c.build_dict(node_enqueue_line(1, 2000, GUID_B))   # delay 700
         c.build_dict(gateway_received_line(1, 2700, GUID_B))
         assert c._stats[1][0] == 1200  # 500 + 700
         assert c._stats[1][1] == 2
 
     def test_non_matching_line_ignored(self):
         c = packet_forwarding_delay()
-        c.build_dict("[DEBUG] (NODE) @ 100: Node 1 some event, ")
+        c.build_dict('[DEBUG] (NODE) @ 100: Node 1 some event, ')
         assert c._node_origin == {}
         assert c._stats == {}
 
@@ -1069,7 +1076,6 @@ class TestPacketForwardingBuildDict:
 # ---------------------------------------------------------------------------
 # packet_forwarding_delay.finalize
 # ---------------------------------------------------------------------------
-
 
 class TestPacketForwardingFinalize:
     def test_undelivered_uuid_increments_lost_count(self):
@@ -1105,7 +1111,6 @@ class TestPacketForwardingFinalize:
 # packet_forwarding_delay.get_stats
 # ---------------------------------------------------------------------------
 
-
 class TestPacketForwardingGetStats:
     def test_empty_returns_empty_dict(self):
         c = packet_forwarding_delay()
@@ -1125,9 +1130,9 @@ class TestPacketForwardingGetStats:
     def test_average_delay_computable(self):
         """Average = diff / successful_count."""
         c = packet_forwarding_delay()
-        c.build_dict(node_enqueue_line(1, 1000, GUID_A))  # delay 200
+        c.build_dict(node_enqueue_line(1, 1000, GUID_A))   # delay 200
         c.build_dict(gateway_received_line(1, 1200, GUID_A))
-        c.build_dict(node_enqueue_line(1, 2000, GUID_B))  # delay 800
+        c.build_dict(node_enqueue_line(1, 2000, GUID_B))   # delay 800
         c.build_dict(gateway_received_line(1, 2800, GUID_B))
         diff, count, _ = c.get_stats()[1]
         assert diff / count == 500.0  # (200 + 800) / 2
@@ -1143,7 +1148,6 @@ class TestPacketForwardingGetStats:
 # packet_forwarding_delay.delay_distribution
 # ---------------------------------------------------------------------------
 
-
 class TestDelayDistribution:
     def test_empty_returns_empty_dict(self):
         c = packet_forwarding_delay()
@@ -1152,16 +1156,16 @@ class TestDelayDistribution:
     def test_single_node_single_delivery(self):
         c = packet_forwarding_delay()
         c.build_dict(node_enqueue_line(1, 1000, GUID_A))
-        c.build_dict(gateway_received_line(1, 1500, GUID_A))  # delay = 500
+        c.build_dict(gateway_received_line(1, 1500, GUID_A))   # delay = 500
         assert c.delay_distribution() == {500: 1}
 
     def test_single_node_two_deliveries_averages_correctly(self):
         # diff = 200 + 800 = 1000, count = 2 → avg = 500
         c = packet_forwarding_delay()
         c.build_dict(node_enqueue_line(1, 1000, GUID_A))
-        c.build_dict(gateway_received_line(1, 1200, GUID_A))  # delay 200
+        c.build_dict(gateway_received_line(1, 1200, GUID_A))   # delay 200
         c.build_dict(node_enqueue_line(1, 2000, GUID_B))
-        c.build_dict(gateway_received_line(1, 2800, GUID_B))  # delay 800
+        c.build_dict(gateway_received_line(1, 2800, GUID_B))   # delay 800
         assert c.delay_distribution() == {500: 1}
 
     def test_two_nodes_same_avg_merged(self):
@@ -1176,15 +1180,15 @@ class TestDelayDistribution:
     def test_two_nodes_different_avg_not_merged(self):
         c = packet_forwarding_delay()
         c.build_dict(node_enqueue_line(1, 1000, GUID_A))
-        c.build_dict(gateway_received_line(1, 1100, GUID_A))  # node 1: delay 100
+        c.build_dict(gateway_received_line(1, 1100, GUID_A))   # node 1: delay 100
         c.build_dict(node_enqueue_line(2, 2000, GUID_C))
-        c.build_dict(gateway_received_line(2, 2900, GUID_C))  # node 2: delay 900
+        c.build_dict(gateway_received_line(2, 2900, GUID_C))   # node 2: delay 900
         assert c.delay_distribution() == {100: 1, 900: 1}
 
     def test_lost_only_node_excluded(self):
         """A node with no delivered packets must not appear in the distribution."""
         c = packet_forwarding_delay()
-        c.build_dict(node_enqueue_line(1, 1000, GUID_E))  # never delivered
+        c.build_dict(node_enqueue_line(1, 1000, GUID_E))       # never delivered
         c.finalize()
         assert c.delay_distribution() == {}
 
@@ -1192,7 +1196,7 @@ class TestDelayDistribution:
         # diff = 1, count = 3 → avg ≈ 0.333 → rounds to 0
         c = packet_forwarding_delay()
         c.build_dict(node_enqueue_line(1, 1000, GUID_A))
-        c.build_dict(gateway_received_line(1, 1001, GUID_A))  # delay 1
+        c.build_dict(gateway_received_line(1, 1001, GUID_A))   # delay 1
         # Use two more GUIDs with delay 0 (same tick enqueue and receive)
         # diff=1, count=1 → avg=1 rounded to 1
         assert c.delay_distribution() == {1: 1}
@@ -1204,59 +1208,15 @@ class TestDelayDistribution:
         assert c.delay_distribution() == c.delay_distribution()
 
 
-# ---------------------------------------------------------------------------
-# packet_forwarding_delay._binned_delay_distribution
-# ---------------------------------------------------------------------------
-
-
-class TestBinnedDelayDistribution:
-    def _counter_with_delays(self, delays):
-        """Build a packet_forwarding_delay with given per-node avg delays pre-loaded."""
-        c = packet_forwarding_delay()
-        c._finalized = True  # skip finalize side-effects
-        for node_id, delay in enumerate(delays):
-            c._stats[node_id] = [delay, 1, 0]  # [diff==delay, successful=1, lost=0]
-        return c
-
-    def test_ten_or_fewer_bins_returned_unchanged(self):
-        delays = list(range(100, 1100, 100))  # exactly 10 distinct values
-        c = self._counter_with_delays(delays)
-        assert len(c._binned_delay_distribution()) == 10
-
-    def test_more_than_ten_bins_merged_to_at_most_ten(self):
-        delays = list(range(100, 1200, 100))  # 11 distinct values
-        c = self._counter_with_delays(delays)
-        assert len(c._binned_delay_distribution()) <= 10
-
-    def test_total_node_count_preserved_after_merging(self):
-        delays = list(range(100, 1200, 100))  # 11 nodes
-        c = self._counter_with_delays(delays)
-        binned = c._binned_delay_distribution()
-        assert sum(binned.values()) == 11
-
-    def test_bin_keys_are_integers(self):
-        delays = list(range(50, 1250, 50))  # 24 distinct values
-        c = self._counter_with_delays(delays)
-        binned = c._binned_delay_distribution()
-        assert all(isinstance(k, int) for k in binned)
-
-    def test_empty_distribution_returns_empty_dict(self):
-        c = packet_forwarding_delay()
-        assert c._binned_delay_distribution() == {}
-
-    def test_single_value_returns_single_bin(self):
-        c = self._counter_with_delays([500])
-        assert c._binned_delay_distribution() == {500: 1}
 
 
 # ---------------------------------------------------------------------------
 # packet_forwarding_delay.plot
 # ---------------------------------------------------------------------------
 
-
 class TestPacketForwardingPlot:
     def teardown_method(self):
-        plt.close("all")
+        plt.close('all')
 
     def test_plot_count_is_two(self):
         assert packet_forwarding_delay.plot_count == 2
@@ -1322,9 +1282,9 @@ class TestPacketForwardingPlot:
         """Two nodes with the same avg delay → one bar with height 2."""
         c = packet_forwarding_delay()
         c.build_dict(node_enqueue_line(1, 1000, GUID_A))
-        c.build_dict(gateway_received_line(1, 1500, GUID_A))  # delay 500
+        c.build_dict(gateway_received_line(1, 1500, GUID_A))   # delay 500
         c.build_dict(node_enqueue_line(2, 2000, GUID_C))
-        c.build_dict(gateway_received_line(2, 2500, GUID_C))  # delay 500
+        c.build_dict(gateway_received_line(2, 2500, GUID_C))   # delay 500
         fig, axes = plt.subplots(1, 2)
         c.plot(list(axes))
         heights = [p.get_height() for p in axes[0].patches]
@@ -1348,15 +1308,55 @@ class TestPacketForwardingPlot:
         visible = [t for t in axes[0].get_yticks() if ymin <= t <= ymax]
         assert all(float(t).is_integer() for t in visible)
 
-    def test_delay_plot_at_most_ten_bars(self):
-        """More than 10 distinct avg delays must be merged to ≤10 bars."""
+    def test_delay_plot_shows_all_distinct_values(self):
+        """All distinct avg delays must each produce their own bar — no merging cap."""
         c = packet_forwarding_delay()
         c._finalized = True
         for node_id in range(15):
             c._stats[node_id] = [(node_id + 1) * 100, 1, 0]  # 15 distinct delays
         fig, axes = plt.subplots(1, 2)
         c.plot(list(axes))
-        assert len(axes[0].patches) <= 10
+        assert len(axes[0].patches) == 15
+
+    def test_delay_bar_width_is_0_4(self):
+        """Delay histogram bars must be 0.4 units wide."""
+        c = packet_forwarding_delay()
+        c.build_dict(node_enqueue_line(1, 1000, GUID_A))
+        c.build_dict(gateway_received_line(1, 1500, GUID_A))
+        fig, axes = plt.subplots(1, 2)
+        c.plot(list(axes))
+        assert all(p.get_width() == pytest.approx(0.4) for p in axes[0].patches)
+
+    def test_loss_bar_width_is_0_4(self):
+        """Loss histogram bars must be 0.4 units wide."""
+        c = packet_forwarding_delay()
+        c.build_dict(node_enqueue_line(1, 1000, GUID_A))   # never delivered → lost
+        fig, axes = plt.subplots(1, 2)
+        c.plot(list(axes))
+        assert all(p.get_width() == pytest.approx(0.4) for p in axes[1].patches)
+
+    def test_loss_bar_centered_on_integer_value(self):
+        """Lost-packet counts are integers — the bar must be centered exactly on that
+        integer, not on a floating-point bin centre produced by np.histogram."""
+        c = packet_forwarding_delay()
+        c.build_dict(node_enqueue_line(1, 1000, GUID_A))   # node 1 → 1 lost packet
+        fig, axes = plt.subplots(1, 2)
+        c.plot(list(axes))
+        visible = [p for p in axes[1].patches if p.get_height() > 0]
+        assert len(visible) == 1, f"Expected 1 bar, got {len(visible)}"
+        center = visible[0].get_x() + visible[0].get_width() / 2
+        assert center == pytest.approx(1.0), f"Bar center should be 1.0, got {center}"
+
+    def test_loss_histogram_one_bar_per_distinct_count(self):
+        """Two nodes with different lost-packet counts must produce exactly two bars."""
+        c = packet_forwarding_delay()
+        c.build_dict(node_enqueue_line(1, 1000, GUID_A))           # node 1: 1 lost
+        c.build_dict(node_enqueue_line(2, 2000, GUID_B))
+        c.build_dict(node_enqueue_line(2, 2001, GUID_C))           # node 2: 2 lost
+        fig, axes = plt.subplots(1, 2)
+        c.plot(list(axes))
+        visible = [p for p in axes[1].patches if p.get_height() > 0]
+        assert len(visible) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -1371,15 +1371,15 @@ class TestPacketForwardingPlot:
 # ---------------------------------------------------------------------------
 
 DELAY_EXPECTED_SUCCESSFUL_NODES = list(range(200, 210)) + [211, 213]
-DELAY_EXPECTED_DIFF_PER_NODE = 10_000  # 10 packets × 1000 ticks each (nodes 200-209)
-DELAY_EXPECTED_AVG_DELAY = 1000.0  # diff / count for nodes 200-209
-DELAY_EXPECTED_LOST_NODE = 210
-DELAY_EXPECTED_LOST_COUNT = 5
-DELAY_EXPECTED_ORPHAN_COUNT = 3
-DELAY_EXPECTED_DUP_ENQUEUE_NODE = 211  # winner of the duplicate enqueue
-DELAY_EXPECTED_DUP_ENQUEUE_DIFF = 100  # 5300 - 5200
-DELAY_EXPECTED_DUP_RECV_NODE = 213  # only first gateway receipt counted
-DELAY_EXPECTED_DUP_RECV_DIFF = 100  # 5500 - 5400
+DELAY_EXPECTED_DIFF_PER_NODE    = 10_000   # 10 packets × 1000 ticks each (nodes 200-209)
+DELAY_EXPECTED_AVG_DELAY        = 1000.0   # diff / count for nodes 200-209
+DELAY_EXPECTED_LOST_NODE        = 210
+DELAY_EXPECTED_LOST_COUNT       = 5
+DELAY_EXPECTED_ORPHAN_COUNT     = 3
+DELAY_EXPECTED_DUP_ENQUEUE_NODE = 211      # winner of the duplicate enqueue
+DELAY_EXPECTED_DUP_ENQUEUE_DIFF = 100      # 5300 - 5200
+DELAY_EXPECTED_DUP_RECV_NODE    = 213      # only first gateway receipt counted
+DELAY_EXPECTED_DUP_RECV_DIFF    = 100      # 5500 - 5400
 
 
 @pytest.fixture
@@ -1449,14 +1449,13 @@ class TestPacketForwardingFullLog:
     def test_duplicate_gateway_recv_not_an_orphan(self, delay_full_counter):
         """The duplicate gateway receipt of dddddddd... must NOT count as an orphan."""
         from uuid import UUID
-
         dup_guid = UUID("dddddddd-0000-4000-8000-000000000001")
         assert dup_guid not in delay_full_counter._orphan_uuids
 
 
 class TestPostProcessMultiPlot:
     def teardown_method(self):
-        plt.close("all")
+        plt.close('all')
 
     def test_battery_analyser_opens_own_figure_with_two_axes(self):
         """battery_capacity_analyser (plot_count=2) → 1 figure, 2 axes."""
@@ -1481,7 +1480,6 @@ class TestPostProcessMultiPlot:
 # Tier 1: precompiled regex patterns
 # ---------------------------------------------------------------------------
 
-
 class TestPrecompiledPatterns:
     """All analysers must store compiled re.Pattern objects as class attributes.
 
@@ -1491,32 +1489,26 @@ class TestPrecompiledPatterns:
 
     def test_deadnodecounter_has_compiled_pattern(self):
         import re
-
         assert isinstance(deadnodecounter._PATTERN, re.Pattern)
 
     def test_sync_attempt_pattern_is_compiled(self):
         import re
-
         assert isinstance(sync_interval_counter._ATTEMPT_PATTERN, re.Pattern)
 
     def test_sync_synced_pattern_is_compiled(self):
         import re
-
         assert isinstance(sync_interval_counter._SYNCED_PATTERN, re.Pattern)
 
     def test_battery_wake_pattern_is_compiled(self):
         import re
-
         assert isinstance(battery_capacity_analyser._WAKE_PATTERN, re.Pattern)
 
     def test_battery_sleep_pattern_is_compiled(self):
         import re
-
         assert isinstance(battery_capacity_analyser._SLEEP_PATTERN, re.Pattern)
 
     def test_battery_death_pattern_is_compiled(self):
         import re
-
         assert isinstance(battery_capacity_analyser._DEATH_PATTERN, re.Pattern)
 
 
@@ -1524,64 +1516,62 @@ class TestPrecompiledPatterns:
 # Tier 3: extract_area helper
 # ---------------------------------------------------------------------------
 
-
 class TestExtractArea:
     """extract_area must parse the (AREA) tag from the standard log line format."""
 
     def test_extracts_node_area(self):
-        assert extract_area_fast("[CRITICAL] (NODE) @ 100: Node 1 DIED, ") == "NODE"
+        assert extract_area('[CRITICAL] (NODE) @ 100: Node 1 DIED, ') == 'NODE'
 
     def test_extracts_protocol_area(self):
-        assert extract_area_fast("[INFO] (PROTOCOL) @ 50: Node 1 attempts gateway connect via WAN, ") == "PROTOCOL"
+        assert extract_area('[INFO] (PROTOCOL) @ 50: Node 1 attempts gateway connect via WAN, ') == 'PROTOCOL'
 
     def test_extracts_gateway_area(self):
-        assert extract_area_fast("[DEBUG] (GATEWAY) @ 200: Gateway 0 received data:x, ") == "GATEWAY"
+        assert extract_area('[DEBUG] (GATEWAY) @ 200: Gateway 0 received data:x, ') == 'GATEWAY'
 
     def test_extracts_battery_area(self):
-        assert extract_area_fast("[INFO] (BATTERY) @ 30: some event, ") == "BATTERY"
+        assert extract_area('[INFO] (BATTERY) @ 30: some event, ') == 'BATTERY'
 
     def test_no_parentheses_returns_none(self):
-        assert extract_area_fast("no area tag here") is None
+        assert extract_area('no area tag here') is None
 
     def test_empty_string_returns_none(self):
-        assert extract_area_fast("") is None
+        assert extract_area('') is None
 
     def test_opening_paren_only_returns_none(self):
         """A line with '(' but no matching ')' must not raise — return None."""
-        assert extract_area_fast("[INFO] (NODE without close") is None
+        assert extract_area('[INFO] (NODE without close') is None
 
 
 # ---------------------------------------------------------------------------
 # Tier 3: AREAS attribute on each analyser
 # ---------------------------------------------------------------------------
 
-
 class TestAnalyserAreas:
     """Each analyser must declare which log areas it cares about via AREAS."""
 
     def test_deadnodecounter_areas_contains_node(self):
-        assert "NODE" in deadnodecounter.AREAS
+        assert 'NODE' in deadnodecounter.AREAS
 
     def test_deadnodecounter_areas_is_frozenset(self):
         assert isinstance(deadnodecounter.AREAS, frozenset)
 
     def test_sync_interval_counter_areas_contains_protocol(self):
-        assert "PROTOCOL" in sync_interval_counter.AREAS
+        assert 'PROTOCOL' in sync_interval_counter.AREAS
 
     def test_sync_interval_counter_areas_is_frozenset(self):
         assert isinstance(sync_interval_counter.AREAS, frozenset)
 
     def test_battery_capacity_analyser_areas_contains_node(self):
-        assert "NODE" in battery_capacity_analyser.AREAS
+        assert 'NODE' in battery_capacity_analyser.AREAS
 
     def test_battery_capacity_analyser_areas_is_frozenset(self):
         assert isinstance(battery_capacity_analyser.AREAS, frozenset)
 
     def test_packet_forwarding_delay_areas_contains_protocol(self):
-        assert "PROTOCOL" in packet_forwarding_delay.AREAS
+        assert 'PROTOCOL' in packet_forwarding_delay.AREAS
 
     def test_packet_forwarding_delay_areas_contains_gateway(self):
-        assert "GATEWAY" in packet_forwarding_delay.AREAS
+        assert 'GATEWAY' in packet_forwarding_delay.AREAS
 
     def test_packet_forwarding_delay_areas_is_frozenset(self):
         assert isinstance(packet_forwarding_delay.AREAS, frozenset)
@@ -1591,13 +1581,11 @@ class TestAnalyserAreas:
 # Tier 3: area-based dispatch in execute()
 # ---------------------------------------------------------------------------
 
-
 class TestAreaDispatch:
     """execute() must only call build_dict on analysers whose AREAS match the line."""
 
     class _MockAnalyser:
         """Minimal analyser with an AREAS declaration and a call counter."""
-
         def __init__(self, areas):
             self.AREAS = frozenset(areas)
             self.calls = 0
@@ -1607,7 +1595,6 @@ class TestAreaDispatch:
 
     class _UnboundAnalyser:
         """Analyser with no AREAS attribute — must receive every line."""
-
         def __init__(self):
             self.calls = 0
 
@@ -1616,31 +1603,31 @@ class TestAreaDispatch:
 
     def test_matching_area_calls_build_dict(self):
         a = self._MockAnalyser({"NODE"})
-        execute([a], "[CRITICAL] (NODE) @ 100: Node 1 DIED, ")
+        execute([a], '[CRITICAL] (NODE) @ 100: Node 1 DIED, ')
         assert a.calls == 1
 
     def test_non_matching_area_skips_build_dict(self):
         a = self._MockAnalyser({"NODE"})
-        execute([a], "[INFO] (PROTOCOL) @ 100: some protocol event, ")
+        execute([a], '[INFO] (PROTOCOL) @ 100: some protocol event, ')
         assert a.calls == 0
 
     def test_analyser_without_areas_receives_all_lines(self):
         """Backwards-compatible: analysers with no AREAS get every line."""
         a = self._UnboundAnalyser()
-        execute([a], "[INFO] (PROTOCOL) @ 100: some event, ")
+        execute([a], '[INFO] (PROTOCOL) @ 100: some event, ')
         assert a.calls == 1
 
     def test_multiple_analysers_only_matching_ones_called(self):
         node_a = self._MockAnalyser({"NODE"})
         proto_a = self._MockAnalyser({"PROTOCOL"})
-        execute([node_a, proto_a], "[CRITICAL] (NODE) @ 100: Node 1 DIED, ")
+        execute([node_a, proto_a], '[CRITICAL] (NODE) @ 100: Node 1 DIED, ')
         assert node_a.calls == 1
         assert proto_a.calls == 0
 
     def test_malformed_line_skips_all_area_aware_analysers(self):
         """A line with no area tag (area=None) must not be dispatched to AREAS analysers."""
         a = self._MockAnalyser({"NODE"})
-        execute([a], "no area tag at all")
+        execute([a], 'no area tag at all')
         assert a.calls == 0
 
     def test_full_log_results_unchanged_after_area_dispatch(self, log_lines):
@@ -1654,3 +1641,357 @@ class TestAreaDispatch:
             execute([via_execute], line)
 
         assert direct.dict == via_execute.dict
+
+
+# ---------------------------------------------------------------------------
+# clock_drift_analyser helpers
+# ---------------------------------------------------------------------------
+
+def clock_drift_line(node_id, tick, drift_before, drift_after):
+    """Build a valid clock drift log line with the given parameters."""
+    return (
+        f'[INFO] (CLOCK) @ {tick}: Node id {node_id} '
+        f'clock drift before correction: {drift_before}, '
+        f'after correction: {drift_after}, '
+    )
+
+
+# Ground truth derived from the 5 clock drift lines appended to test_simulation.log.
+# Node 300 has TWO events (ticks 6000 and 6002) → averages are computed:
+#   tick 6000: node 300  before=50,   after=5
+#   tick 6001: node 301  before=-30,  after=-2
+#   tick 6002: node 300  before=20,   after=1
+#   tick 6003: node 302  before=100,  after=10
+#   tick 6004: node 303  before=-10,  after=0
+#
+# Per-node averages:
+#   node 300: avg_before=(50+20)/2=35,  avg_after=(5+1)/2=3,  avg_correction=32
+#   node 301: avg_before=-30,           avg_after=-2,          avg_correction=-28
+#   node 302: avg_before=100,           avg_after=10,          avg_correction=90
+#   node 303: avg_before=-10,           avg_after=0,           avg_correction=-10
+CLOCK_NODE_COUNT = 4
+CLOCK_NODE_300_AVGS = [35.0, 3.0, 32.0]    # [avg_before, avg_after, avg_correction]
+CLOCK_NODE_301_AVGS = [-30.0, -2.0, -28.0]
+CLOCK_NODE_302_AVGS = [100.0, 10.0, 90.0]
+CLOCK_NODE_303_AVGS = [-10.0, 0.0, -10.0]
+
+
+@pytest.fixture
+def drift_full_counter(log_lines):
+    """clock_drift_analyser populated with every line from the log file."""
+    c = clock_drift_analyser()
+    for line in log_lines:
+        c.build_dict(line)
+    return c
+
+
+# ---------------------------------------------------------------------------
+# clock_drift_analyser.build_dict
+# ---------------------------------------------------------------------------
+
+class TestClockDriftBuildDict:
+    def test_valid_line_initialises_node_entry(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        assert 1 in c._node_stats
+
+    def test_valid_line_accumulates_sum_before(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        assert c._node_stats[1][0] == 50.0
+
+    def test_valid_line_accumulates_sum_after(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        assert c._node_stats[1][1] == 5.0
+
+    def test_valid_line_increments_event_count(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        assert c._node_stats[1][2] == 1
+
+    def test_second_event_same_node_accumulates_sums(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        c.build_dict(clock_drift_line(1, 2000, 20, 1))
+        assert c._node_stats[1][0] == 70.0   # 50 + 20
+        assert c._node_stats[1][1] == 6.0    # 5 + 1
+        assert c._node_stats[1][2] == 2
+
+    def test_multiple_nodes_tracked_separately(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        c.build_dict(clock_drift_line(2, 2000, -30, -2))
+        assert 1 in c._node_stats
+        assert 2 in c._node_stats
+
+    def test_non_info_level_ignored(self):
+        c = clock_drift_analyser()
+        c.build_dict('[DEBUG] (CLOCK) @ 1000: Node id 1 clock drift before correction: 50, after correction: 5, ')
+        assert c._node_stats == {}
+
+    def test_non_clock_area_ignored(self):
+        c = clock_drift_analyser()
+        c.build_dict('[INFO] (NODE) @ 1000: Node id 1 clock drift before correction: 50, after correction: 5, ')
+        assert c._node_stats == {}
+
+    def test_non_matching_clock_line_ignored(self):
+        c = clock_drift_analyser()
+        c.build_dict('[INFO] (CLOCK) @ 1000: Node id 1 some other event, ')
+        assert c._node_stats == {}
+
+    def test_negative_drift_before_accumulated(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, -30, -2))
+        assert c._node_stats[1][0] == -30.0
+
+    def test_float_tick_not_matched(self):
+        """Tick must be an integer — float ticks are a simulator bug and must be rejected."""
+        c = clock_drift_analyser()
+        c.build_dict('[INFO] (CLOCK) @ 1000.5: Node id 1 clock drift before correction: 50, after correction: 5, ')
+        assert c._node_stats == {}
+
+
+# ---------------------------------------------------------------------------
+# clock_drift_analyser.get_node_averages
+# ---------------------------------------------------------------------------
+
+class TestClockDriftGetNodeAverages:
+    def test_empty_returns_empty_dict(self):
+        c = clock_drift_analyser()
+        assert c.get_node_averages() == {}
+
+    def test_single_event_correct_averages(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        avgs = c.get_node_averages()
+        assert avgs[1] == [50.0, 5.0, 45.0]
+
+    def test_two_events_same_node_averages_correctly(self):
+        """avg_before = (50+20)/2 = 35, avg_after = (5+1)/2 = 3, correction = 32."""
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        c.build_dict(clock_drift_line(1, 2000, 20, 1))
+        avgs = c.get_node_averages()
+        assert avgs[1] == [35.0, 3.0, 32.0]
+
+    def test_correction_equals_avg_before_minus_avg_after(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 20, 3))
+        avgs = c.get_node_averages()
+        avg_before, avg_after, avg_corr = avgs[1]
+        assert avg_corr == avg_before - avg_after
+
+    def test_negative_correction_when_after_exceeds_before(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 5, 10))
+        avgs = c.get_node_averages()
+        assert avgs[1][2] == -5.0
+
+    def test_multiple_nodes_each_entry_independent(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        c.build_dict(clock_drift_line(2, 2000, -30, -2))
+        avgs = c.get_node_averages()
+        assert avgs[1] == [50.0, 5.0, 45.0]
+        assert avgs[2] == [-30.0, -2.0, -28.0]
+
+    def test_repeated_calls_return_equal_dicts(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        assert c.get_node_averages() == c.get_node_averages()
+
+    def test_returned_dict_is_copy_not_internal_state(self):
+        """Mutating the returned dict must not affect _node_stats."""
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        avgs = c.get_node_averages()
+        avgs.clear()
+        assert c._node_stats != {}
+
+
+# ---------------------------------------------------------------------------
+# clock_drift_analyser.plot
+# ---------------------------------------------------------------------------
+
+class TestClockDriftPlot:
+    def teardown_method(self):
+        plt.close('all')
+
+    def test_plot_count_is_three(self):
+        assert clock_drift_analyser.plot_count == 3
+
+    def test_separate_windows_is_true(self):
+        assert clock_drift_analyser.separate_windows is True
+
+    def test_returns_list_of_three_axes(self):
+        c = clock_drift_analyser()
+        fig, axes = plt.subplots(1, 3)
+        result = c.plot(list(axes))
+        assert len(result) == 3
+
+    def test_uses_provided_axes(self):
+        c = clock_drift_analyser()
+        fig, axes = plt.subplots(1, 3)
+        result = c.plot(list(axes))
+        assert result[0] is axes[0]
+        assert result[1] is axes[1]
+        assert result[2] is axes[2]
+
+    def test_creates_three_separate_figures_when_axes_is_none(self):
+        """plot() with no axes must open 3 independent figure windows."""
+        c = clock_drift_analyser()
+        before = set(plt.get_fignums())
+        c.plot()
+        assert len(set(plt.get_fignums()) - before) == 3
+
+    def test_empty_plot_does_not_raise(self):
+        c = clock_drift_analyser()
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))  # must not raise
+
+    def test_empty_plot_shows_no_data_message_on_all_three_axes(self):
+        c = clock_drift_analyser()
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))
+        for ax in axes:
+            texts = [t.get_text() for t in ax.texts]
+            assert any("No clock drift" in t for t in texts)
+
+    def test_before_histogram_x_axis_label(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))
+        assert "before correction" in axes[0].get_xlabel()
+
+    def test_after_histogram_x_axis_label(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))
+        assert "after correction" in axes[1].get_xlabel()
+
+    def test_correction_histogram_title(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))
+        assert "Correction" in axes[2].get_title()
+
+    def test_y_axis_label_is_node_count_on_all_three_axes(self):
+        """y-axis is count of nodes, not raw event count."""
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))
+        for ax in axes:
+            assert ax.get_ylabel() == "Node count"
+
+    def test_plot_with_data_does_not_raise(self):
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        c.build_dict(clock_drift_line(2, 2000, -30, -2))
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))  # must not raise
+
+    def test_all_zero_values_show_single_bar_at_zero(self):
+        """When all node averages are zero, the x-axis tick must be exactly [0].
+        ax.hist with bins='auto' produces a phantom [-0.5, 0.5] bin — this test
+        guards against that regression."""
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 0, 0))
+        c.build_dict(clock_drift_line(2, 2000, 0, 0))
+        c.build_dict(clock_drift_line(3, 3000, 0, 0))
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))
+        for ax in axes:
+            assert list(ax.get_xticks()) == [0], (
+                f"Expected xticks [0], got {list(ax.get_xticks())}"
+            )
+
+    def test_non_degenerate_bar_width_is_0_4(self):
+        """When nodes have distinct drift averages, all bars must still have width 0.4."""
+        c = clock_drift_analyser()
+        c.build_dict(clock_drift_line(1, 1000, 50, 5))
+        c.build_dict(clock_drift_line(2, 2000, 20, 2))
+        fig, axes = plt.subplots(1, 3)
+        c.plot(list(axes))
+        for ax in axes:
+            assert all(p.get_width() == pytest.approx(0.4) for p in ax.patches)
+
+
+# ---------------------------------------------------------------------------
+# clock_drift_analyser — full log integration
+# ---------------------------------------------------------------------------
+
+class TestClockDriftFullLog:
+    def test_correct_node_count(self, drift_full_counter):
+        """4 unique nodes appear in the 5 drift events."""
+        avgs = drift_full_counter.get_node_averages()
+        assert len(avgs) == CLOCK_NODE_COUNT
+
+    def test_node_300_averages(self, drift_full_counter):
+        """Node 300 has two events — averages must be computed across both."""
+        avgs = drift_full_counter.get_node_averages()
+        assert avgs[300] == CLOCK_NODE_300_AVGS
+
+    def test_node_301_averages(self, drift_full_counter):
+        avgs = drift_full_counter.get_node_averages()
+        assert avgs[301] == CLOCK_NODE_301_AVGS
+
+    def test_node_302_averages(self, drift_full_counter):
+        avgs = drift_full_counter.get_node_averages()
+        assert avgs[302] == CLOCK_NODE_302_AVGS
+
+    def test_node_303_averages(self, drift_full_counter):
+        avgs = drift_full_counter.get_node_averages()
+        assert avgs[303] == CLOCK_NODE_303_AVGS
+
+
+# ---------------------------------------------------------------------------
+# post_process_and_plot — separate_windows support
+# ---------------------------------------------------------------------------
+
+class TestPostProcessSeparateWindows:
+    def teardown_method(self):
+        plt.close('all')
+
+    def test_separate_windows_analyser_produces_n_separate_figures(self):
+        """clock_drift_analyser (separate_windows=True, plot_count=3) → 3 figures."""
+        c = clock_drift_analyser()
+        post_process_and_plot([c])
+        assert len(plt.get_fignums()) == 3
+
+    def test_mixed_produces_correct_figure_count(self):
+        """deadnodecounter (1 fig) + clock_drift_analyser (3 figs) → 4 total."""
+        c1 = deadnodecounter()
+        c1.build_dict(death(1, 100))
+        c2 = clock_drift_analyser()
+        c2.build_dict(clock_drift_line(1, 1000, 50, 5))
+        post_process_and_plot([c1, c2])
+        assert len(plt.get_fignums()) == 4
+
+
+# ---------------------------------------------------------------------------
+# Tier 3: AREAS attribute — clock_drift_analyser
+# ---------------------------------------------------------------------------
+
+class TestClockDriftAreas:
+    def test_areas_contains_clock(self):
+        assert 'CLOCK' in clock_drift_analyser.AREAS
+
+    def test_areas_is_frozenset(self):
+        assert isinstance(clock_drift_analyser.AREAS, frozenset)
+
+
+# ---------------------------------------------------------------------------
+# Tier 1: precompiled regex — clock_drift_analyser
+# ---------------------------------------------------------------------------
+
+class TestClockDriftPattern:
+    def test_pattern_is_compiled(self):
+        import re
+        assert isinstance(clock_drift_analyser._PATTERN, re.Pattern)
+
+
