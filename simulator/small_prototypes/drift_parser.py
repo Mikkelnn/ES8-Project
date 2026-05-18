@@ -6,11 +6,12 @@ from collections import defaultdict
 # [INFO] (CLOCK) @ 3423771: Node 3 clock drift before correction: 225, after correction: 215,
 
 # log_file = "results/18_05_2026_09_23/simulation.log"
-log_file = "results/18_05_2026_14_04/simulation.log"
+# log_file = "results\\18_05_2026_15_55\\simulation.log"
+log_file = "results\\18_05_2026_19_15\\simulation.log"
 
 # Regex that supports negative values
 pattern = re.compile(
-    r'@\s*(\d+):\s*Node\s+(\d+)\s+clock drift before correction:\s*(-?\d+),\s*after correction:\s*(-?\d+)'
+    r'@\s*(\d+):\s*Node\s+(\d+)\s+clock drift before correction:\s*(-?\d+),\s*after correction:\s*(-?\d+),\s*after with trend estimate:\s*(-?\d+)'
 )
 
 # Store data per node
@@ -18,7 +19,8 @@ node_data = defaultdict(lambda: {
     "time": [],
     "before": [],
     "after": [],
-    "diff": []
+    "diff": [],
+    "trend": []
 })
 
 with open(log_file, "r") as f:
@@ -29,14 +31,16 @@ with open(log_file, "r") as f:
             node_id = int(match.group(2))
             before = int(match.group(3))
             after = int(match.group(4))
+            trend = int(match.group(5))
 
             node_data[node_id]["time"].append(true_time)
             node_data[node_id]["before"].append(before)
             node_data[node_id]["after"].append(after)
             node_data[node_id]["diff"].append(before - after)
+            node_data[node_id]["trend"].append(trend)
 
 # Plot
-fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
+fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
 
 # Use consistent colors for each node
 colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
@@ -64,6 +68,16 @@ for idx, (node_id, data) in enumerate(sorted(node_data.items())):
         label=f'Node {node_id}'
     )
 
+    # -------- TREND --------
+    axes[2].plot(
+        data["time"],
+        data["trend"],
+        linestyle='--',
+        marker='x',
+        color=color,
+        label=f'Node {node_id}'
+    )
+
 # Formatting
 for ax in axes:
     ax.axhline(0, color='black', linewidth=1)
@@ -73,7 +87,8 @@ for ax in axes:
 
 axes[0].set_title("Correction")
 axes[1].set_title("After Correction")
-axes[1].set_xlabel("True Time")
+axes[2].set_title("With trend adjust")
+axes[-1].set_xlabel("True Time")
 
 plt.tight_layout()
 plt.show()

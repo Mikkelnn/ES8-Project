@@ -55,20 +55,21 @@ class Clock(IModule):
         # Check for external time sync (MegaSync)
         sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
         if sync_events:
-            drift_before_correction = (self.localtime * self.linear_drift_correction_factor) - current_global_tick
+            drift_before_correction = self.localtime - current_global_tick
 
             correction = int(sync_events[0].data)
 
             # detect if megasync -> estimate linear drift
             if abs(correction) > 1000:
                 dt = self.localtime - self.last_megaSync_local_time                
-                observed_drift = correction / dt
-                alpha = 0.1  # tune 0.01-0.3
+                observed_drift = 1 + (correction / dt)
+                alpha = 0.9  # tune 0.01-0.3
 
                 self.linear_drift_correction_factor = (
                     (1 - alpha) * self.linear_drift_correction_factor
                     + alpha * observed_drift
                 )
+                # print(f"Node {self.node_id} d_factor: {self.linear_drift_correction_factor}")
 
                 self.last_megaSync_local_time = self.localtime + correction
 
@@ -81,7 +82,8 @@ class Clock(IModule):
             if self.timer_2_end_local_time is not None:
                 self.timer_2_end_local_time += correction
 
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {(self.localtime * self.linear_drift_correction_factor) - current_global_tick}")
+            with_linear_correction = self.last_megaSync_local_time + ((self.localtime - self.last_megaSync_local_time) * self.linear_drift_correction_factor)
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtime - current_global_tick}, after with trend estimate: {with_linear_correction - current_global_tick}")
 
         # calculate next clock skew
         self.alpha = self.ar_constant * self.alpha + self.random_vector[0]
@@ -95,15 +97,16 @@ class Clock(IModule):
         for set_timer in set_timers:
             timer_type = set_timer.sub_type
             timer_duration = set_timer.data
+            timer_local_end = self.localtime + timer_duration - 1 # "-1" account for the 1-tick delay from request
             match timer_type:
                 case LocalEventSubTypes.TIMER_1:
-                    self.timer_1_end_local_time = self.localtime + ((timer_duration - 1) * self.linear_drift_correction_factor)  # account for the 1tick delay from request
+                    self.timer_1_end_local_time = timer_local_end
                 case LocalEventSubTypes.TIMER_2:
-                    self.timer_2_end_local_time = self.localtime + ((timer_duration - 1) * self.linear_drift_correction_factor)
+                    self.timer_2_end_local_time = timer_local_end
 
         # Puplish tick event to local event bus
         local_clock_info = LocalClockInfo(
-            current_local_time=self.localtime * self.linear_drift_correction_factor,
+            current_local_time=self.localtime,
             timer_1_remaining=max(0, self.timer_1_end_local_time - self.localtime) if self.timer_1_end_local_time is not None else None, 
             timer_2_remaining=max(0, self.timer_2_end_local_time - self.localtime) if self.timer_2_end_local_time is not None else None
         )
@@ -111,9 +114,9 @@ class Clock(IModule):
 
         sleep_request = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP_FOR)
         if len(sleep_request) > 0:
-            sleep_milliseconds = sleep_request[0].data * self.linear_drift_correction_factor
+            sleep_milliseconds = sleep_request[0].data
             # We subtract 2 ticks to ensure we wake up a bit before the sleep time, this is to account for delays in the processing of events.
-            self.sleep_until_local_time = self.localtime + sleep_milliseconds - 2  # static 2 as 1 tick corresponds to 1 ms
+            self.sleep_until_local_time = self.localtime + (sleep_milliseconds - 2)  # static 2 as 1 tick corresponds to 1 ms
             self.local_event_queue.add_event_to_current_tick(LocalEventTypes.NODE_SLEEP, None)
             # stop timers before sleeping
             self.timer_1_end_local_time = None
