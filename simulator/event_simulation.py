@@ -11,6 +11,11 @@ from pathlib import Path
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
+# Set matplotlib backend before importing pyplot
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
 from logger.simple_logger import SimpleLogger
 from medium.medium_service import MediumService
 from node.node import Node
@@ -171,5 +176,88 @@ def write_csv_results(output_file: Path, events: list, trend: float) -> None:
     print(f"Wrote {len(events)} events to CSV")
 
 
+def plot_results(csv_file: Path) -> None:
+    """
+    Plot local time vs global time from the simulation results.
+    
+    Args:
+        csv_file: Path to the CSV results file
+    """
+    if not csv_file.exists():
+        print(f"CSV file not found: {csv_file}")
+        return
+    
+    # Read the CSV file
+    events = []
+    trend = None
+    
+    with open(csv_file, 'r') as f:
+        # Read header to extract trend
+        header = f.readline().strip()
+        if header.startswith("# Simulation Results"):
+            # Extract trend value from header
+            parts = header.split("Initial Trend: ")
+            if len(parts) > 1:
+                trend = parts[1]
+        
+        # Read CSV data
+        reader = csv.DictReader(f)
+        for row in reader:
+            events.append({
+                'event_number': int(row['event_number']),
+                'actual_local_time': int(row['actual_local_time']),
+                'actual_global_time': int(row['actual_global_time']),
+            })
+    
+    if not events:
+        print("No events to plot!")
+        return
+    
+    # Extract data for plotting
+    event_numbers = [e['event_number'] for e in events]
+    local_times = [e['actual_local_time'] for e in events]
+    global_times = [e['actual_global_time'] for e in events]
+    
+    # Calculate drift (difference between expected and actual global time)
+    drift = [local_times[i] - global_times[i] for i in range(len(events))]
+    
+    # Create figure with subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+    
+    # Plot 1: Local Time vs Global Time
+    ax1.plot(event_numbers, local_times, 'b-o', label='Local Time', markersize=4)
+    ax1.plot(event_numbers, global_times, 'r-s', label='Global Time', markersize=4)
+    ax1.set_xlabel('Event Number')
+    ax1.set_ylabel('Time (ms)')
+    ax1.set_title('Local Time vs Global Time - Clock Drift Accumulation')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Plot 2: Accumulated Drift Over Events
+    ax2.plot(event_numbers, drift, 'g-o', markersize=4)
+    ax2.set_xlabel('Event Number')
+    ax2.set_ylabel('Drift (ms)')
+    ax2.set_title(f'Accumulated Clock Drift (Trend: {trend})')
+    ax2.grid(True, alpha=0.3)
+    ax2.axhline(y=0, color='k', linestyle='--', alpha=0.3)
+    
+    # Add info text
+    final_drift = drift[-1] if drift else 0
+    ax2.text(0.98, 0.05, f'Final drift: {final_drift:.2f} ms', 
+             transform=ax2.transAxes, ha='right', va='bottom',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+    
+    plt.tight_layout()
+    
+    # Save plot
+    plot_file = csv_file.parent / "event_simulation_plot.png"
+    plt.savefig(plot_file, dpi=150, bbox_inches='tight')
+    print(f"\nPlot saved to: {plot_file}")
+
+
 if __name__ == "__main__":
-    run_simulation(num_events=50, event_interval_local=50000)
+    # run_simulation(num_events=50, event_interval_local=50000)
+    
+    # Plot the results
+    csv_file = Path(__file__).parent / "event_simulation_results.csv"
+    plot_results(csv_file)
