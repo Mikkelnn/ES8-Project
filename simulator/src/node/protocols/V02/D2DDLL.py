@@ -1,3 +1,4 @@
+from copy import deepcopy
 import statistics
 from dataclasses import dataclass
 from enum import Enum
@@ -52,6 +53,7 @@ class D2DDLL:
         self.estimated_period_start = None
         self.slot_period_counter: int = 0
         self.estimated_period_correction: int = 0
+        self.prev_estimate = 0
 
         self._known_neighbors: List[D2DNeighborInfo] = []
         self._observed_slots: dict[int, int] = {}  # nodeID -> slot, tracks all visible nodes
@@ -129,7 +131,8 @@ class D2DDLL:
     def tick(self, current_global_tick: int, current_local_clock_info: LocalClockInfo, slot_period_counter: int) -> bool:
 
         current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self._local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
-        self.estimated_period_correction = 0
+        if self._current_slot == -1:
+            self.estimated_period_correction = 0
 
         is_start_and_has_valid_TX_slot = self.link_established and self._current_slot == -1 and self._own_tx_slot < self._slot_count
         # Add REDISCOVER for DEAD Nodes -> use last_seen to determine (only one for now)
@@ -326,8 +329,9 @@ class D2DDLL:
             case LoRaD2DFrameType.DATA_FROM_GW:
                 if self._node_id in frame.destination_node_id:
                     if isinstance(frame.payload, MegaSync):
-                        frame.payload.local_rx_time = current_local_clock_info.current_local_time
-                    self._rx_buffer.append(frame)
+                        frame_copy = deepcopy(frame)
+                        frame_copy.payload.local_rx_time = current_local_clock_info.current_local_time
+                    self._rx_buffer.append(frame_copy)
 
             case LoRaD2DFrameType.REQ_HOP_ACK:
                 if self._node_id in frame.destination_node_id:
@@ -512,16 +516,18 @@ class D2DDLL:
         self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
 
     def _minisync(self) -> None:
+        # return
+
         if not self.link_established or not self._known_neighbors:
             return
         
-        if self.estimated_period_correction > 0:
+        if self.estimated_period_correction != 0:
             return  # MegaSync has happened in current period
 
         # if we are connected to a GW and only have one neighbor we should not try to correct to them
         # the problem is we would drift apart more and more, since both would correct to same amount in opposite directions
-        if len(self._known_neighbors) <= 1 and self.hopcount_to_gateway == 0:
-            return
+        # if len(self._known_neighbors) <= 1 and self.hopcount_to_gateway == 0:
+        #     return
 
         slot_offsets = []
         for n in self._known_neighbors:
@@ -546,7 +552,7 @@ class D2DDLL:
         # median -> f occasional large outliers (missed packets, delayed RX timestamps, collisions), then median is often more stable
         current_offset = statistics.median(slot_offsets)
 
-        self.estimated_period_correction = int(current_offset)
+        # self.estimated_period_correction = int(current_offset)
 
         # if we are connected to a GW and only have one neighbor we should not try to correct to them
         # we should take half the drift amount and correct in opposite direction
@@ -554,8 +560,9 @@ class D2DDLL:
         #     self.estimated_period_correction *= -0.5
 
         # lowpass with prev correction to avoid oscillation and over-correction
-        # alpha = 0.2
-        # self.estimated_period_correction = int((alpha * current_offset + (1 - alpha) * self.estimated_relative_period_offset))
+        alpha = 0.2
+        self.estimated_period_correction = int((alpha * self.prev_estimate + (1 - alpha) * current_offset))
+        self.prev_estimate = self.estimated_period_correction
 
     def _handle_megasync_packet(self, packet: MegaSync, current_local_time: int, tx_duration: int) -> None:
 
@@ -565,7 +572,8 @@ class D2DDLL:
         # calculate local time diff from synced time
         # relative correction, negative means we are ahead while positive means behind
         # fx. own_time: 102, sync_time: 100 -> 100 - 102 = -2
-        self.estimated_period_correction = current_local_time - packet.time + packet.total_handle_time
+        self.estimated_period_correction = (packet.time + packet.total_handle_time) - current_local_time
+        self._log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self._node_id} megaSync; rx time: {packet.local_rx_time} time {packet.time + packet.total_handle_time} correction: {self.estimated_period_correction}")
 
         # add tx time for nex node
         packet.total_handle_time += tx_duration + 1

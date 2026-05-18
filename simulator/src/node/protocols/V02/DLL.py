@@ -40,7 +40,7 @@ class DLL:
         self.d2d_layer.reset(current_global_tick)
         self.wan_layer.reset(current_global_tick)
         self.current_period_start_time = None
-        self.sync_buffer: list[MegaSync] = []
+        self.sync_buffer: set[int] = set() # all GPS times received
         self._last_megasync_req_local_time: int = 0
         self._megasync_req_due: bool = False
 
@@ -216,13 +216,16 @@ class DLL:
 
     def _megasync_handle(self, msg: MegaSync) -> None:
         # TODO: maybe use GUIDs for this check, if memory ref is an issue
-        for old_msg in self.sync_buffer:
-            if msg is old_msg:
-                return
+        # for old_time in self.sync_buffer:
+        #     if msg.time == old_time:
+        #         return
 
-        self.sync_buffer.append(msg)
+        if msg.time in self.sync_buffer:
+            return
+
+        self.sync_buffer.add(msg.time)
         self.d2d_layer.enqueue_payload(msg)
 
         # cap clean buffer
-        while len(self.sync_buffer) > self.retain_depth_old_megasync:
+        while len(self.sync_buffer) > self.retain_depth_old_megasync:            
             self.sync_buffer.pop(0)

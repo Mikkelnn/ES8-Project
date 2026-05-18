@@ -141,8 +141,8 @@ class WANDLL:
                     for reception in current_reception:
                         reception_data = cast(LoRaWanPHYPayload, reception.data)
                         if reception_data.mac_payload and reception_data.mac_payload.dev_addr == self.node_id:
-                            if isinstance(reception_data, MegaSync):
-                                reception_data.local_rx_time = current_local_clock_info.current_local_time
+                            if isinstance(reception_data.mac_payload.frm_payload, MegaSync):
+                                reception_data.mac_payload.frm_payload.local_rx_time = current_local_clock_info.current_local_time
 
                             self._rx_buffer.append(reception_data)
                             got_rx = True

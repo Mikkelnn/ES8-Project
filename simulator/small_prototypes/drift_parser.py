@@ -5,7 +5,8 @@ from collections import defaultdict
 # Example:
 # [INFO] (CLOCK) @ 3423771: Node 3 clock drift before correction: 225, after correction: 215,
 
-log_file = "results\\16_05_2026_17_33\\simulation.log"
+# log_file = "results/18_05_2026_09_23/simulation.log"
+log_file = "results/18_05_2026_14_04/simulation.log"
 
 # Regex that supports negative values
 pattern = re.compile(
@@ -16,7 +17,8 @@ pattern = re.compile(
 node_data = defaultdict(lambda: {
     "time": [],
     "before": [],
-    "after": []
+    "after": [],
+    "diff": []
 })
 
 with open(log_file, "r") as f:
@@ -31,37 +33,47 @@ with open(log_file, "r") as f:
             node_data[node_id]["time"].append(true_time)
             node_data[node_id]["before"].append(before)
             node_data[node_id]["after"].append(after)
+            node_data[node_id]["diff"].append(before - after)
 
 # Plot
-plt.figure(figsize=(12, 7))
+fig, axes = plt.subplots(2, 1, figsize=(12, 10), sharex=True)
 
-for node_id, data in sorted(node_data.items()):
+# Use consistent colors for each node
+colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-    # Before correction
-    # plt.plot(
-    #     data["time"],
-    #     data["before"],
-    #     linestyle='-',
-    #     marker='o',
-    #     label=f'Node {node_id} Before'
-    # )
+for idx, (node_id, data) in enumerate(sorted(node_data.items())):
+    color = colors[idx % len(colors)]
 
-    # After correction
-    plt.plot(
+    # -------- BEFORE --------
+    axes[0].plot(
+        data["time"],
+        data["diff"],
+        linestyle='-',
+        marker='o',
+        color=color,
+        label=f'Node {node_id}'
+    )
+
+    # -------- AFTER --------
+    axes[1].plot(
         data["time"],
         data["after"],
         linestyle='--',
         marker='x',
-        label=f'Node {node_id} After'
+        color=color,
+        label=f'Node {node_id}'
     )
 
-plt.axhline(0, color='black', linewidth=1)
+# Formatting
+for ax in axes:
+    ax.axhline(0, color='black', linewidth=1)
+    ax.set_ylabel("Clock Drift")
+    ax.grid(True)
+    ax.legend(ncol=2)
 
-plt.xlabel("True Time")
-plt.ylabel("Clock Drift")
-plt.title("Clock Drift Before vs After Correction")
-plt.grid(True)
-plt.legend(ncol=2)
+axes[0].set_title("Correction")
+axes[1].set_title("After Correction")
+axes[1].set_xlabel("True Time")
+
 plt.tight_layout()
-
 plt.show()
