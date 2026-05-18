@@ -46,24 +46,40 @@ class Clock(IModule):
             # if we have reached the schedule global tick, use the ccalculatyed tieme to avoid rounding error
             self.localtime = self.earliest_next_local_time
         else:
-            self.localtime = int((1 + self.alpha + self.trend) * (current_global_tick - self.global_time_last) + self.localtime) #
+            delta = (1 + self.alpha + self.trend) * (current_global_tick - self.global_time_last)
+            if delta > 2:
+                delta *= self.linear_drift_correction_factor
+            self.localtime = int(delta + self.localtime) #
 
         self.global_time_last = current_global_tick
 
         # print(f"{self.node_id}: global time: {current_global_tick}, local time: {self.localtime}")
 
         # Check for external time sync (MegaSync)
-        sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
-        if sync_events:
+        mega_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MEGA_SYNC)
+        mini_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MINI_SYNC)        
+        if mini_sync_events or mega_sync_events:
             drift_before_correction = self.localtime - current_global_tick
+            correction = 0
+            if mini_sync_events:
+                # pass
+                correction = int(mini_sync_events[0].data)
+                dt = 60_000                
+                observed_drift = 1 + (correction / dt)
+                alpha = 0.001  # tune 0.01-0.3
 
-            correction = int(sync_events[0].data)
-
-            # detect if megasync -> estimate linear drift
-            if abs(correction) > 1000:
+                self.linear_drift_correction_factor = (
+                    (1 - alpha) * self.linear_drift_correction_factor
+                    + alpha * observed_drift
+                )
+            else:
+                correction = int(mega_sync_events[0].data)
                 dt = self.localtime - self.last_megaSync_local_time                
                 observed_drift = 1 + (correction / dt)
-                alpha = 0.9  # tune 0.01-0.3
+                alpha = 0.2  # tune 0.01-0.3
+
+                if self.linear_drift_correction_factor == 1:
+                    alpha = 0.3 # set initial
 
                 self.linear_drift_correction_factor = (
                     (1 - alpha) * self.linear_drift_correction_factor
@@ -72,7 +88,6 @@ class Clock(IModule):
                 # print(f"Node {self.node_id} d_factor: {self.linear_drift_correction_factor}")
 
                 self.last_megaSync_local_time = self.localtime + correction
-
 
             self.localtime += correction
             if self.sleep_until_local_time is not None:
@@ -151,7 +166,7 @@ class Clock(IModule):
             self.scheduled_global_tick = None
         else:
             deltaLocal = self.earliest_next_local_time - self.localtime
-            self.scheduled_global_tick = int(current_global_tick + deltaLocal / (1 + self.alpha + self.trend)) # int(current_global_tick + deltaLocal)
+            self.scheduled_global_tick = int(current_global_tick + deltaLocal / ((1 + self.alpha + self.trend) * self.linear_drift_correction_factor)) # int(current_global_tick + deltaLocal)
 
         return (0, self.scheduled_global_tick)
 

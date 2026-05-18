@@ -102,6 +102,8 @@ class TransceiverState(Enum):
 class LocalEventSubTypes(str, Enum):
     TIMER_1 = "TIMER_1"
     TIMER_2 = "TIMER_2"
+    MEGA_SYNC = "MEGA_SYNC"
+    MINI_SYNC = "MINI_SYNC"
 
 
 @dataclass

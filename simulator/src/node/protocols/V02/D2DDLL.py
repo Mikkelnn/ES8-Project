@@ -32,11 +32,12 @@ class DiscoverStates(Enum):
 
 
 class D2DDLL:
-    DISCOVERY_TIMEOUT_MS = (60 + 10) * 1000
-    NEIGHBOR_DEAD_THREASHHOLD_MS = 120_000
+    PERIOD_MS = 60_000
+    DISCOVERY_TIMEOUT_MS = PERIOD_MS + 10_000
+    NEIGHBOR_DEAD_THREASHHOLD_MS = 30_000 * 2
     MAX_HOPCOUNT = 65535
 
-    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 110, slot_count: int = 18):
+    def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 220, slot_count: int = 18):
 
         self._node_id = node_id
         self._local_event_queue = local_event_queue
@@ -54,6 +55,7 @@ class D2DDLL:
         self.slot_period_counter: int = 0
         self.estimated_period_correction: int = 0
         self.prev_estimate = 0
+        self.has_mega_sync = False
 
         self._known_neighbors: List[D2DNeighborInfo] = []
         self._observed_slots: dict[int, int] = {}  # nodeID -> slot, tracks all visible nodes
@@ -62,7 +64,7 @@ class D2DDLL:
         self._current_slot: int = -1
         self._own_tx_slot: int = 0  # used for REQ_ACK
         self._offset_for_req_ack: int = 0
-        self._tx_start_end_buffer: int = 10
+        self._tx_start_end_buffer: int = 20
         self._tx_offset_done = False
         self._rnd = Random(self._node_id)
         self._slot_period_start: int = 0
@@ -133,6 +135,7 @@ class D2DDLL:
         current_transceiver_states = cast(dict[MediumTypes, TransceiverState], self._local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_STATUS)[0].data)
         if self._current_slot == -1:
             self.estimated_period_correction = 0
+            self.has_mega_sync = False
 
         is_start_and_has_valid_TX_slot = self.link_established and self._current_slot == -1 and self._own_tx_slot < self._slot_count
         # Add REDISCOVER for DEAD Nodes -> use last_seen to determine (only one for now)
@@ -556,8 +559,8 @@ class D2DDLL:
 
         # if we are connected to a GW and only have one neighbor we should not try to correct to them
         # we should take half the drift amount and correct in opposite direction
-        # if len(self._known_neighbors) <= 1 and self.hopcount_to_gateway == 0:
-        #     self.estimated_period_correction *= -0.5
+        # if len(self._known_neighbors) <= 1: # and self.hopcount_to_gateway == 0
+        #     self.estimated_period_correction *= 0.5
 
         # lowpass with prev correction to avoid oscillation and over-correction
         alpha = 0.2
@@ -565,6 +568,7 @@ class D2DDLL:
         self.prev_estimate = self.estimated_period_correction
 
     def _handle_megasync_packet(self, packet: MegaSync, current_local_time: int, tx_duration: int) -> None:
+        self.has_mega_sync = True
 
         # add internal process time
         packet.total_handle_time += current_local_time - packet.local_rx_time

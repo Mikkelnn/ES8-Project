@@ -7,7 +7,7 @@ from collections import defaultdict
 
 # log_file = "results/18_05_2026_09_23/simulation.log"
 # log_file = "results\\18_05_2026_15_55\\simulation.log"
-log_file = "results\\18_05_2026_19_15\\simulation.log"
+log_file = "results\\18_05_2026_22_00\\simulation.log"
 
 # Regex that supports negative values
 pattern = re.compile(

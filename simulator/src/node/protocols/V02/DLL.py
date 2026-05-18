@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import cast
 
-from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
+from custom_types import Area, LocalClockInfo, LocalEventSubTypes, LocalEventTypes, Severity
 from logger.ILogger import ILogger
 from node.event_local_queue import LocalEventQueue
 from node.protocols.V02.D2DDLL import D2DDLL, DiscoverStates
@@ -164,7 +164,8 @@ class DLL:
 
                 if finished:
                     if not is_wan_slot:
-                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, data=self.d2d_layer.estimated_period_correction)
+                        sub_type = LocalEventSubTypes.MEGA_SYNC if self.d2d_layer.has_mega_sync else LocalEventSubTypes.MINI_SYNC
+                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, sub_type=sub_type, data=self.d2d_layer.estimated_period_correction)
 
                     sleep_ms = self.slot_period_ms - (current_local_time - self.current_period_start_time)
                     self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
