@@ -420,12 +420,12 @@ class packet_forwarding_delay:
 
     _NODE_PATTERN = re.compile(
         r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+enqueued averaged payload:\s+avg_s1=[\d.]+,\s+avg_s2=[\d.]+,'
+        r'\s+enqueued averaged payload:.*'
         r'\s+GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
     )
     _GATEWAY_PATTERN = re.compile(
         r'\[INFO\]\s+\(GATEWAY\)\s+@\s+(?P<tick>\d+):\s+Gateway\s+(?P<gateway_id>\d+)'
-        r'\s+received\s+data:.*GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
+        r'\s+received packet:\s+GUID=(?P<guid>[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})'
     )
 
     def __init__(self):
@@ -529,6 +529,7 @@ class packet_forwarding_delay:
         x_vals = sorted(distribution.keys())
         y_vals = [distribution[x] for x in x_vals]
         ax.bar(x_vals, y_vals, width=0.4, color='steelblue')
+        # ax.hist(x_vals, bins=4)
         ax.set_xlabel("Average delay (ticks)")
         ax.set_ylabel("Count")
         ax.set_title("Packet Forwarding Delay Distribution")
@@ -796,11 +797,11 @@ def main():
     args = parser.parse_args()
 
     executable_list = [
-        deadnodecounter(),
-        sync_interval_counter(),
-        battery_capacity_analyser(num_bins=args.bins),
+        # deadnodecounter(),
+        # sync_interval_counter(),
+        # battery_capacity_analyser(num_bins=args.bins),
         packet_forwarding_delay(),
-        clock_drift_analyser(),
+        # clock_drift_analyser(),
     ]
 
     with tqdm(desc="Parsing log", unit="lines") as progress:

@@ -34,7 +34,7 @@ class DiscoverStates(Enum):
 class D2DDLL:
     PERIOD_MS = 60_000
     DISCOVERY_TIMEOUT_MS = PERIOD_MS + 10_000
-    NEIGHBOR_DEAD_THREASHHOLD_MS = 30_000 * 2
+    NEIGHBOR_DEAD_THREASHHOLD_MS = PERIOD_MS * 2
     MAX_HOPCOUNT = 65535
 
     def __init__(self, node_id: int, local_event_queue: LocalEventQueue, log: ILogger, slot_duration: int = 220, slot_count: int = 18):
@@ -555,7 +555,7 @@ class D2DDLL:
         # median -> f occasional large outliers (missed packets, delayed RX timestamps, collisions), then median is often more stable
         current_offset = statistics.median(slot_offsets)
 
-        # self.estimated_period_correction = int(current_offset)
+        self.estimated_period_correction = int(current_offset)
 
         # if we are connected to a GW and only have one neighbor we should not try to correct to them
         # we should take half the drift amount and correct in opposite direction
@@ -563,9 +563,9 @@ class D2DDLL:
         #     self.estimated_period_correction *= 0.5
 
         # lowpass with prev correction to avoid oscillation and over-correction
-        alpha = 0.2
-        self.estimated_period_correction = int((alpha * self.prev_estimate + (1 - alpha) * current_offset))
-        self.prev_estimate = self.estimated_period_correction
+        # alpha = 0.2
+        # self.estimated_period_correction = int((alpha * self.prev_estimate + (1 - alpha) * current_offset))
+        # self.prev_estimate = self.estimated_period_correction
 
     def _handle_megasync_packet(self, packet: MegaSync, current_local_time: int, tx_duration: int) -> None:
         self.has_mega_sync = True

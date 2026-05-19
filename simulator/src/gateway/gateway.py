@@ -49,7 +49,7 @@ class Gateway(IDevice):
         received_data = self.local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, sub_type=MediumTypes.LORA_WAN)
         for event in received_data:
             data = cast(LoRaWanPHYPayload, event.data)
-            self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} received data:{data}")
+            self.log.add(Severity.INFO, Area.GATEWAY, current_global_tick, f"Gateway {self.gateway_id} received packet: GUID={data.mac_payload.frm_payload.guid}", data)
             rx1_tick = current_global_tick + 1 * (1 / self.second_to_global_tick)  # 1 second after rx as per LoRaWAN specification for rx1
             if data.is_ack():
                 pass  # we should send ACK with no payload but this is not currently possible...

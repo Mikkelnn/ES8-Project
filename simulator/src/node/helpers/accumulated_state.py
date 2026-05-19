@@ -6,7 +6,7 @@ class AccumulatedState:
         (power, tick) = state
         self.power += abs(power)
         if tick is not None and (self.earliest_global_tick is None or self.earliest_global_tick > tick):
-            self.earliest_global_tick = tick
+            self.earliest_global_tick = int(tick)
 
     def reset(self):
         self.power = 0
