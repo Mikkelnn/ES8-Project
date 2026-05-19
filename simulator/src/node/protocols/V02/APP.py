@@ -35,16 +35,14 @@ class APP:
     def tick(self, current_global_tick: int) -> None:
         match self.state:
             case AppState.INITIAL_SLEEP:
-                # rnd = self.random.choices([0, 1, 3, 5], k=3)
-                # rnd = int(sum(rnd) / 3)
-                # sleep_ms = (45 + rnd) * 60 * 1000
-
                 sleep_ms = 50 * 60 * 1000  # 50 min
                 self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} will sleep {sleep_ms} ms before starting protocol")
                 self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=sleep_ms)
                 self.state = AppState.SENSOR
 
             case AppState.SENSOR:
+                self.state = AppState.FORWARDING # default jump to FORWARDING next
+
                 current_local_time = self._get_local_time()
 
                 if self.last_measurement_time is None:
@@ -69,7 +67,7 @@ class APP:
                         self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} enqueued averaged payload: avg_s1={avg_s1}, avg_s2={avg_s2}, GUID={payload_data.guid}")
                         self.sensor_buffer.clear()
                         self.state = AppState.DEDUP
-
+                
             case AppState.DEDUP:  # TODO
                 self._deduplication()
                 self.state = AppState.FORWARDING
