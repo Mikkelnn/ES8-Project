@@ -797,11 +797,11 @@ def main():
     args = parser.parse_args()
 
     executable_list = [
-        # deadnodecounter(),
-        # sync_interval_counter(),
-        # battery_capacity_analyser(num_bins=args.bins),
+        deadnodecounter(),
+        sync_interval_counter(),
+        battery_capacity_analyser(num_bins=args.bins),
         packet_forwarding_delay(),
-        # clock_drift_analyser(),
+        clock_drift_analyser(),
     ]
 
     with tqdm(desc="Parsing log", unit="lines") as progress:

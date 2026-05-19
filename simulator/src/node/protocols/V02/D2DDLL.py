@@ -346,13 +346,20 @@ class D2DDLL:
             case LoRaD2DFrameType.REDISCOVER:
                 # we have been dead and now been directly synced
                 if self._node_id in frame.destination_node_id:
-                    self.discovery_state = DiscoverStates.DISCOVERED
 
                     payload = cast(PayloadHopCntFull, frame.payload)
                     self.estimated_period_start = current_local_clock_info.current_local_time - (payload.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
                     self.slot_period_counter = payload.slot_period_counter
                     self._set_own_hop_count(payload.cnt)
                     self._set_own_tx_slot(payload.use_slot)
+                    
+                    # if we are discovered we have drifted far away so if we are lucky and receive REDISCOVER we should use it to adjust our time
+                    if self.discovery_state == DiscoverStates.DISCOVERED:
+                        # own: 100 ; estimated: 90 -> 100 - 90 = +10 -> we should wake up 10 ms later
+                        # self.estimated_period_correction = self._slot_period_start - self.estimated_period_start
+                        pass
+
+                    self.discovery_state = DiscoverStates.DISCOVERED
 
                     self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} discovery complete with hop count {self.hopcount_to_gateway}, use TX slot: {self._own_tx_slot}")
 
@@ -521,11 +528,15 @@ class D2DDLL:
     def _minisync(self) -> None:
         # return
 
+        if self.has_mega_sync:
+            self.prev_estimate = 0
+            return
+
         if not self.link_established or not self._known_neighbors:
             return
         
-        if self.estimated_period_correction != 0:
-            return  # MegaSync has happened in current period
+        if self.estimated_period_correction != 0:            
+            return  # REDISCOVER has happened in current period while DISCOVERED
 
         # if we are connected to a GW and only have one neighbor we should not try to correct to them
         # the problem is we would drift apart more and more, since both would correct to same amount in opposite directions
@@ -554,8 +565,17 @@ class D2DDLL:
 
         # median -> f occasional large outliers (missed packets, delayed RX timestamps, collisions), then median is often more stable
         current_offset = statistics.median(slot_offsets)
-
+        
         self.estimated_period_correction = int(current_offset)
+        # estimate = int(current_offset) # we should take current drift and compensate more to ensure we get closer
+        # if self.prev_estimate == 0:
+        #     self.prev_estimate = estimate * 1.5 # we have been reset set base correction
+
+        # alpha = 0.03  # tune 0.01-0.3
+        # self.estimated_period_correction = (
+        #     self.prev_estimate + alpha * estimate
+        # )
+        # self.prev_estimate = self.estimated_period_correction
 
         # if we are connected to a GW and only have one neighbor we should not try to correct to them
         # we should take half the drift amount and correct in opposite direction

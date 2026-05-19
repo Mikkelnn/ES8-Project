@@ -249,4 +249,4 @@ class DLL:
 
         # cap clean buffer
         while len(self.sync_buffer) > self.retain_depth_old_megasync:            
-            self.sync_buffer.pop(0)
+            self.sync_buffer.pop()
