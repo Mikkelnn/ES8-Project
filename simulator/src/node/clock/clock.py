@@ -35,8 +35,10 @@ class Clock(IModule):
         self.alpha: float = self.random_vector[0]
         self.random_vector = self.random_vector[1:]
 
+        self.last_miniSync_local_time = 0
         self.last_megaSync_local_time = 0
-        self.linear_drift_correction_factor: float = 1
+        self.linear_drift_correction_factor: float = 0.0
+
 
         self.log.add(Severity.DEBUG, Area.CLOCK, 0, f"Node {node_id} trend: {self.trend}")
 
@@ -47,8 +49,11 @@ class Clock(IModule):
             self.localtime = self.earliest_next_local_time
         else:
             delta = (1 + self.alpha + self.trend) * (current_global_tick - self.global_time_last)
-            if delta > 2:
-                delta *= self.linear_drift_correction_factor
+            if delta < 1:
+                delta += 1
+            # if delta > 2:
+            #     delta /= (1 + self.linear_drift_correction_factor)
+            # #     delta *= self.linear_drift_correction_factor
             self.localtime = int(delta + self.localtime) #
 
         self.global_time_last = current_global_tick
@@ -61,28 +66,35 @@ class Clock(IModule):
         if mini_sync_events or mega_sync_events:
             drift_before_correction = self.localtime - current_global_tick
             correction = 0
+            miniSync_adjust = 0
             if mini_sync_events:
+                miniSync_adjust = int(mini_sync_events[0].data)
                 # pass
-                correction = int(mini_sync_events[0].data)
-                dt = 60_000                
-                observed_drift = 1 + (correction / dt)
-                alpha = 0.001  # tune 0.01-0.3
 
-                self.linear_drift_correction_factor = (
-                    (1 - alpha) * self.linear_drift_correction_factor
-                    + alpha * observed_drift
-                )
+                # if self.last_miniSync_local_time == 0:
+                #     self.last_miniSync_local_time = self.localtime
+                # else:
+                #     correction_i = int(mini_sync_events[0].data)
+                #     dt = self.localtime - self.last_miniSync_local_time # slot period in ms
+                #     observed_drift = (correction_i / dt)
+                #     alpha = 0.001  # tune 0.01-0.3
+
+                #     self.linear_drift_correction_factor = (
+                #         self.linear_drift_correction_factor
+                #         + alpha * observed_drift
+                #     )
+                #     self.last_miniSync_local_time = self.localtime
             else:
                 correction = int(mega_sync_events[0].data)
-                dt = self.localtime - self.last_megaSync_local_time                
-                observed_drift = 1 + (correction / dt)
-                alpha = 0.2  # tune 0.01-0.3
+                dt = self.localtime - self.last_megaSync_local_time
+                observed_drift = (-correction / dt)
+                alpha = 0.15  # tune 0.01-0.3
 
-                if self.linear_drift_correction_factor == 1:
-                    alpha = 0.3 # set initial
+                # if self.linear_drift_correction_factor == 1:
+                #     alpha = 0.3 # set initial
 
                 self.linear_drift_correction_factor = (
-                    (1 - alpha) * self.linear_drift_correction_factor
+                    self.linear_drift_correction_factor
                     + alpha * observed_drift
                 )
                 # print(f"Node {self.node_id} d_factor: {self.linear_drift_correction_factor}")
@@ -97,8 +109,7 @@ class Clock(IModule):
             if self.timer_2_end_local_time is not None:
                 self.timer_2_end_local_time += correction
 
-            with_linear_correction = self.last_megaSync_local_time + ((self.localtime - self.last_megaSync_local_time) * self.linear_drift_correction_factor)
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtime - current_global_tick}, after with trend estimate: {with_linear_correction - current_global_tick}")
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtime - current_global_tick}, miniSync adjust: {miniSync_adjust}")
 
         # calculate next clock skew
         self.alpha = self.ar_constant * self.alpha + self.random_vector[0]
@@ -166,7 +177,7 @@ class Clock(IModule):
             self.scheduled_global_tick = None
         else:
             deltaLocal = self.earliest_next_local_time - self.localtime
-            self.scheduled_global_tick = int(current_global_tick + deltaLocal / ((1 + self.alpha + self.trend) * self.linear_drift_correction_factor)) # int(current_global_tick + deltaLocal)
+            self.scheduled_global_tick = int(current_global_tick + (deltaLocal / (1 + self.alpha + self.trend)) * (1 + self.linear_drift_correction_factor)) # int(current_global_tick + deltaLocal)
 
         return (0, self.scheduled_global_tick)
 
