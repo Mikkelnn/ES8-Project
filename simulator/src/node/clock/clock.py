@@ -51,10 +51,7 @@ class Clock(IModule):
             delta = (1 + self.alpha + self.trend) * (current_global_tick - self.global_time_last)
             if delta < 1:
                 delta += 1
-            # if delta > 2:
-            #     delta /= (1 + self.linear_drift_correction_factor)
-            # #     delta *= self.linear_drift_correction_factor
-            self.localtime = int(delta + self.localtime) #
+            self.localtime = int(delta + self.localtime)
 
         self.global_time_last = current_global_tick
 
@@ -63,10 +60,10 @@ class Clock(IModule):
         # Check for external time sync (MegaSync)
         mega_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MEGA_SYNC)
         mini_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MINI_SYNC)        
+        miniSync_adjust = 0
         if mini_sync_events or mega_sync_events:
             drift_before_correction = self.localtime - current_global_tick
             correction = 0
-            miniSync_adjust = 0
             if mini_sync_events:
                 miniSync_adjust = int(mini_sync_events[0].data)
                 # pass
@@ -142,7 +139,7 @@ class Clock(IModule):
         if len(sleep_request) > 0:
             sleep_milliseconds = sleep_request[0].data
             # We subtract 2 ticks to ensure we wake up a bit before the sleep time, this is to account for delays in the processing of events.
-            self.sleep_until_local_time = self.localtime + (sleep_milliseconds - 2)  # static 2 as 1 tick corresponds to 1 ms
+            self.sleep_until_local_time = self.localtime + (sleep_milliseconds - 2) + miniSync_adjust  # static 2 as 1 tick corresponds to 1 ms
             self.local_event_queue.add_event_to_current_tick(LocalEventTypes.NODE_SLEEP, None)
             # stop timers before sleeping
             self.timer_1_end_local_time = None
