@@ -482,23 +482,24 @@ class packet_forwarding_delay:
         return self._stats
 
     def delay_distribution(self) -> dict[int, int]:
-        """Return {rounded_avg_delay: node_count} for nodes with at least one delivery.
+        """Return {avg_delay_minutes: node_count} for nodes with at least one delivery.
 
-        Average delay per node = diff / successful_count, rounded to the nearest integer.
+        Average delay per node = (diff / successful_count) converted from ticks to minutes
+        (1 tick = 1 ms, 1 minute = 60 000 ms), rounded to the nearest whole minute.
         Nodes that only have lost packets (successful_count == 0) are excluded.
 
         example output:
         {
-            500: 3,   # three nodes each averaged 500 ticks
-            100: 1    # one node averaged 100 ticks
+            59: 3,   # three nodes each averaged 59 minutes
+            61: 1    # one node averaged 61 minutes
         }
         """
         self.finalize()
         distribution: dict[int, int] = {}
         for diff, successful_count, _ in self._stats.values():
             if successful_count > 0:
-                avg = round(diff / successful_count)
-                distribution[avg] = distribution.get(avg, 0) + 1
+                avg_minutes = round(diff / successful_count / 60_000)
+                distribution[avg_minutes] = distribution.get(avg_minutes, 0) + 1
         return distribution
 
     def plot(self, axes=None):
@@ -515,10 +516,11 @@ class packet_forwarding_delay:
         return axes
 
     def _plot_delay_histogram(self, ax):
-        """Histogram of average forwarding delay distribution across nodes.
+        """Bar chart of average forwarding delay distribution across nodes.
 
         x-axis — average delay (ticks), one bar per distinct rounded avg delay
         y-axis — count (number of nodes with that average delay)
+        Bar width scales with the data range so bars remain visible at any tick magnitude.
         """
         distribution = self.delay_distribution()
         if not distribution:
@@ -528,14 +530,24 @@ class packet_forwarding_delay:
             return ax
         x_vals = sorted(distribution.keys())
         y_vals = [distribution[x] for x in x_vals]
-        ax.bar(x_vals, y_vals, width=0.4, color='steelblue')
-        # ax.hist(x_vals, bins=4)
-        ax.set_xlabel("Average delay (ticks)")
+        ax.bar(x_vals, y_vals, width=self._bar_width(x_vals), color='steelblue')
+        ax.set_xlabel("Approximate average delay (min)")
         ax.set_ylabel("Count")
         ax.set_title("Packet Forwarding Delay Distribution")
         ax.set_xticks(x_vals)
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         return ax
+
+    @staticmethod
+    def _bar_width(x_vals: list) -> float:
+        """Bar width proportional to data range — prevents invisible bars at large tick scales.
+
+        Single value  → 10% of that value (minimum 1.0).
+        Multiple values → 80% of the average spacing between distinct delay values.
+        """
+        if len(x_vals) <= 1:
+            return max(x_vals[0] * 0.1, 1.0) if x_vals else 1.0
+        return (max(x_vals) - min(x_vals)) / len(x_vals) * 0.8
 
     def _plot_loss_histogram(self, ax):
         """Histogram of per-node lost-packet counts.
@@ -567,105 +579,72 @@ class packet_forwarding_delay:
             self._stats[node_id] = [0, 0, 0]  # [diff, successful_count, lost]
 
 class clock_drift_analyser:
-    """Tracks per-node average clock drift corrections across the simulation.
+    """Tracks per-node average clock drift after correction across the simulation.
 
     Accumulates drift events keyed by node ID, then exposes per-node averages
     via get_node_averages().  Each node entry stores:
-        _node_stats[node_id] = [sum_before, sum_after, event_count]
+        _node_stats[node_id] = [sum_after, event_count]
 
     get_node_averages() returns:
-        {node_id: [avg_before, avg_after, avg_correction]}
-    where avg_correction = avg_before - avg_after.
+        {node_id: avg_after}
 
-    Produces three separate histogram windows (separate_windows = True):
-        window 1 — avg drift before correction, x = per-node avg, y = node count
-        window 2 — avg drift after correction,  x = per-node avg, y = node count
-        window 3 — avg correction magnitude,    x = per-node avg, y = node count
+    Produces one histogram (avg drift after correction, x = per-node avg, y = node count).
 
     Log lines matched:
-    [INFO] (CLOCK) @ <tick>: Node id <node_id> clock drift before correction: <before>, after correction: <after>
+    [INFO] (CLOCK) @ <tick>: Node <node_id> clock drift before correction: <before>, after correction: <after>, miniSync adjust: <adjust>
     """
 
     AREAS = frozenset({"CLOCK"})
-    plot_count = 3
-    # Each histogram gets its own independent figure window via post_process_and_plot.
-    separate_windows = True
+    plot_count = 1
 
     _PATTERN = re.compile(
-        r'\[INFO\]\s+\(CLOCK\)\s+@\s+(?P<tick>\d+):\s+Node id\s+(?P<node_id>\d+)'
+        r'\[INFO\]\s+\(CLOCK\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
         r'\s+clock drift before correction:\s+(?P<drift_before>-?\d+(?:\.\d+)?),'
-        r'\s+after correction:\s+(?P<drift_after>-?\d+(?:\.\d+)?)'
+        r'\s+after correction:\s+(?P<drift_after>-?\d+(?:\.\d+)?),'
+        r'\s+miniSync adjust:\s+(?P<adjust>-?\d+(?:\.\d+)?)'
     )
 
     def __init__(self):
-        # {node_id: [sum_before, sum_after, event_count]}
+        # {node_id: [sum_after, event_count]}
         self._node_stats: dict[int, list] = {}
 
     def build_dict(self, line: str) -> None:
         """Accumulate one clock drift event into the per-node running totals."""
         match = self._PATTERN.match(line)
         if match:
-            node_id      = int(match.group('node_id'))
-            drift_before = float(match.group('drift_before'))
-            drift_after  = float(match.group('drift_after'))
+            node_id     = int(match.group('node_id'))
+            drift_after = float(match.group('drift_after'))
             if node_id not in self._node_stats:
-                self._node_stats[node_id] = [0.0, 0.0, 0]
-            self._node_stats[node_id][0] += drift_before
-            self._node_stats[node_id][1] += drift_after
-            self._node_stats[node_id][2] += 1
+                self._node_stats[node_id] = [0.0, 0]
+            self._node_stats[node_id][0] += drift_after
+            self._node_stats[node_id][1] += 1
 
-    def get_node_averages(self) -> dict[int, list[float]]:
-        """Return {node_id: [avg_before, avg_after, avg_correction]} for all nodes.
+    def get_node_averages(self) -> dict[int, float]:
+        """Return {node_id: avg_after} for all nodes."""
+        return {
+            node_id: stats[0] / stats[1]
+            for node_id, stats in self._node_stats.items()
+        }
 
-        avg_correction = avg_before - avg_after
+    def plot(self, ax=None):
+        """Plot one histogram of per-node avg drift after correction.
+
+        ax : a matplotlib Axes. Pass None to let this method create a figure.
+        Returns the Axes.
         """
-        result: dict[int, list[float]] = {}
-        for node_id, stats in self._node_stats.items():
-            sum_before, sum_after, count = stats
-            avg_before = sum_before / count
-            avg_after  = sum_after  / count
-            result[node_id] = [avg_before, avg_after, avg_before - avg_after]
-        return result
+        if ax is None:
+            _, ax = plt.subplots(1, 1, figsize=(6, 5))
 
-    def plot(self, axes: list | None = None) -> list:
-        """Plot three histograms of per-node average drift values.
-
-        axes : list of 3 Axes — one Axes per histogram (each in its own figure
-               when called via post_process_and_plot with separate_windows=True).
-               Pass None to let this method create three figures itself.
-        Returns list of 3 Axes.
-        """
-        node_avgs = self.get_node_averages()
-
-        if axes is None:
-            axes = []
-            for _ in range(3):
-                _, ax = plt.subplots(1, 1, figsize=(6, 5))
-                axes.append(ax)
-
-        avg_befores     = [v[0] for v in node_avgs.values()]
-        avg_afters      = [v[1] for v in node_avgs.values()]
-        avg_corrections = [v[2] for v in node_avgs.values()]
-
+        avg_afters = list(self.get_node_averages().values())
         self._plot_histogram(
-            axes[0], avg_befores,
-            "Avg Drift Before Correction per Node",
-            "Avg drift before correction (ticks)",
-            'steelblue',
-        )
-        self._plot_histogram(
-            axes[1], avg_afters,
+            ax, avg_afters,
             "Avg Drift After Correction per Node",
             "Avg drift after correction (ticks)",
             'salmon',
         )
-        self._plot_histogram(
-            axes[2], avg_corrections,
-            "Avg Correction Magnitude per Node",
-            "Avg correction magnitude (ticks)",
-            'mediumseagreen',
-        )
-        return axes
+        return ax
+
+    _NUM_BINS = 10
 
     def _plot_histogram(
         self, ax, values: list[float], title: str, xlabel: str, color: str
@@ -678,15 +657,16 @@ class clock_drift_analyser:
             return ax
         min_val, max_val = min(values), max(values)
         if min_val == max_val:
-            # Degenerate case: all nodes share the same average value.
-            # ax.hist with bins='auto' would create a phantom ±0.5 bin around
-            # the single value — use a bar instead to show the true point.
-            ax.bar([min_val], [len(values)], width=0.4, color=color, edgecolor='white')
+            # Degenerate: all nodes share one value — single bar at that point.
+            # ax.hist bins='auto' creates a phantom ±0.5 bin; use bar instead.
+            bar_width = max(abs(min_val) * 0.1, 1.0)
+            ax.bar([min_val], [len(values)], width=bar_width, color=color, edgecolor='white')
             ax.set_xticks([min_val])
         else:
-            counts, bin_edges = np.histogram(values, bins='auto')
+            bin_width = (max_val - min_val) / self._NUM_BINS
+            counts, bin_edges = np.histogram(values, bins=self._NUM_BINS)
             centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            ax.bar(centers, counts, width=0.4, color=color, edgecolor='white')
+            ax.bar(centers, counts, width=bin_width, color=color, edgecolor='white')
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Node count")
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
