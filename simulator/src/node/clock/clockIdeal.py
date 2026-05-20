@@ -39,21 +39,27 @@ class Clock(IModule):
         # # print(f"clock local time {local_time}")
 
         # # Check for external time sync (MegaSync)
-        sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME)
-        if sync_events:
+        mega_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MEGA_SYNC)
+        mini_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MINI_SYNC)
+        miniSync_adjust = 0
+        if mini_sync_events or mega_sync_events:
             drift_before_correction = local_time - current_global_tick
+            correction = 0
+            if mini_sync_events:
+                miniSync_adjust = int(mini_sync_events[0].data)
+                # pass
+            else:
+                correction = int(mega_sync_events[0].data)
 
-            # correction = int(sync_events[0].data)
-            # self.total_correction += correction
-            # local_time += correction  # +1 Because this time was scheduled 1 tick before
-            # if self.sleep_until_local_time is not None:
-            #     self.sleep_until_local_time += correction
-            # if self.timer_1_end_local_time is not None:
-            #     self.timer_1_end_local_time += correction
-            # if self.timer_2_end_local_time is not None:
-            #     self.timer_2_end_local_time += correction
+            local_time += correction
+            if self.sleep_until_local_time is not None:
+                self.sleep_until_local_time += correction
+            if self.timer_1_end_local_time is not None:
+                self.timer_1_end_local_time += correction
+            if self.timer_2_end_local_time is not None:
+                self.timer_2_end_local_time += correction
 
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {local_time - current_global_tick}")
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {local_time - current_global_tick}, miniSync adjust: {miniSync_adjust}")
 
         # update timers
         set_timers = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SET_TIMER)
@@ -72,7 +78,7 @@ class Clock(IModule):
 
         sleep_request = self.local_event_queue.get_current_events_by_type(LocalEventTypes.NODE_SLEEP_FOR)
         if len(sleep_request) > 0:
-            sleep_milliseconds = sleep_request[0].data
+            sleep_milliseconds = sleep_request[0].data + miniSync_adjust
             # We subtract 2 ticks to ensure we wake up a bit before the sleep time, this is to account for delays in the processing of events.
             self.sleep_until_local_time = local_time + sleep_milliseconds - 2  # static 2 as 1 tick corresponds to 1 ms
             self.local_event_queue.add_event_to_current_tick(LocalEventTypes.NODE_SLEEP, None)
