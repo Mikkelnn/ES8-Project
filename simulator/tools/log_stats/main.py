@@ -518,9 +518,13 @@ class packet_forwarding_delay:
     def _plot_delay_histogram(self, ax):
         """Bar chart of average forwarding delay distribution across nodes.
 
-        x-axis — average delay (ticks), one bar per distinct rounded avg delay
-        y-axis — count (number of nodes with that average delay)
-        Bar width scales with the data range so bars remain visible at any tick magnitude.
+        Bars are placed at consecutive positions (0, 1, 2, …) regardless of the
+        actual delay values, so sparse distributions (e.g. 1 min and 1 000 min)
+        are not stretched across a huge x-axis gap.  The actual values are shown
+        as x-tick labels.
+
+        x-axis labels — approximate average delay (min) per distinct value
+        y-axis         — number of nodes with that average delay
         """
         distribution = self.delay_distribution()
         if not distribution:
@@ -530,30 +534,23 @@ class packet_forwarding_delay:
             return ax
         x_vals = sorted(distribution.keys())
         y_vals = [distribution[x] for x in x_vals]
-        ax.bar(x_vals, y_vals, width=self._bar_width(x_vals), color='steelblue')
+        positions = list(range(len(x_vals)))
+        ax.bar(positions, y_vals, width=0.4, color='steelblue')
         ax.set_xlabel("Approximate average delay (min)")
         ax.set_ylabel("Count")
         ax.set_title("Packet Forwarding Delay Distribution")
-        ax.set_xticks(x_vals)
+        ax.set_xticks(positions)
+        ax.set_xticklabels(x_vals)
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         return ax
-
-    @staticmethod
-    def _bar_width(x_vals: list) -> float:
-        """Bar width proportional to data range — prevents invisible bars at large tick scales.
-
-        Single value  → 10% of that value (minimum 1.0).
-        Multiple values → 80% of the average spacing between distinct delay values.
-        """
-        if len(x_vals) <= 1:
-            return max(x_vals[0] * 0.1, 1.0) if x_vals else 1.0
-        return (max(x_vals) - min(x_vals)) / len(x_vals) * 0.8
 
     def _plot_loss_histogram(self, ax):
         """Histogram of per-node lost-packet counts.
 
-        Lost-packet counts are discrete integers, so each distinct count gets its
-        own bar centered on that integer value — no binning that would misplace bars.
+        Bars are placed at consecutive positions (0, 1, 2, …) so that sparse
+        distributions (e.g. nodes with 1 and 10 000 lost packets) do not leave
+        a vast empty gap in the middle of the chart.  The actual counts are shown
+        as x-tick labels.
         """
         lost_counts = [s[2] for s in self._stats.values() if s[2] > 0]
         if not lost_counts:
@@ -565,8 +562,10 @@ class packet_forwarding_delay:
         value_counts = Counter(lost_counts)
         x_vals = sorted(value_counts.keys())
         y_vals = [value_counts[x] for x in x_vals]
-        ax.bar(x_vals, y_vals, width=0.4, color='salmon')
-        ax.set_xticks(x_vals)
+        positions = list(range(len(x_vals)))
+        ax.bar(positions, y_vals, width=0.4, color='salmon')
+        ax.set_xticks(positions)
+        ax.set_xticklabels(x_vals)
         ax.set_xlabel("Lost packets per node")
         ax.set_ylabel("Number of nodes")
         ax.set_title("Packet Loss Distribution")
@@ -649,7 +648,12 @@ class clock_drift_analyser:
     def _plot_histogram(
         self, ax, values: list[float], title: str, xlabel: str, color: str
     ):
-        """Render a histogram of per-node averages on ax, or show a no-data label."""
+        """Render a histogram of per-node averages on ax, or show a no-data label.
+
+        Bars are placed at consecutive integer positions (0, 1, 2, …) so that
+        sparse or widely-spaced bin centres do not stretch the x-axis.  Actual
+        bin centre values are shown as x-tick labels.
+        """
         ax.set_title(title)
         if not values:
             ax.text(0.5, 0.5, "No clock drift events recorded",
@@ -657,16 +661,17 @@ class clock_drift_analyser:
             return ax
         min_val, max_val = min(values), max(values)
         if min_val == max_val:
-            # Degenerate: all nodes share one value — single bar at that point.
-            # ax.hist bins='auto' creates a phantom ±0.5 bin; use bar instead.
-            bar_width = max(abs(min_val) * 0.1, 1.0)
-            ax.bar([min_val], [len(values)], width=bar_width, color=color, edgecolor='white')
-            ax.set_xticks([min_val])
+            # Degenerate: all nodes share one value — single bar at position 0.
+            ax.bar([0], [len(values)], width=0.8, color=color, edgecolor='white')
+            ax.set_xticks([0])
+            ax.set_xticklabels([f"{min_val:.2f}"])
         else:
-            bin_width = (max_val - min_val) / self._NUM_BINS
             counts, bin_edges = np.histogram(values, bins=self._NUM_BINS)
             centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            ax.bar(centers, counts, width=bin_width, color=color, edgecolor='white')
+            positions = list(range(len(counts)))
+            ax.bar(positions, counts, width=0.8, color=color, edgecolor='white')
+            ax.set_xticks(positions)
+            ax.set_xticklabels([f"{c:.2f}" for c in centers], rotation=45, ha='right')
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Node count")
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
@@ -734,30 +739,58 @@ def execute(executable_list, line):
             exe.build_dict(line)
 
 
-def post_process_and_plot(executable_list):
-    """Opens a separate figure window for each analyser.
+def svg_folder_for_log(log_path: str | Path) -> Path:
+    """Return the SVG output folder derived from the log file path.
+
+    The folder sits next to the log file and is named
+    <log_stem>_result, e.g.:
+        Log_debugging/simulation.log → Log_debugging/simulation_result/
+    """
+    p = Path(log_path)
+    return p.parent / f"{p.stem}_result"
+
+
+def post_process_and_plot(
+    executable_list,
+    svg_folder: str | Path | None = None,
+):
+    """Opens a separate figure window for each analyser and saves SVGs.
 
     Calls finalize() on any analyser that exposes it before plotting.
     Analysers with plot_count > 1 and separate_windows = True get one independent
     figure per subplot (e.g. clock_drift_analyser → 3 separate windows).
     All other analysers with plot_count > 1 get side-by-side subplots in one figure.
+
+    svg_folder : directory to write <classname>.svg files into.  Created
+                 automatically when it does not exist.  Pass None to skip export.
     """
     for exe in executable_list:
         if hasattr(exe, 'finalize'):
             exe.finalize()
 
+    if svg_folder is not None:
+        out_dir = Path(svg_folder)
+        out_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        out_dir = None
+
     for exe in executable_list:
         n        = getattr(exe, 'plot_count', 1)
         separate = getattr(exe, 'separate_windows', False)
+        name     = type(exe).__name__
 
         if separate and n > 1:
-            # One independent figure window per subplot.
-            axes = []
+            # One independent figure window per subplot; collect figs for SVG export.
+            figs, axes = [], []
             for _ in range(n):
                 fig, ax = plt.subplots(1, 1, figsize=(6, 5))
-                fig.tight_layout()
+                figs.append(fig)
                 axes.append(ax)
             exe.plot(axes)
+            for i, fig in enumerate(figs):
+                fig.tight_layout()
+                if out_dir is not None:
+                    fig.savefig(out_dir / f"{name}_{i}.svg", format='svg')
         else:
             # squeeze=False keeps axes as a 2-D array regardless of subplot count.
             fig, axes = plt.subplots(1, n, figsize=(6 * n, 5), squeeze=False)
@@ -767,14 +800,18 @@ def post_process_and_plot(executable_list):
             else:
                 exe.plot(flat_axes)
             fig.tight_layout()
+            if out_dir is not None:
+                fig.savefig(out_dir / f"{name}.svg", format='svg')
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--log',    default='Log_debugging\\simulation.log', help='Path to log file')
     parser.add_argument('--bins',   type=int, default=5, help='Number of histogram bins for battery metric')
-    parser.add_argument('--output', default=None,        help='Folder to write text reports (skipped if omitted)')
+    parser.add_argument('--output', default=None, help='Folder to write text reports (skipped if omitted)')
     args = parser.parse_args()
+
+    svg_folder = svg_folder_for_log(args.log)
 
     executable_list = [
         deadnodecounter(),
@@ -797,7 +834,8 @@ def main():
                 filename = f"{type(exe).__name__}_report.txt"
                 save_report(report_fn(), args.output, filename)
 
-    post_process_and_plot(executable_list)
+    post_process_and_plot(executable_list, svg_folder=svg_folder)
+    print(f"SVGs saved to: {svg_folder}")
     plt.show()
 
 
