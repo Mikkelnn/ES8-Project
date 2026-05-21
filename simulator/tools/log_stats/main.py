@@ -481,6 +481,98 @@ class packet_forwarding_delay:
         self.finalize()
         return self._stats
 
+    def report_text(self) -> str:
+        """Return a plain-text summary of per-node packet delivery statistics.
+
+        Sections:
+        1. Connectivity summary — nodes grouped by loss-rate band with compact
+           node-ID ranges (e.g. '11-80') and loss-% summary per group.
+        2. Per-node table       — sent, delivered, lost, and loss% for every node.
+
+        Loss-rate bands:
+          0%          → connected and reachable
+          0% – <75%   → partially reachable
+          75% – <100% → barely reaching the gateway
+          100%        → completely unreachable
+        """
+        self.finalize()
+
+        if not self._stats:
+            return "No packet data recorded.\n"
+
+        # ── per-node data ──────────────────────────────────────────────────
+        node_data: dict[int, tuple[int, int, int, float]] = {}
+        for node_id, (_, delivered, lost) in self._stats.items():
+            sent     = delivered + lost
+            loss_pct = round(lost / sent * 100, 1) if sent > 0 else 0.0
+            node_data[node_id] = (sent, delivered, lost, loss_pct)
+
+        # ── bucket nodes by loss-rate band ────────────────────────────────
+        reachable:   dict[int, float] = {}   # 0%
+        partial:     dict[int, float] = {}   # 0% < loss < 75%
+        barely:      dict[int, float] = {}   # 75% <= loss < 100%
+        unreachable: dict[int, float] = {}   # 100%
+        for node_id, (_, _, _, loss_pct) in node_data.items():
+            if   loss_pct == 0.0:    reachable[node_id]   = loss_pct
+            elif loss_pct <  75.0:   partial[node_id]     = loss_pct
+            elif loss_pct <  100.0:  barely[node_id]      = loss_pct
+            else:                    unreachable[node_id] = loss_pct
+
+        def _node_range_str(ids: list[int]) -> str:
+            """Collapse a sorted int list into compact ranges: [1,2,3,6,8] → '1-3, 6, 8'."""
+            parts, start, prev = [], ids[0], ids[0]
+            for n in ids[1:]:
+                if n == prev + 1:
+                    prev = n
+                else:
+                    parts.append(str(start) if start == prev else f"{start}-{prev}")
+                    start = prev = n
+            parts.append(str(start) if start == prev else f"{start}-{prev}")
+            return ", ".join(parts)
+
+        def _pct_str(d: dict[int, float]) -> str:
+            """Single % if all nodes share it; 'min%-max%' if they differ."""
+            pcts  = [d[k] for k in sorted(d)]
+            uniq  = sorted(set(pcts))
+            return f"{uniq[0]}%" if len(uniq) == 1 else f"{min(pcts):.1f}%-{max(pcts):.1f}%"
+
+        lines = [
+            "Packet Forwarding Report",
+            "========================",
+            "",
+            "Node Connectivity Summary",
+            "-------------------------",
+        ]
+        for bucket, label in [
+            (reachable,   "connected and reachable"),
+            (partial,     "partially reachable"),
+            (barely,      "barely reaching the gateway"),
+            (unreachable, "completely unreachable"),
+        ]:
+            if not bucket:
+                continue
+            ids = sorted(bucket)
+            n   = len(ids)
+            lines.append(
+                f"  Nodes {_node_range_str(ids)} — {_pct_str(bucket)} loss"
+                f" ({n} node{'s' if n != 1 else ''}, {label})"
+            )
+
+        lines += [
+            "",
+            "Per-Node Breakdown",
+            "------------------",
+            f"  {'Node':>6}  {'Sent':>6}  {'Delivered':>9}  {'Lost':>6}  {'Loss%':>7}",
+            f"  {'------':>6}  {'------':>6}  {'---------':>9}  {'------':>6}  {'-------':>7}",
+        ]
+        for node_id in sorted(node_data):
+            sent, delivered, lost, loss_pct = node_data[node_id]
+            lines.append(
+                f"  {node_id:>6}  {sent:>6}  {delivered:>9}  {lost:>6}  {loss_pct:>6.1f}%"
+            )
+
+        return "\n".join(lines) + "\n"
+
     def delay_distribution(self) -> dict[int, int]:
         """Return {avg_delay_minutes: node_count} for nodes with at least one delivery.
 
@@ -552,23 +644,31 @@ class packet_forwarding_delay:
         a vast empty gap in the middle of the chart.  The actual counts are shown
         as x-tick labels.
         """
-        lost_counts = [s[2] for s in self._stats.values() if s[2] > 0]
-        if not lost_counts:
-            ax.set_title("Packet Loss Distribution")
-            ax.text(0.5, 0.5, "No packet loss recorded",
+        # Compute per-node loss rate: lost / (lost + successful) * 100, rounded to 1 d.p.
+        # All nodes that sent at least one packet are included — 0% nodes appear as a 0.0% bin.
+        loss_rates = []
+        for _, successful_count, lost in self._stats.values():
+            total = successful_count + lost
+            if total > 0:
+                loss_rates.append(round(lost / total * 100, 1))
+
+        if not loss_rates:
+            ax.set_title("Packet Loss Rate Distribution")
+            ax.text(0.5, 0.5, "No packet data recorded",
                     ha='center', va='center', transform=ax.transAxes)
             return ax
+
         from collections import Counter
-        value_counts = Counter(lost_counts)
+        value_counts = Counter(loss_rates)
         x_vals = sorted(value_counts.keys())
         y_vals = [value_counts[x] for x in x_vals]
         positions = list(range(len(x_vals)))
         ax.bar(positions, y_vals, width=0.4, color='salmon')
         ax.set_xticks(positions)
-        ax.set_xticklabels(x_vals)
-        ax.set_xlabel("Lost packets per node")
+        ax.set_xticklabels([f"{v}%" for v in x_vals])
+        ax.set_xlabel("Loss rate per node (lost / total)")
         ax.set_ylabel("Number of nodes")
-        ax.set_title("Packet Loss Distribution")
+        ax.set_title("Packet Loss Rate Distribution")
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         return ax
 
@@ -634,11 +734,12 @@ class clock_drift_analyser:
         if ax is None:
             _, ax = plt.subplots(1, 1, figsize=(6, 5))
 
-        avg_afters = list(self.get_node_averages().values())
+        # 1 tick = 1 ms → divide by 60 000 to get minutes
+        avg_afters = [v / 60_000 for v in self.get_node_averages().values()]
         self._plot_histogram(
             ax, avg_afters,
             "Avg Drift After Correction per Node",
-            "Avg drift after correction (ticks)",
+            "Avg drift after correction (min)",
             'salmon',
         )
         return ax
@@ -827,15 +928,26 @@ def main():
                 execute(executable_list, line)
             progress.update(len(batch))
 
+    # Finalize before generating reports so all stats are complete.
+    for exe in executable_list:
+        if hasattr(exe, 'finalize'):
+            exe.finalize()
+
+    # Always save text reports to the result folder next to the SVGs.
+    for exe in executable_list:
+        report_fn = getattr(exe, 'report_text', None)
+        if callable(report_fn):
+            save_report(report_fn(), svg_folder, f"{type(exe).__name__}_report.txt")
+
+    # Also write to --output if the user supplied it.
     if args.output:
         for exe in executable_list:
             report_fn = getattr(exe, 'report_text', None)
             if callable(report_fn):
-                filename = f"{type(exe).__name__}_report.txt"
-                save_report(report_fn(), args.output, filename)
+                save_report(report_fn(), args.output, f"{type(exe).__name__}_report.txt")
 
     post_process_and_plot(executable_list, svg_folder=svg_folder)
-    print(f"SVGs saved to: {svg_folder}")
+    print(f"Results saved to: {svg_folder}")
     plt.show()
 
 
