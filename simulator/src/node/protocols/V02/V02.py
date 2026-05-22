@@ -29,6 +29,7 @@ class V02(IModule):
         if len(node_sleep_events) == 0:
             self.app.tick(current_global_tick)
             self.dll.tick(current_global_tick)
+            self.app.dll_link_established = self.dll.has_link()
 
         return 0, None
 

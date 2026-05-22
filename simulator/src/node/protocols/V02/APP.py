@@ -29,6 +29,8 @@ class APP:
         self.required_samples = 12
         self.last_measurement_time: int | None = None
 
+        self.dll_link_established: bool = False
+
     def _deduplication(self):
         pass
 
@@ -63,8 +65,9 @@ class APP:
                         payload_data.data.sensor2 = avg_s2
                         payload_data.time = float(current_local_time)
                         payload_data.length_calc()
-                        self.enqueue_payload(payload_data)
-                        self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} enqueued averaged payload: avg_s1={avg_s1}, avg_s2={avg_s2}, GUID={payload_data.guid}")
+                        if self.dll_link_established:
+                            self.enqueue_payload(payload_data)
+                            self.log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} enqueued averaged payload: avg_s1={avg_s1}, avg_s2={avg_s2}, GUID={payload_data.guid}")
                         self.sensor_buffer.clear()
                         self.state = AppState.DEDUP
                 

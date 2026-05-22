@@ -44,6 +44,9 @@ class DLL:
         self._last_megasync_req_local_time: int = 0
         self._megasync_req_due: bool = False
 
+    def has_link(self) -> bool:
+        return self.state == DLLState.FORWARDING
+
     def _remove_duplicates_from_buffers(self) -> None:
         """Remove duplicates: TX wins over RX. Also remove duplicate frames within RX buffers."""
         tx_checksums = set()
