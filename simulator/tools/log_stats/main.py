@@ -601,7 +601,7 @@ class packet_forwarding_delay:
         """
         self.finalize()
         if axes is None:
-            _, axes = plt.subplots(1, 2, figsize=(12, 5))
+            _, axes = plt.subplots(1, 2, figsize=(18, 6))
             axes = list(axes)
         self._plot_delay_histogram(axes[0])
         self._plot_loss_histogram(axes[1])
@@ -611,12 +611,14 @@ class packet_forwarding_delay:
         """Bar chart of average forwarding delay distribution across nodes.
 
         Bars are placed at consecutive positions (0, 1, 2, …) regardless of the
-        actual delay values, so sparse distributions (e.g. 1 min and 1 000 min)
-        are not stretched across a huge x-axis gap.  The actual values are shown
-        as x-tick labels.
+        actual delay values, so sparse distributions are not stretched across a
+        huge x-axis gap.  When there are more than 10 distinct delay values the
+        data is grouped into at most 10 bins of width (max_val - min_val) // 10;
+        values within a bin are summed.  X-tick labels show the value (or range)
+        for each bar.
 
-        x-axis labels — approximate average delay (min) per distinct value
-        y-axis         — number of nodes with that average delay
+        x-axis labels — approximate average delay (min) per bin
+        y-axis         — number of nodes in that bin
         """
         distribution = self.delay_distribution()
         if not distribution:
@@ -624,15 +626,43 @@ class packet_forwarding_delay:
             ax.text(0.5, 0.5, "No delivered packets recorded",
                     ha='center', va='center', transform=ax.transAxes)
             return ax
+
         x_vals = sorted(distribution.keys())
-        y_vals = [distribution[x] for x in x_vals]
-        positions = list(range(len(x_vals)))
+
+        if len(x_vals) > 10:
+            # Group into at most 10 bins so the x-axis stays readable.
+            min_val = x_vals[0]
+            max_val = x_vals[-1]
+            bin_width = (max_val - min_val) // 10  # always >= 1 when len > 10
+
+            # Accumulate counts per bin index (0–9).
+            binned: dict[int, int] = {}
+            for v in x_vals:
+                idx = min((v - min_val) // bin_width, 9)
+                binned[idx] = binned.get(idx, 0) + distribution[v]
+
+            bin_indices = sorted(binned.keys())
+            y_vals = [binned[i] for i in bin_indices]
+            positions = list(range(len(bin_indices)))
+
+            # Build "start-end" labels; last bin always ends at max_val.
+            labels = []
+            for pos, i in enumerate(bin_indices):
+                start = min_val + i * bin_width
+                is_last = (pos == len(bin_indices) - 1)
+                end = max_val if is_last else start + bin_width - 1
+                labels.append(str(start) if start == end else f"{start}-{end}")
+        else:
+            y_vals = [distribution[x] for x in x_vals]
+            positions = list(range(len(x_vals)))
+            labels = [str(v) for v in x_vals]
+
         ax.bar(positions, y_vals, width=0.4, color='steelblue')
         ax.set_xlabel("Approximate average delay (min)")
         ax.set_ylabel("Count")
         ax.set_title("Packet Forwarding Delay Distribution")
         ax.set_xticks(positions)
-        ax.set_xticklabels(x_vals)
+        ax.set_xticklabels(labels, rotation=45, ha='right')
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         return ax
 
@@ -661,11 +691,37 @@ class packet_forwarding_delay:
         from collections import Counter
         value_counts = Counter(loss_rates)
         x_vals = sorted(value_counts.keys())
-        y_vals = [value_counts[x] for x in x_vals]
-        positions = list(range(len(x_vals)))
+
+        if len(x_vals) > 10:
+            # Group into at most 10 bins so the x-axis stays readable.
+            min_val = x_vals[0]
+            max_val = x_vals[-1]
+            bin_width = (max_val - min_val) / 10
+
+            binned: dict[int, int] = {}
+            for v in x_vals:
+                idx = min(int((v - min_val) / bin_width), 9)
+                binned[idx] = binned.get(idx, 0) + value_counts[v]
+
+            bin_indices = sorted(binned.keys())
+            y_vals = [binned[i] for i in bin_indices]
+            positions = list(range(len(bin_indices)))
+
+            # Build "start%-end%" labels; last bin always ends at max_val.
+            labels = []
+            for pos, i in enumerate(bin_indices):
+                start = round(min_val + i * bin_width, 1)
+                is_last = (pos == len(bin_indices) - 1)
+                end = max_val if is_last else round(start + bin_width, 1)
+                labels.append(f"{start:.1f}%" if start == end else f"{start:.1f}%-{end:.1f}%")
+        else:
+            y_vals = [value_counts[x] for x in x_vals]
+            positions = list(range(len(x_vals)))
+            labels = [f"{v}%" for v in x_vals]
+
         ax.bar(positions, y_vals, width=0.4, color='salmon')
         ax.set_xticks(positions)
-        ax.set_xticklabels([f"{v}%" for v in x_vals])
+        ax.set_xticklabels(labels)
         ax.set_xlabel("Loss rate per node (lost / total)")
         ax.set_ylabel("Number of nodes")
         ax.set_title("Packet Loss Rate Distribution")
@@ -744,35 +800,79 @@ class clock_drift_analyser:
         )
         return ax
 
-    _NUM_BINS = 10
+    def report_text(self) -> str:
+        """Return a human-readable drift report.
+
+        Section 1 — per-node average drift after correction (minutes).
+        Section 2 — grouped summary: consecutive averages within 1 min are
+                    clubbed together; each line shows the group mean and the
+                    number of nodes that fell into that group.
+        """
+        averages = self.get_node_averages()
+        if not averages:
+            return "Clock Drift Report\n==================\nNo clock drift events recorded.\n"
+
+        lines: list[str] = ["Clock Drift Report", "==================", ""]
+
+        # --- Per-node breakdown ---
+        lines.append("Per-node average drift after correction:")
+        for node_id in sorted(averages):
+            drift_min = averages[node_id] / 60_000
+            lines.append(f"  Node {node_id:>4d}: {drift_min:+.4f} min")
+
+        lines.append("")
+
+        # --- Grouped summary ---
+        lines.append("Summary (values within 1 min are clubbed together):")
+        avg_mins = [averages[n] / 60_000 for n in sorted(averages)]
+        for group in self._group_values(avg_mins):
+            mean = sum(group) / len(group)
+            lines.append(f"  Avg drift {mean:+.4f} min  →  {len(group)} node(s)")
+
+        lines.append("")
+        return "\n".join(lines)
+
+    @staticmethod
+    def _group_values(values: list[float]) -> list[list[float]]:
+        """Partition sorted values into groups where adjacent elements differ by < 1."""
+        if not values:
+            return []
+        sorted_vals = sorted(values)
+        groups: list[list[float]] = []
+        current_group: list[float] = [sorted_vals[0]]
+        for v in sorted_vals[1:]:
+            if v - current_group[-1] < 1:
+                current_group.append(v)
+            else:
+                groups.append(current_group)
+                current_group = [v]
+        groups.append(current_group)
+        return groups
 
     def _plot_histogram(
         self, ax, values: list[float], title: str, xlabel: str, color: str
     ):
         """Render a histogram of per-node averages on ax, or show a no-data label.
 
-        Bars are placed at consecutive integer positions (0, 1, 2, …) so that
-        sparse or widely-spaced bin centres do not stretch the x-axis.  Actual
-        bin centre values are shown as x-tick labels.
+        Values are sorted and grouped via _group_values: consecutive elements
+        whose difference is less than 1 are clubbed into the same bar.  Each bar
+        is labelled with the group mean.  Bars sit at consecutive integer
+        positions so sparsely spaced groups do not stretch the x-axis.
         """
         ax.set_title(title)
         if not values:
             ax.text(0.5, 0.5, "No clock drift events recorded",
                     ha='center', va='center', transform=ax.transAxes)
             return ax
-        min_val, max_val = min(values), max(values)
-        if min_val == max_val:
-            # Degenerate: all nodes share one value — single bar at position 0.
-            ax.bar([0], [len(values)], width=0.8, color=color, edgecolor='white')
-            ax.set_xticks([0])
-            ax.set_xticklabels([f"{min_val:.2f}"])
-        else:
-            counts, bin_edges = np.histogram(values, bins=self._NUM_BINS)
-            centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            positions = list(range(len(counts)))
-            ax.bar(positions, counts, width=0.8, color=color, edgecolor='white')
-            ax.set_xticks(positions)
-            ax.set_xticklabels([f"{c:.2f}" for c in centers], rotation=45, ha='right')
+
+        groups    = self._group_values(values)
+        counts    = [len(g) for g in groups]
+        labels    = [f"{sum(g) / len(g):.2f}" for g in groups]
+        positions = list(range(len(groups)))
+
+        ax.bar(positions, counts, width=0.8, color=color, edgecolor='white')
+        ax.set_xticks(positions)
+        ax.set_xticklabels(labels, rotation=45, ha='right')
         ax.set_xlabel(xlabel)
         ax.set_ylabel("Node count")
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
@@ -905,25 +1005,28 @@ def post_process_and_plot(
                 fig.savefig(out_dir / f"{name}.svg", format='svg')
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--log',    default='Log_debugging\\simulation.log', help='Path to log file')
-    parser.add_argument('--bins',   type=int, default=5, help='Number of histogram bins for battery metric')
-    parser.add_argument('--output', default=None, help='Folder to write text reports (skipped if omitted)')
-    args = parser.parse_args()
+def process_log(log_path: str | Path, bins: int = 5, extra_output: str | Path | None = None, show: bool = False) -> None:
+    """Parse one log file, save SVGs + text reports, and optionally show plots.
 
-    svg_folder = svg_folder_for_log(args.log)
+    Args:
+        log_path:     Path to the .log file to process.
+        bins:         Number of histogram bins for the battery analyser.
+        extra_output: Optional additional folder to copy text reports into.
+        show:         When True, call plt.show() after plotting (single-file mode).
+    """
+    log_path   = Path(log_path)
+    svg_folder = svg_folder_for_log(log_path)
 
     executable_list = [
         deadnodecounter(),
         sync_interval_counter(),
-        battery_capacity_analyser(num_bins=args.bins),
+        battery_capacity_analyser(num_bins=bins),
         packet_forwarding_delay(),
         clock_drift_analyser(),
     ]
 
-    with tqdm(desc="Parsing log", unit="lines") as progress:
-        for batch in read_in_batches(args.log):
+    with tqdm(desc=f"Parsing {log_path.name}", unit="lines") as progress:
+        for batch in read_in_batches(log_path):
             for line in batch:
                 execute(executable_list, line)
             progress.update(len(batch))
@@ -933,22 +1036,56 @@ def main():
         if hasattr(exe, 'finalize'):
             exe.finalize()
 
-    # Always save text reports to the result folder next to the SVGs.
+    # Always save text reports next to the SVGs.
     for exe in executable_list:
         report_fn = getattr(exe, 'report_text', None)
         if callable(report_fn):
             save_report(report_fn(), svg_folder, f"{type(exe).__name__}_report.txt")
 
-    # Also write to --output if the user supplied it.
-    if args.output:
+    # Also write to the extra output folder when supplied.
+    if extra_output:
         for exe in executable_list:
             report_fn = getattr(exe, 'report_text', None)
             if callable(report_fn):
-                save_report(report_fn(), args.output, f"{type(exe).__name__}_report.txt")
+                save_report(report_fn(), extra_output, f"{type(exe).__name__}_report.txt")
 
     post_process_and_plot(executable_list, svg_folder=svg_folder)
     print(f"Results saved to: {svg_folder}")
-    plt.show()
+
+    # Close all figures when batch-processing so memory doesn't accumulate.
+    if show:
+        plt.show()
+    else:
+        plt.close('all')
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Analyse LoRa simulator log files and save plots + reports."
+    )
+    parser.add_argument('--log',    default=None,
+                        help='Path to a single log file. '
+                             'Omit to process every *.log in Log_debugging/')
+    parser.add_argument('--bins',   type=int, default=5,
+                        help='Number of histogram bins for battery metric')
+    parser.add_argument('--output', default=None,
+                        help='Extra folder to copy text reports into (optional)')
+    args = parser.parse_args()
+
+    if args.log is not None:
+        # Single-file mode: process the specified log and show plots interactively.
+        process_log(args.log, bins=args.bins, extra_output=args.output, show=True)
+    else:
+        # Batch mode (default): process every *.log in Log_debugging/.
+        log_dir   = Path('Log_debugging')
+        log_files = sorted(log_dir.glob('*.log'))
+        if not log_files:
+            print(f"No .log files found in {log_dir.resolve()}")
+            return
+        print(f"Found {len(log_files)} log file(s) — processing all.\n")
+        for log_path in log_files:
+            process_log(log_path, bins=args.bins, extra_output=args.output, show=False)
+            print()  # blank line between files for readability
 
 
 if __name__ == "__main__":
