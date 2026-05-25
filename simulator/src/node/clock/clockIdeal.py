@@ -46,10 +46,10 @@ class Clock(IModule):
             drift_before_correction = local_time - current_global_tick
             correction = 0
             if mini_sync_events:
-                miniSync_adjust = int(mini_sync_events[0].data)
-                # pass
+                # miniSync_adjust = int(mini_sync_events[0].data)
+                pass
             else:
-                correction = int(mega_sync_events[0].data)
+                # correction = int(mega_sync_events[0].data)
 
             local_time += correction
             if self.sleep_until_local_time is not None:
