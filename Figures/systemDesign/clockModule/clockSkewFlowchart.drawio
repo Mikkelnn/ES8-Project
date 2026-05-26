@@ -1,6 +1,6 @@
 <mxfile host="app.diagrams.net">
   <diagram name="Page-1" id="PFR9LK0ClkDxtsIZ37wa">
-    <mxGraphModel dx="1471" dy="820" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+    <mxGraphModel dx="1212" dy="675" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -17,7 +17,7 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="LROuO1wFUtxLFmI2sFh0-5" parent="1" style="rhombus;whiteSpace=wrap;html=1;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;fontSize=16;" value="Scheduled Time?" vertex="1">
-          <mxGeometry height="90" width="90" x="240" y="405" as="geometry" />
+          <mxGeometry height="105" width="100" x="240" y="397.5" as="geometry" />
         </mxCell>
         <mxCell id="LROuO1wFUtxLFmI2sFh0-6" edge="1" parent="1" source="LROuO1wFUtxLFmI2sFh0-7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;fontSize=16;" target="LROuO1wFUtxLFmI2sFh0-13">
           <mxGeometry relative="1" as="geometry" />
@@ -41,16 +41,16 @@
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="LROuO1wFUtxLFmI2sFh0-13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;fontSize=16;" value="Calculate Next Clock Skew" vertex="1">
-          <mxGeometry height="60" width="120" x="500" y="420" as="geometry" />
+          <mxGeometry height="70" width="120" x="500" y="415" as="geometry" />
         </mxCell>
         <mxCell id="LROuO1wFUtxLFmI2sFh0-14" edge="1" parent="1" source="LROuO1wFUtxLFmI2sFh0-15" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;fontSize=16;" target="LROuO1wFUtxLFmI2sFh0-16" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="LROuO1wFUtxLFmI2sFh0-15" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;fontSize=16;" value="Update Timers and Calculate Local Time to Next Evaluation" vertex="1">
-          <mxGeometry height="60" width="140" x="680" y="420" as="geometry" />
+          <mxGeometry height="70" width="140" x="680" y="415" as="geometry" />
         </mxCell>
         <mxCell id="LROuO1wFUtxLFmI2sFh0-16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fontFamily=modern;fontSource=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fcm-unicode%2F;fontSize=16;" value="Calculate the Global Time for Next Evaluation" vertex="1">
-          <mxGeometry height="60" width="120" x="870" y="420" as="geometry" />
+          <mxGeometry height="70" width="140" x="870" y="415" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>
