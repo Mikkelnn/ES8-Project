@@ -151,13 +151,14 @@ class sync_interval_counter:
     )
     _SYNCED_PATTERN = re.compile(
         r'\[INFO\]\s+\(PROTOCOL\)\s+@\s+(?P<tick>\d+):\s+Node\s+(?P<node_id>\d+)'
-        r'\s+(connected to gateway via WAN|discovery complete with hop count \d+)'
+        r'\s+(connected to gateway via WAN|discovery complete with hop count \d+, use TX slot: (?P<use_slot>\d+))'
     )
 
     def __init__(self):
         self.sync_node_set = set()  # Set to track synced nodes
         self.unsync_node_set = set()  # Set to track unsynced nodes
         self.max_sync_tick = 0  # Variable to track the maximum sync tick globally
+        self.node_slots = {}  # Dictionary to track the slot number for each node_id
 
     """Builds the dictionary by reading the log file (line-by-line) and appends the synced nodes and replaces the largest sync tick in the dictionary for each 'Sync' event found in the log file
     Input arguments: line - a line from the log file i.e., string
@@ -200,6 +201,10 @@ class sync_interval_counter:
                 self.unsync_node_set.discard(node_id)
                 self.sync_node_set.add(node_id)
                 self.max_sync_tick = tick
+            
+            if match.group('use_slot') is not None:
+                self.node_slots[node_id] = int(match.group('use_slot'))
+        
 
     def sync_counter(self):
         """Returns (synced_nodes, unsynced_nodes, max_tick) as sorted lists and int."""
@@ -218,6 +223,12 @@ class sync_interval_counter:
         ax.set_title(f"Sync state  (Time taken to complete synchronization: {tick})")
 
         return ax
+    
+    def report_text(self) -> str:
+        """Return a human-readable plain-text summary of sync events and slots assigned."""
+        synced, unsynced, tick = self.sync_counter()
+        slot_info = "\n".join(f"Node {node_id}: Slot {slot}" for node_id, slot in self.node_slots.items())
+        return f"Synced nodes: {len(synced)}\nUnsynced nodes: {len(unsynced)}\nMax sync tick: {tick}\nSlot assignments:\n{slot_info}"
 
 class battery_capacity_analyser:
     """Tracks battery charge at wake-up and sleep events per node.
