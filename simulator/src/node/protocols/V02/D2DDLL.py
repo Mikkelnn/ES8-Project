@@ -142,7 +142,11 @@ class D2DDLL:
         if is_start_and_has_valid_TX_slot:
             dead_node = next((n for n in self._known_neighbors if n.hopcount_to_gateway > self.hopcount_to_gateway and n.last_seen < current_local_clock_info.current_local_time - self.NEIGHBOR_DEAD_THREASHHOLD_MS), None)
             if dead_node:
-                hop_cnt = PayloadHopCntFull(dead_node.hopcount_to_gateway, slot_period_counter=slot_period_counter, use_slot=dead_node.in_slot, time_offset_from_period_start=self._period_start_to_tx)
+                # get nodes slot, and update our notion if "DEAD"-state is from invalid TDMA-slot
+                use_slot = self._get_slot_for_node(dead_node.neighbor_id)
+                self._observed_slots[dead_node.neighbor_id] = use_slot
+
+                hop_cnt = PayloadHopCntFull(dead_node.hopcount_to_gateway, slot_period_counter=slot_period_counter, use_slot=use_slot, time_offset_from_period_start=self._period_start_to_tx)
                 msg = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={dead_node.neighbor_id}, type=LoRaD2DFrameType.REDISCOVER, payload=hop_cnt)
                 msg.crc_calc()
                 self._tx_buffer.append(msg)
@@ -355,9 +359,11 @@ class D2DDLL:
                     
                     # if we are discovered we have drifted far away so if we are lucky and receive REDISCOVER we should use it to adjust our time
                     if self.discovery_state == DiscoverStates.DISCOVERED:
+                        # we might be assigned a new slot, so we need to resolve downstream slots
+                        self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
                         # own: 100 ; estimated: 90 -> 100 - 90 = +10 -> we should wake up 10 ms later
                         # self.estimated_period_correction = self._slot_period_start - self.estimated_period_start
-                        pass
+                        # pass
 
                     self.discovery_state = DiscoverStates.DISCOVERED
 
@@ -368,8 +374,9 @@ class D2DDLL:
         if existing:
             if existing.last_seen < self._slot_period_start:
                 existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self._duration_calculator.get_duration(frame.length) - 2  # account for local_event_queue in TX and RX (2 ticks)
-                if self._current_slot > -1:
-                    existing.in_slot = self._current_slot
+                existing.in_slot = self._current_slot
+                # if self._current_slot > -1:
+                    # self._observed_slots[existing.neighbor_id] = self._current_slot # update observed slot registry
 
             existing.last_seen = current_local_clock_info.current_local_time
             existing.last_rssi = frame.rssi
@@ -409,7 +416,7 @@ class D2DDLL:
             self._set_own_tx_slot(payload.use_slot)
 
             self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} discovery complete with hop count {self.hopcount_to_gateway}, use TX slot: {self._own_tx_slot}")
-            self._observed_slots[self._node_id] = self._own_tx_slot  # keep registry self-consistent
+            # self._observed_slots[self._node_id] = self._own_tx_slot  # keep registry self-consistent
 
         elif frame.destination_node_id and abs(payload.cnt - self.hopcount_to_gateway) <= 2:
             # is for a node in reach -> track slot without corrupting known_neighbors RSSI
@@ -452,7 +459,7 @@ class D2DDLL:
 
     def _next_available_slot(self) -> int:
         # we have observed all slots used, we try to remove all where we havent heared directly from
-        if len(self._observed_slots) >= self._slot_count - 1:
+        if len(self._observed_slots) >= self._slot_count - 2: # -1 for own slot, -1 for discover slot
             self._log.add(Severity.WARNING, Area.PROTOCOL, 0, f"Node {self._node_id} have used all slots, trying to remove unused...")
             known = {n.neighbor_id for n in self._known_neighbors}
             for nid in list(self._observed_slots.keys()):
@@ -478,17 +485,18 @@ class D2DDLL:
             return self._slot_count  # invalid slot -> no TX
         return self._rnd.choice(list(available))
 
-    def _get_slot_for_node(self, neighbor: D2DNeighborInfo) -> int:
+    def _get_slot_for_node(self, neighbor_id: int) -> int:
         # if current used slot is valid, return the current
         # otherwise find new valid slot
 
         # have slot -> check if still valid
-        if neighbor is not None and neighbor.in_slot > -1 and neighbor.in_slot < self._slot_count:
-            conflicting = next((nid for (nid, sidx) in self._observed_slots.items() if sidx == neighbor.in_slot and nid != neighbor.neighbor_id), None)
+        assigned = self._observed_slots.get(neighbor_id, None)
+        if assigned and assigned != self._own_tx_slot and 1 <= assigned < self._slot_count:
+            conflicting = next((nid for (nid, sidx) in self._observed_slots.items() if sidx == assigned and nid != neighbor_id), None)
             if not conflicting:
-                return neighbor.in_slot
+                return assigned
 
-        self._log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor.neighbor_id}, used slots: {self._observed_slots}")
+        self._log.add(Severity.DEBUG, Area.PROTOCOL, 0, f"Node {self._node_id}, find slot for nid: {neighbor_id}, used slots: {self._observed_slots}")
 
         return self._next_available_slot()
 
@@ -507,14 +515,16 @@ class D2DDLL:
                 prev_rssi = neighbor.last_rssi
                 current_hop += 1  # increment by one for each "layer"
 
-            use_slot = self._get_slot_for_node(neighbor)
-            if neighbor.hopcount_to_gateway == current_hop and neighbor.in_slot == use_slot:
+            original_slot = self._observed_slots.get(neighbor.neighbor_id, 0)
+            use_slot = self._get_slot_for_node(neighbor.neighbor_id)
+
+            if neighbor.hopcount_to_gateway == current_hop and original_slot == use_slot:
                 continue  # no change needed
 
             neighbor.hopcount_to_gateway = current_hop
-            neighbor.in_slot = use_slot
-            self._observed_slots[neighbor.neighbor_id] = neighbor.in_slot
-            change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=current_hop, use_slot=neighbor.in_slot, slot_period_counter=current_slot_period_counter))
+            # neighbor.in_slot = use_slot # DO NOT update slot assignment here, can cause wrong calc in minisync
+            self._observed_slots[neighbor.neighbor_id] = use_slot
+            change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=current_hop, use_slot=use_slot, slot_period_counter=current_slot_period_counter))
             change_frame.crc_calc()
 
             existing_frame_index = next((i for i, f in enumerate(self._tx_buffer) if neighbor.neighbor_id in f.destination_node_id and f.type == LoRaD2DFrameType.CHANGE_HOP_COUNT), None)
@@ -545,8 +555,8 @@ class D2DDLL:
 
         slot_offsets = []
         for n in self._known_neighbors:
-            # ignore if not seen in this slot period e.g a dead node
-            if n.last_seen < self._slot_period_start or n.first_tx_start_time_in_period < self._slot_period_start:
+            # ignore if not seen in this slot period e.g a dead node or if a node is seen in discovery slot
+            if n.in_slot < 1 or n.last_seen < self._slot_period_start or n.first_tx_start_time_in_period < self._slot_period_start:
                 continue
 
             # calculate diff between local start time of slot and the observed tx time
