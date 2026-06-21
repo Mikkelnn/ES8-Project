@@ -452,7 +452,7 @@ class D2DDLL:
 
     def _next_available_slot(self) -> int:
         # we have observed all slots used, we try to remove all where we havent heared directly from
-        if len(self._observed_slots) == self._slot_count - 1:
+        if len(self._observed_slots) >= self._slot_count - 1:
             self._log.add(Severity.WARNING, Area.PROTOCOL, 0, f"Node {self._node_id} have used all slots, trying to remove unused...")
             known = {n.neighbor_id for n in self._known_neighbors}
             for nid in list(self._observed_slots.keys()):
