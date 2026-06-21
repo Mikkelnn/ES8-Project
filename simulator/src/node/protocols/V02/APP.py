@@ -1,6 +1,7 @@
 from enum import Enum
 from random import Random
 from typing import cast
+from uuid import UUID
 
 from custom_types import Area, LocalClockInfo, LocalEventTypes, Severity
 from logger.ILogger import ILogger
@@ -30,6 +31,8 @@ class APP:
         self.last_measurement_time: int | None = None
 
         self.dll_link_established: bool = False
+        self.processed_packet_guids: dict[UUID, None] = {}  # for deduplication
+        self.packet_history_length = 25  # max number of packet GUIDs to keep for deduplication
 
     def _deduplication(self):
         pass
@@ -78,7 +81,15 @@ class APP:
             case AppState.FORWARDING:
                 while self.dll_to_app_rx:
                     packet = self.dll_to_app_rx.pop(0)
+                    if packet.guid in self.processed_packet_guids:
+                        self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} dropped duplicate packet with GUID {packet.guid}")
+                        continue
+                    
                     self.enqueue_payload(packet)
+
+                    self.processed_packet_guids[packet.guid] = None
+                    if len(self.processed_packet_guids) > self.packet_history_length:
+                        self.processed_packet_guids.pop(next(iter(self.processed_packet_guids)))  # remove oldest GUID to maintain history length
 
                 self.state = AppState.SENSOR
 
