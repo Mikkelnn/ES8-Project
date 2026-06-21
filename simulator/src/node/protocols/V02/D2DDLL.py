@@ -354,13 +354,17 @@ class D2DDLL:
                     payload = cast(PayloadHopCntFull, frame.payload)
                     self.estimated_period_start = current_local_clock_info.current_local_time - (payload.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
                     self.slot_period_counter = payload.slot_period_counter
+
+                    has_change = payload.cnt != self.hopcount_to_gateway or payload.use_slot != self._own_tx_slot
+
                     self._set_own_hop_count(payload.cnt)
                     self._set_own_tx_slot(payload.use_slot)
                     
                     # if we are discovered we have drifted far away so if we are lucky and receive REDISCOVER we should use it to adjust our time
                     if self.discovery_state == DiscoverStates.DISCOVERED:
                         # we might be assigned a new slot, so we need to resolve downstream slots
-                        self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
+                        if has_change:
+                            self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
                         # own: 100 ; estimated: 90 -> 100 - 90 = +10 -> we should wake up 10 ms later
                         # self.estimated_period_correction = self._slot_period_start - self.estimated_period_start
                         # pass
@@ -391,19 +395,24 @@ class D2DDLL:
             self.estimated_period_start = current_local_time - (frame_hop_cnt.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
             self.slot_period_counter = frame_hop_cnt.slot_period_counter
 
+        did_change = False
         existing = next((n for n in self._known_neighbors if n.neighbor_id == frame.source_node_id), None)
         if existing is None:
             neighbor_info = D2DNeighborInfo(neighbor_id=frame.source_node_id, hopcount_to_gateway=frame_hop_cnt.cnt, last_seen=current_local_time, last_rssi=frame.rssi, in_slot=frame_hop_cnt.use_slot, first_tx_start_time_in_period=0)
             self._known_neighbors.append(neighbor_info)
+            did_change = True
         else:
+            did_change = existing.hopcount_to_gateway != frame_hop_cnt.cnt
             existing.hopcount_to_gateway = frame_hop_cnt.cnt
 
-        self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
+        if did_change:
+            self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
 
     def _process_change_hop_count(self, frame: LoRaD2DFrame, current_global_tick: int, current_slot_period_counter: int) -> None:
 
         # we have been instructed to change our hop count, update our hop count to the instructed hop count
         # implied ACk, we can assume discovery complete
+        did_change = False
         payload = cast(PayloadHopCntMid, frame.payload)
         if self._node_id in frame.destination_node_id:
             if self.discovery_state != DiscoverStates.DISCOVERED:
@@ -412,6 +421,7 @@ class D2DDLL:
 
             self.discovery_state = DiscoverStates.DISCOVERED
 
+            did_change = self.hopcount_to_gateway != payload.cnt or self._own_tx_slot != payload.use_slot
             self._set_own_hop_count(payload.cnt)
             self._set_own_tx_slot(payload.use_slot)
 
@@ -420,11 +430,13 @@ class D2DDLL:
 
         elif frame.destination_node_id and abs(payload.cnt - self.hopcount_to_gateway) <= 2:
             # is for a node in reach -> track slot without corrupting known_neighbors RSSI
-            nid = next(iter(frame.destination_node_id))  # peek without popping
+            nid = next(iter(frame.destination_node_id))  # peek without popping            
+            did_change = self._observed_slots.get(nid) != payload.use_slot
             self._observed_slots[nid] = payload.use_slot
             # update existing neighbor if already known
             existing = next((n for n in self._known_neighbors if n.neighbor_id == nid), None)
             if existing is not None:
+                did_change = did_change or existing.hopcount_to_gateway != payload.cnt or existing.in_slot != payload.use_slot
                 existing.hopcount_to_gateway = payload.cnt
                 existing.in_slot = payload.use_slot
         else:
@@ -434,7 +446,8 @@ class D2DDLL:
                     self._observed_slots.pop(node_id)
                     self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} removed node {node_id} from observed slots")
 
-        self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
+        if did_change:
+            self._resolve_upstream_hopcount_and_slot(current_slot_period_counter)
 
     def _process_req_hop_ack(self, frame: LoRaD2DFrame, current_local_time: int, current_slot_period_counter: int) -> None:
 
