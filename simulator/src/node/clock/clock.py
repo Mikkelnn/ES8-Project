@@ -1,4 +1,5 @@
 # type: ignore
+import math
 import numpy as np
 from numpy import random as rnd
 
@@ -10,7 +11,7 @@ from node.Imodule import IModule
 
 # log = Logger()
 class Clock(IModule):
-    def __init__(self, log: ILogger, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float):
+    def __init__(self, log: ILogger, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float, scheduling_quantization: int = 1): #Make quantisation higher for faster simulation time, but increase timing jitter
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log
@@ -28,12 +29,14 @@ class Clock(IModule):
         self.earliest_next_local_time: int | None = None
 
         self.rng = np.random.default_rng(node_id)
-        self.trend: float = [2.6089997921883332e-05, 2.6089997921883332e-05, 2.5591306196976804e-05, 2.5591306196976804e-05, 1.0041082850226938e-05][node_id - 1] # rnd.uniform(-40e-6, 40e-6)
+        self.trend: float =  [2.6089997921883332e-05, 2.6089997921883332e-05, 2.5591306196976804e-05, 2.5591306196976804e-05, 1.0041082850226938e-05][node_id - 1] # rnd.uniform(-40e-6, 40e-6)
         self.noise_std: float = np.sqrt(20.970167331917025 * 3.915e-15)
         self.ar_constant: float = 0.9087642375247008
         self.random_vector: np.ndarray = self.rng.normal(loc=0, scale=self.noise_std, size=100)
         self.alpha: float = self.random_vector[0]
         self.random_vector = self.random_vector[1:]
+
+        self.scheduling_quantization = scheduling_quantization
 
         self.last_miniSync_local_time = 0
         self.last_megaSync_local_time = 0
@@ -174,7 +177,8 @@ class Clock(IModule):
             self.scheduled_global_tick = None
         else:
             deltaLocal = self.earliest_next_local_time - self.localtime
-            self.scheduled_global_tick = int(current_global_tick + (deltaLocal / (1 + self.alpha + self.trend)) * (1 + self.linear_drift_correction_factor)) # int(current_global_tick + deltaLocal)
+            _raw = current_global_tick + (deltaLocal / (1 + self.alpha + self.trend)) * (1 + self.linear_drift_correction_factor)
+            self.scheduled_global_tick = math.ceil(_raw / self.scheduling_quantization) * self.scheduling_quantization
 
         return (0, self.scheduled_global_tick)
 
