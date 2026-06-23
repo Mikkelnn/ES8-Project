@@ -52,7 +52,9 @@ class KalmanFilterAR1Trend:
         
         # Measurement noise covariance (1x1) - only for theta measurement
         self.R = np.array([[measurement_noise_var]])
-        
+        self.kalmanInit()
+
+    def kalmanInit(self):    
         # Initialize state estimate and covariance
         self.x = np.array([0.0, 0.0, 0.0])  # [theta, alpha, trend]
         self.P = np.array([[1e-6, 0, 0],

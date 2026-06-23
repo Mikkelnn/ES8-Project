@@ -28,7 +28,7 @@ simLength = 365*4 #days
 timeScale = 'Samples'
 samplesDay = int(24*3600/t0)
 k_Temp = 5.559e-6
-smallSamples = 500
+smallSamples = 5000
 
 AR1Const = 0.9087642375247008
 AR1Gain = 20.970167331917025
@@ -1051,7 +1051,7 @@ def analysis(AR1data, AR5data):
 
 def main ():
     # AR1 model with trend (40 microseconds per second drift)
-    trend_rate = 4e-5  # seconds per second
+    trend_rate = -4e-5  # seconds per second
     AR5data = np.array(ARModelSimple())
     AR1data = np.array(AR1Model(trend_rate=trend_rate))  
     

@@ -12,7 +12,7 @@ from .kalmanClock import KalmanFilterAR1Trend as Kalman
 
 # log = Logger()
 class Clock(IModule):
-    def __init__(self, log: ILogger, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float, scheduling_quantization: int = 1): #Make quantisation higher for faster simulation time, but increase timing jitter
+    def __init__(self, log: ILogger, node_id: int, local_event_queue: LocalEventQueue, second_to_global_tick: float): 
         self.node_id = node_id
         self.local_event_queue = local_event_queue
         self.log = log
@@ -23,9 +23,6 @@ class Clock(IModule):
         self.sleep_until_local_time: int | None = None
         self.timer_1_end_local_time: int | None = None
         self.timer_2_end_local_time: int | None = None
-        self.sleep_until_local_time_corrected: int | None = None
-        self.timer_1_end_local_time_corrected: int | None = None
-        self.timer_2_end_local_time_corrected: int | None = None
 
         self.global_time_last: int = 0
         self.localtime: int = 0
@@ -42,8 +39,6 @@ class Clock(IModule):
         self.alpha: float = self.random_vector[0]
         self.random_vector = self.random_vector[1:]
         self.states: np.ndarray = [0, 0, 0] #[drift, skew, trend]
-
-        self.scheduling_quantization = scheduling_quantization
 
         self.last_miniSync_local_time = 0
         self.last_megaSync_local_time = 0
@@ -71,13 +66,15 @@ class Clock(IModule):
 
         self.last_eval_local = self.localtime
 
-        self.states = Kalman.predict(k = deltaTime)
+        self.states = self.filter.predict(k = deltaTime)
+        self.localtimeCorrected = self.localtime - int(self.states[0])
+        self.linear_drift_correction_factor = self.states[1] + self.states[2]
         # Check for external time sync (MegaSync)
         mega_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MEGA_SYNC)
         mini_sync_events = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SYNC_LOCAL_TIME, LocalEventSubTypes.MINI_SYNC)
         miniSync_adjust = 0
         if mini_sync_events or mega_sync_events:
-            drift_before_correction = self.localtime - current_global_tick
+            drift_before_correction = self.localtimeCorrected - current_global_tick
             correction = 0
             if mini_sync_events:
                 miniSync_adjust = int(mini_sync_events[0].data)
@@ -113,7 +110,9 @@ class Clock(IModule):
 
             #     self.last_megaSync_local_time = self.localtime + correction
             else:
-                self.states = Kalman.update(z = int(mega_sync_events[0].data))
+                self.states = self.filter.update(z = self.states[0] - int(mega_sync_events[0].data))
+                self.localtimeCorrected = self.localtime - int(self.states[0])
+                self.linear_drift_correction_factor = self.states[1] + self.states[2]
 
             # self.localtime += self.states[0]
             # if self.sleep_until_local_time is not None:
@@ -123,17 +122,10 @@ class Clock(IModule):
             # if self.timer_2_end_local_time is not None:
             #     self.timer_2_end_local_time += correction
 
-            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtime - current_global_tick}, miniSync adjust: {miniSync_adjust}")
+            self.log.add(Severity.INFO, Area.CLOCK, current_global_tick, f"Node {self.node_id} clock drift before correction: {drift_before_correction}, after correction: {self.localtimeCorrected - current_global_tick}, miniSync adjust: {miniSync_adjust}")
 
-        self.localtimeCorrected = self.localtime - int(self.states[0])
-        self.linear_drift_correction_factor = self.states[1] + self.states[2]
+        
 
-        if self.sleep_until_local_time is not None:
-            self.sleep_until_local_time_corrected = self.sleep_until_local_time - int(self.states[0])
-        if self.timer_1_end_local_time is not None:
-            self.timer_1_end_local_time_corrected = self.timer_1_end_local_time - int(self.states[0])
-        if self.timer_2_end_local_time is not None:
-            self.timer_2_end_local_time_corrected = self.timer_2_end_local_time - int(self.states[0])
 
         # calculate next clock skew
         self.alpha = self.ar_constant * self.alpha + self.random_vector[0]
@@ -146,7 +138,7 @@ class Clock(IModule):
         set_timers = self.local_event_queue.get_current_events_by_type(LocalEventTypes.SET_TIMER)
         for set_timer in set_timers:
             timer_type = set_timer.sub_type
-            timer_duration = set_timer.data 
+            timer_duration = int(set_timer.data * (1 + self.linear_drift_correction_factor)) 
             timer_local_end = self.localtime + timer_duration - 1 # "-1" account for the 1-tick delay from request
             match timer_type:
                 case LocalEventSubTypes.TIMER_1:
@@ -156,7 +148,7 @@ class Clock(IModule):
 
         # Puplish tick event to local event bus
         local_clock_info = LocalClockInfo(
-            current_local_time=self.localtime,
+            current_local_time=self.localtimeCorrected,
             timer_1_remaining=max(0, self.timer_1_end_local_time - self.localtime) if self.timer_1_end_local_time is not None else None, 
             timer_2_remaining=max(0, self.timer_2_end_local_time - self.localtime) if self.timer_2_end_local_time is not None else None
         )
@@ -201,11 +193,11 @@ class Clock(IModule):
             self.scheduled_global_tick = None
         else:
             deltaLocal = self.earliest_next_local_time - self.localtime
-            _raw = current_global_tick + (deltaLocal / (1 + self.alpha + self.trend)) * (1 + self.linear_drift_correction_factor)
-            self.scheduled_global_tick = math.ceil(_raw / self.scheduling_quantization) * self.scheduling_quantization
+            self.scheduled_global_tick = current_global_tick + (deltaLocal / (1 + self.alpha + self.trend))
 
         return (0, self.scheduled_global_tick)
 
     def reset(self, current_global_tick: int) -> None:
         self.timer_1_end_local_time = None
         self.timer_2_end_local_time = None
+        self.filter.kalmanInit()
