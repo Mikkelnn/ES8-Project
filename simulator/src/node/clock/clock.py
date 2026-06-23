@@ -32,7 +32,7 @@ class Clock(IModule):
         self.earliest_next_local_time: int | None = None
 
         self.rng = np.random.default_rng(node_id)
-        self.trend: float =  [2.6089997921883332e-05, 2.6089997921883332e-05, 2.5591306196976804e-05, 2.5591306196976804e-05, 1.0041082850226938e-05][node_id - 1] # rnd.uniform(-40e-6, 40e-6)
+        self.trend: float =  self.rng.uniform(-40e-6, 40e-6)
         self.noise_std: float = np.sqrt(20.970167331917025 * 3.915e-15)
         self.ar_constant: float = 0.9087642375247008
         self.random_vector: np.ndarray = self.rng.normal(loc=0, scale=self.noise_std, size=100)
