@@ -559,7 +559,7 @@ class KalmanFilterAR1Trend:
         
         Args:
             full_trajectory: List of [theta, alpha] true values for all samples
-            measurement_interval: Number of samples between measurements (default: 50)
+            measurement_interval: Number of samples between measurements (default: 120)
             
         Returns:
             Tuple of (filtered_states, prediction_states)
@@ -1051,7 +1051,7 @@ def analysis(AR1data, AR5data):
 
 def main ():
     # AR1 model with trend (40 microseconds per second drift)
-    trend_rate = 4e-5  # seconds per second
+    trend_rate = -4e-5  # seconds per second
     AR5data = np.array(ARModelSimple())
     AR1data = np.array(AR1Model(trend_rate=trend_rate))  
     

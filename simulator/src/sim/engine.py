@@ -3,16 +3,18 @@ import json
 import os
 import time
 from collections import defaultdict, deque
-from ctypes import c_int
+from copy import replace
+from ctypes import c_int, c_long
 from multiprocessing import Lock, Pipe, Process, Queue, Value
 from multiprocessing.connection import wait as mp_wait
 from pathlib import Path
 
-from custom_types import Area, LocalEventTypes, MediumTypes, NodeMediumInfo, Severity, SimState
+from custom_types import Area, EventNet, EventNetTypes, LocalEventTypes, LoRaD2DFrame, MediumTypes, NodeMediumInfo, Severity, SimState
 from gateway.gateway import Gateway
 from logger.ILogger import ILogger
 from logger.simple_logger import SimpleLogger
 from loraWanFrameHelper import LoRaWanPHYPayload, MACPayload
+from medium.lora_d2d_medium import LoraD2DMedium
 from medium.medium_service import MediumService
 from node.node import Node
 from payload_types import MegaSync, PayloadData
@@ -32,26 +34,38 @@ _SECOND_TO_GLOBAL_TICK = 0.001
 # ── Worker-side proxy classes ──────────────────────────────────────────────────
 
 
-class CollectingMediumService:
-    """Proxy MediumService used inside worker processes.
-    Collects transmit/cancel calls as plain tuples; serves pre-loaded incoming
-    EventNet objects so node.transceiver.tick() can read them normally.
+class ClusterMediumService:
+    """Worker-side proxy MediumService with topology-aware D2D short-circuit.
+
+    D2D transmissions whose full receiver set lives within this worker's cluster are
+    resolved locally — no round-trip through the main process. Only cross-cluster D2D
+    and all LoRaWAN traffic are forwarded to main as plain tuples (same protocol as before).
     """
 
-    def __init__(self):
-        self._incoming: dict = defaultdict(list)  # node_id → List[EventNet]
-        self._transmissions: list = []
-        self._cancellations: list = []
+    def __init__(self, owned_nodes: frozenset, reach_map: dict):
+        self._owned_nodes = owned_nodes
+        self._reach_map = reach_map
+        self._incoming: dict = defaultdict(list)
+        self._pending_d2d: list = []          # ordered ('TX'|'CX', ...) events this tick
+        self._cross_transmissions: list = []
+        self._cross_cancellations: list = []
+        self._intra_ongoing: dict = {}        # sender_id → [receiver_ids] for cancel tracking
+        self._intra_receptions: list = []     # (receiver_id, EventNet, wake_tick)
 
     def set_incoming(self, node_id: int, events: list) -> None:
         self._incoming[node_id].extend(events)
 
-    # Called by TransceiverService inside node.tick()
     def transmit(self, from_node_id: int, medium_type, data, time_start: int, time_end: int) -> None:
-        self._transmissions.append((from_node_id, medium_type, data, time_start, time_end))
+        if medium_type == MediumTypes.LORA_D2D:
+            self._pending_d2d.append(('TX', from_node_id, data, time_start, time_end))
+        else:
+            self._cross_transmissions.append((from_node_id, medium_type, data, time_start, time_end))
 
     def cancel_transmission(self, from_node_id: int, medium_type, time_start: int, time_end: int) -> None:
-        self._cancellations.append((from_node_id, medium_type, time_start, time_end))
+        if medium_type == MediumTypes.LORA_D2D:
+            self._pending_d2d.append(('CX', from_node_id, time_start, time_end))
+        else:
+            self._cross_cancellations.append((from_node_id, medium_type, time_start, time_end))
 
     def receive(self, to_node_id: int, medium_type) -> list:
         node_events = self._incoming.get(to_node_id, [])
@@ -63,14 +77,62 @@ class CollectingMediumService:
             self._incoming.pop(to_node_id, None)
         return matching
 
+    def flush_d2d(self, current_time: int) -> None:
+        """Resolve D2D events: short-circuit all-intra transmissions, forward the rest to main."""
+        for entry in self._pending_d2d:
+            if entry[0] == 'TX':
+                _, sender, data, t_start, t_end = entry
+                receivers = self._reach_map.get(sender, [])  # [(recv_id, rssi)]
+
+                if receivers and all(r in self._owned_nodes for r, _ in receivers):
+                    # All receivers within this cluster — resolve without touching main process
+                    self._intra_ongoing[sender] = [r for r, _ in receivers]
+                    for recv_id, rssi in receivers:
+                        rx_data = replace(data, rssi=rssi) if isinstance(data, LoRaD2DFrame) else data
+                        rx_event = EventNet(
+                            node_id=sender, time_start=t_start, time_end=t_end,
+                            type=EventNetTypes.TRANSMIT, type_medium=MediumTypes.LORA_D2D,
+                            data=rx_data,
+                        )
+                        self._intra_receptions.append((recv_id, rx_event, t_end + 1))
+                else:
+                    # Any cross-cluster receiver (or no receivers) → let main propagate
+                    self._cross_transmissions.append((sender, MediumTypes.LORA_D2D, data, t_start, t_end))
+
+            elif entry[0] == 'CX':
+                _, sender, t_start, t_end = entry
+                if sender in self._intra_ongoing:
+                    # Undo the pre-queued intra receptions and send CANCELED events instead
+                    recv_ids = self._intra_ongoing.pop(sender)
+                    for recv_id in recv_ids:
+                        self._intra_receptions = [
+                            (r, e, w) for r, e, w in self._intra_receptions
+                            if not (r == recv_id and e.node_id == sender and e.time_start == t_start)
+                        ]
+                        cx_event = EventNet(
+                            node_id=sender, time_start=t_start, time_end=t_end,
+                            type=EventNetTypes.CANCELED, type_medium=MediumTypes.LORA_D2D,
+                            data=[],
+                        )
+                        self._intra_receptions.append((recv_id, cx_event, t_start + 1))
+                else:
+                    self._cross_cancellations.append((sender, MediumTypes.LORA_D2D, t_start, t_end))
+
+        self._pending_d2d.clear()
+
     def drain_transmissions(self) -> list:
-        out = self._transmissions[:]
-        self._transmissions.clear()
+        out = self._cross_transmissions[:]
+        self._cross_transmissions.clear()
         return out
 
     def drain_cancellations(self) -> list:
-        out = self._cancellations[:]
-        self._cancellations.clear()
+        out = self._cross_cancellations[:]
+        self._cross_cancellations.clear()
+        return out
+
+    def drain_intra_receptions(self) -> list:
+        out = self._intra_receptions[:]
+        self._intra_receptions.clear()
         return out
 
 
@@ -100,7 +162,7 @@ class CollectingLogger:
 _WORKER_STOP = "STOP"
 
 
-def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
+def _worker_run_loop(node_ids: list, node_neighbors: dict, owned_nodes: frozenset, reach_map: dict, conn) -> None:
     """Runs inside each worker Process.
     Initialises a node subset with proxy medium/logger, then loops:
       receive task → tick active nodes → send results.
@@ -108,7 +170,7 @@ def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
     # Local imports so this function works with both fork and spawn.
     from payload_types import PayloadHopCntFull, PayloadHopCntMid, PayloadHopCntSimple
 
-    medium = CollectingMediumService()
+    medium = ClusterMediumService(owned_nodes=owned_nodes, reach_map=reach_map)
     log = CollectingLogger()
     nodes: dict = {}
 
@@ -155,7 +217,8 @@ def _worker_run_loop(node_ids: list, node_neighbors: dict, conn) -> None:
             if node is not None:
                 next_ticks.append((nid, node.tick(current_time)))
 
-        conn.send((next_ticks, medium.drain_transmissions(), medium.drain_cancellations(), log.drain_entries()))
+        medium.flush_d2d(current_time)
+        conn.send((next_ticks, medium.drain_transmissions(), medium.drain_cancellations(), log.drain_entries(), medium.drain_intra_receptions()))
 
 
 class NetworkTopologyLoader:
@@ -261,19 +324,26 @@ class Simulation:
         phys_cores = max(1, logical_cpus // 2)
         n_workers = max(1, min(phys_cores, num_devices))
 
-        sorted_ids = sorted(device_neighbors_dict.keys())
+        # Pre-compute D2D reach map once — O(1) per transmission instead of O(neighbors^2) traversal
+        reach_map = LoraD2DMedium.build_reach_map(device_neighbors_dict)
+        self.medium_service._mediums_by_type[MediumTypes.LORA_D2D].set_reach_map(reach_map)
+
+        # Topology-aware clustering: BFS from geo-spread seeds keeps communicating nodes together
+        node_to_cluster = BFSTopologyAnalyzer.cluster_partition(device_neighbors_dict, n_workers)
         partitions: list[list[int]] = [[] for _ in range(n_workers)]
         self._node_to_worker: dict[int, int] = {}
-        for i, nid in enumerate(sorted_ids):
-            w = i % n_workers
-            partitions[w].append(nid)
-            self._node_to_worker[nid] = w
+        for nid, cid in node_to_cluster.items():
+            partitions[cid].append(nid)
+            self._node_to_worker[nid] = cid
+
+        self.log.add(Severity.DEBUG, Area.SIMULATOR, 0, f"Worker cluster sizes: {[len(p) for p in partitions]}")
 
         # Start one persistent Process per partition, connected via duplex Pipe
         self._workers: list[tuple] = []  # (parent_conn, Process)
-        for w_ids in partitions:
+        for w_idx, w_ids in enumerate(partitions):
             parent_conn, child_conn = Pipe(duplex=True)
-            p = Process(target=_worker_run_loop, args=(w_ids, device_neighbors_dict, child_conn), daemon=True)
+            owned = frozenset(w_ids)
+            p = Process(target=_worker_run_loop, args=(w_ids, device_neighbors_dict, owned, reach_map, child_conn), daemon=True)
             p.start()
             child_conn.close()  # Only the child needs its end
             self._workers.append((parent_conn, p))
@@ -363,14 +433,18 @@ class Simulation:
                     if not ready:
                         raise TimeoutError("Worker timed out after 60s")
                     for conn in ready:
-                        next_ticks, transmissions, cancellations, logs = conn.recv()
+                        next_ticks, transmissions, cancellations, logs, intra_receptions = conn.recv()
                         for nid, nt in next_ticks:
                             self.event_queue.add_event(nid, nt)
                         for tx in transmissions:
                             self.medium_service.transmit(*tx)
                         for cx in cancellations:
                             self.medium_service.cancel_transmission(*cx)
-                        self.log._buffer.extend(logs)
+                        if logs:
+                            self.log._buffer.extend(logs)
+                        for recv_id, eventnet, wake_tick in intra_receptions:
+                            self._pending_incoming[recv_id].append(eventnet)
+                            self.event_queue.add_event(recv_id, wake_tick)
                         pending.remove(conn)
 
                 node_tick_time += time.time() - node_start_time
@@ -443,7 +517,7 @@ class Engine:
         self.log: ILogger = SimpleLogger(log_path=log_path, buffer_size=100_000)
         self.status = Value(c_int, SimState.PAUSED.value)
         self.tps_from_sim = Value(c_int, 0)
-        self.current_tick = Value(c_int, 0)
+        self.current_tick = Value(c_long, 0)
         self.log_queue = Queue(maxsize=2)
         self.lock = Lock()
         self.amount_of_processes = 1
