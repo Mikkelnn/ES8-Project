@@ -86,6 +86,10 @@ class BaseTransceiver(IModule):
                 self._local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_RECEIVED_DATA, event.data, sub_type=self.medium_type)
                 self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} successfully received data {event.data} on {self.medium_type} from node {event.node_id}")  # TODO add guid to track payload between nodes?
 
+            if self._had_collision():
+                self._local_event_queue.add_event_to_current_tick(LocalEventTypes.TRANCEIVER_COLLISION, None, sub_type=self.medium_type)
+                self.log.add(Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} detected a collision on {self.medium_type}")
+
         self.log.add(
             Severity.DEBUG, Area.TRANCEIVER, current_global_tick, f"Node {self._node_id} transceiver end {self.medium_type} state: {self.state}, current reception queue: {[{'from_node': e.node_id, 'time_start': e.time_start, 'time_end': e.time_end, 'type': e.type} for e in self._receive_queue]}"
         )  # TODO maybe remove, since "heavy" write all time.
@@ -132,3 +136,8 @@ class BaseTransceiver(IModule):
     @abstractmethod
     def _get_successful_receptions(self, current_global_tick) -> List[EventNet]:
         pass
+
+    def _had_collision(self) -> bool:
+        # mediums that model collisions override this to report (and clear) a
+        # per-tick collision flag. default: no collision modelling.
+        return False

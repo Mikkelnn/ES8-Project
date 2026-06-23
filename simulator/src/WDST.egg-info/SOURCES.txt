@@ -54,5 +54,6 @@ test/test_injection_e2e.py
 test/test_injection_topologies.py
 test/test_lora_d2d_medium.py
 test/test_megasync_protocol.py
+test/test_slot_collision.py
 test/test_transceiver.py
 test/test_v02_deduplication.py

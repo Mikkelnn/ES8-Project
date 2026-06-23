@@ -1,5 +1,5 @@
-from copy import deepcopy
 import statistics
+from copy import deepcopy
 from dataclasses import dataclass
 from enum import Enum
 from random import Random
@@ -165,6 +165,11 @@ class D2DDLL:
 
         # process receptions and update neighbors, conflicting hop count info is resolved by taking the lowest hop count + 1 as our hop count
         self._process_receptions(current_global_tick, current_local_clock_info, slot_period_counter)
+
+        # a collision in one of our RX slots means >=2 downstream children share that TX slot.
+        # we are their slot authority -> reassign the children we know live in this slot.
+        if self.link_established and self._current_slot >= 1 and self._local_event_queue.get_current_events_by_type(LocalEventTypes.TRANCEIVER_COLLISION, MediumTypes.LORA_D2D):
+            self._resolve_slot_collision(current_global_tick, self._current_slot, slot_period_counter)
 
         # handle MINI SYNC here
         if period_finished:
@@ -350,7 +355,6 @@ class D2DDLL:
             case LoRaD2DFrameType.REDISCOVER:
                 # we have been dead and now been directly synced
                 if self._node_id in frame.destination_node_id:
-
                     payload = cast(PayloadHopCntFull, frame.payload)
                     total_duration_from_start = (payload.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
                     self.estimated_period_start = current_local_clock_info.current_local_time - total_duration_from_start
@@ -358,11 +362,16 @@ class D2DDLL:
                     self.has_mega_sync = True
                     self.slot_period_counter = payload.slot_period_counter
 
-                    has_change = payload.cnt != self.hopcount_to_gateway or payload.use_slot != self._own_tx_slot
+                    # adopt the slot only from our elected parent (see _process_change_hop_count)
+                    parent = self._elected_parent_id()
+                    accept_slot = parent is None or frame.source_node_id == parent
+
+                    has_change = payload.cnt != self.hopcount_to_gateway or (accept_slot and payload.use_slot != self._own_tx_slot)
 
                     self._set_own_hop_count(payload.cnt)
-                    self._set_own_tx_slot(payload.use_slot)
-                    
+                    if accept_slot:
+                        self._set_own_tx_slot(payload.use_slot)
+
                     # if we are discovered we have drifted far away so if we are lucky and receive REDISCOVER we should use it to adjust our time
                     if self.discovery_state == DiscoverStates.DISCOVERED:
                         # we might be assigned a new slot, so we need to resolve downstream slots
@@ -383,7 +392,7 @@ class D2DDLL:
                 existing.first_tx_start_time_in_period = current_local_clock_info.current_local_time - self._duration_calculator.get_duration(frame.length) - 2  # account for local_event_queue in TX and RX (2 ticks)
                 existing.in_slot = self._current_slot
                 # if self._current_slot > -1:
-                    # self._observed_slots[existing.neighbor_id] = self._current_slot # update observed slot registry
+                # self._observed_slots[existing.neighbor_id] = self._current_slot # update observed slot registry
 
             existing.last_seen = current_local_clock_info.current_local_time
             existing.last_rssi = frame.rssi
@@ -428,16 +437,23 @@ class D2DDLL:
 
             self.discovery_state = DiscoverStates.DISCOVERED
 
-            did_change = self.hopcount_to_gateway != payload.cnt or self._own_tx_slot != payload.use_slot
+            # only adopt a slot from our elected parent (closest in-range node to the GW).
+            # other in-range authorities may also command us; ignoring them prevents slot flapping.
+            parent = self._elected_parent_id()
+            accept_slot = parent is None or frame.source_node_id == parent
+
+            did_change = self.hopcount_to_gateway != payload.cnt
             self._set_own_hop_count(payload.cnt)
-            self._set_own_tx_slot(payload.use_slot)
+            if accept_slot:
+                did_change = did_change or self._own_tx_slot != payload.use_slot
+                self._set_own_tx_slot(payload.use_slot)
 
             self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} discovery complete with hop count {self.hopcount_to_gateway}, use TX slot: {self._own_tx_slot}")
             # self._observed_slots[self._node_id] = self._own_tx_slot  # keep registry self-consistent
 
         elif frame.destination_node_id and abs(payload.cnt - self.hopcount_to_gateway) <= 2:
             # is for a node in reach -> track slot without corrupting known_neighbors RSSI
-            nid = next(iter(frame.destination_node_id))  # peek without popping            
+            nid = next(iter(frame.destination_node_id))  # peek without popping
             did_change = self._observed_slots.get(nid) != payload.use_slot
             self._observed_slots[nid] = payload.use_slot
             # update existing neighbor if already known
@@ -479,7 +495,7 @@ class D2DDLL:
 
     def _next_available_slot(self) -> int:
         # we have observed all slots used, we try to remove all where we havent heared directly from
-        if len(self._observed_slots) >= self._slot_count - 2: # -1 for own slot, -1 for discover slot
+        if len(self._observed_slots) >= self._slot_count - 2:  # -1 for own slot, -1 for discover slot
             self._log.add(Severity.WARNING, Area.PROTOCOL, 0, f"Node {self._node_id} have used all slots, trying to remove unused...")
             known = {n.neighbor_id for n in self._known_neighbors}
             for nid in list(self._observed_slots.keys()):
@@ -525,23 +541,19 @@ class D2DDLL:
         # order list by best RSSI
         self._known_neighbors.sort(key=lambda x: -x.last_rssi)
 
-        # only iterate on downstream neighbors (higher hopcount than self)
-        of_interest = (neighbor for neighbor in self._known_neighbors if neighbor.hopcount_to_gateway > self.hopcount_to_gateway)
-        current_hop = self.hopcount_to_gateway
-        prev_rssi = 0
-        rssi_threshold = 6
+        # only command our DIRECT children (exactly one hop further from the GW). we are their
+        # elected parent so they obey our CHANGE_HOP_COUNT. nodes two+ hops away are commanded
+        # by their own parent; commanding them here is ignored (parent-lock) and only churns
+        # our bookkeeping and wastes frames.
+        current_hop = self.hopcount_to_gateway + 1
+        of_interest = [neighbor for neighbor in self._known_neighbors if neighbor.hopcount_to_gateway == current_hop]
         for neighbor in of_interest:
-            if abs(prev_rssi - neighbor.last_rssi) > rssi_threshold:
-                prev_rssi = neighbor.last_rssi
-                current_hop += 1  # increment by one for each "layer"
-
             original_slot = self._observed_slots.get(neighbor.neighbor_id, 0)
             use_slot = self._get_slot_for_node(neighbor.neighbor_id)
 
-            if neighbor.hopcount_to_gateway == current_hop and original_slot == use_slot:
+            if original_slot == use_slot:
                 continue  # no change needed
 
-            neighbor.hopcount_to_gateway = current_hop
             # neighbor.in_slot = use_slot # DO NOT update slot assignment here, can cause wrong calc in minisync
             self._observed_slots[neighbor.neighbor_id] = use_slot
             change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=current_hop, use_slot=use_slot, slot_period_counter=current_slot_period_counter))
@@ -555,6 +567,51 @@ class D2DDLL:
 
         self._known_neighbors.sort(key=lambda x: (x.hopcount_to_gateway, -x.last_rssi))
 
+    def _resolve_slot_collision(self, current_global_tick: int, contested_slot: int, current_slot_period_counter: int) -> None:
+        # blind resolution: we only know "contested_slot collided", not who.
+        # only reassign our DIRECT children (exactly one hop further from the GW): we are
+        # their elected parent, so they obey our CHANGE_HOP_COUNT. A node two+ hops away is
+        # not our child (it obeys its own parent) -> reassigning it would loop forever, so we
+        # leave it alone. If a foreign node is the one colliding here, its real parent fixes it.
+        candidates = [n for n in self._known_neighbors if n.hopcount_to_gateway == self.hopcount_to_gateway + 1 and self._observed_slots.get(n.neighbor_id) == contested_slot]
+        if not candidates:
+            # collision is not from a direct child we own (or stale records) -> do not act blindly
+            self._log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} collision in slot {contested_slot} but no direct child there, observed: {self._observed_slots}")
+            return
+
+        # keep the best-RSSI child in the slot, move the rest. if only one is known,
+        # move it anyway since the collision proves another (unknown) node shares the slot.
+        # node_id is the tie-break so the kept child is deterministic on equal RSSI.
+        candidates.sort(key=lambda x: (-x.last_rssi, x.neighbor_id))
+        to_move = candidates[1:] if len(candidates) > 1 else candidates
+
+        for neighbor in to_move:
+            new_slot = self._next_available_slot()
+            if new_slot >= self._slot_count:
+                self._log.add(Severity.WARNING, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} could not reassign node {neighbor.neighbor_id} from slot {contested_slot}, slot exhaustion")
+                continue
+
+            self._observed_slots[neighbor.neighbor_id] = new_slot
+            change_frame = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={neighbor.neighbor_id}, type=LoRaD2DFrameType.CHANGE_HOP_COUNT, payload=PayloadHopCntMid(cnt=neighbor.hopcount_to_gateway, use_slot=new_slot, slot_period_counter=current_slot_period_counter))
+            change_frame.crc_calc()
+
+            existing_frame_index = next((i for i, f in enumerate(self._tx_buffer) if neighbor.neighbor_id in f.destination_node_id and f.type == LoRaD2DFrameType.CHANGE_HOP_COUNT), None)
+            if existing_frame_index is not None:
+                self._tx_buffer[existing_frame_index] = change_frame
+            else:
+                self._tx_buffer.append(change_frame)
+
+            self._log.add(Severity.INFO, Area.PROTOCOL, current_global_tick, f"Node {self._node_id} resolve slot collision: moved node {neighbor.neighbor_id} from slot {contested_slot} to {new_slot}")
+
+    def _elected_parent_id(self) -> int | None:
+        # the single in-range neighbor we route toward / accept slot assignments from:
+        # closest to the gateway (lowest hopcount), best RSSI then lowest id as tie-break.
+        # hopcount-primary keeps the choice stable once hopcounts converge.
+        upstream = [n for n in self._known_neighbors if n.hopcount_to_gateway < self.hopcount_to_gateway]
+        if not upstream:
+            return None
+        return min(upstream, key=lambda n: (n.hopcount_to_gateway, -n.last_rssi, n.neighbor_id)).neighbor_id
+
     def _minisync(self) -> None:
         # return
 
@@ -564,8 +621,8 @@ class D2DDLL:
 
         if not self.link_established or not self._known_neighbors:
             return
-        
-        if self.estimated_period_correction != 0:            
+
+        if self.estimated_period_correction != 0:
             return  # REDISCOVER has happened in current period while DISCOVERED
 
         # if we are connected to a GW and only have one neighbor we should not try to correct to them
@@ -595,7 +652,7 @@ class D2DDLL:
 
         # median -> f occasional large outliers (missed packets, delayed RX timestamps, collisions), then median is often more stable
         current_offset = statistics.median(slot_offsets)
-        
+
         self.estimated_period_correction = int(current_offset)
         # estimate = int(current_offset) # we should take current drift and compensate more to ensure we get closer
         # if self.prev_estimate == 0:

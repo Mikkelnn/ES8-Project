@@ -24,8 +24,17 @@ class LoRaD2D(BaseTransceiver):
 
         self.__calculator = LoRaTxDurationCalculator(second_to_global_tick, self.__sf, self.__bandwidth, self.__coding_rate, self.__preamble_length)
 
+        self._collision_this_tick = False
+
     def _calculate_transmission_duration_ticks(self, data: ILength) -> int:
         return self.__calculator.get_duration(data.length)
+
+    def _had_collision(self) -> bool:
+        # blind collision signal: a frame was dropped this tick due to overlap.
+        # returns and clears the flag so each collision is reported once.
+        had = self._collision_this_tick
+        self._collision_this_tick = False
+        return had
 
     def _get_successful_receptions(self, current_global_tick: int) -> List[EventNet]:
         successful_receptions: List[EventNet] = []
@@ -71,6 +80,8 @@ class LoRaD2D(BaseTransceiver):
 
             if not overlap_found:
                 successful_receptions.append(event)
+            else:
+                self._collision_this_tick = True
 
         max_time_end = 0
         for event in successful_receptions:

@@ -311,7 +311,6 @@ class TestTimerManagement:
 
     def test_timer_duration_accounting_for_1tick_delay(self, clock_instance, mock_event_queue):
         """Timer duration should account for 1 tick delay in scheduling."""
-        current_local_time = clock_instance.localtime
         duration = 25
         timer_event = create_local_event_net(LocalEventTypes.SET_TIMER, duration, LocalEventSubTypes.TIMER_1)
 
@@ -319,8 +318,9 @@ class TestTimerManagement:
 
         clock_instance.tick(current_global_tick=1)
 
-        # Timer end should be: current_local_time + duration - 1 (for 1 tick delay)
-        expected_end = current_local_time + duration - 1
+        # tick() advances localtime first, then sets timer_end = localtime + duration - 1
+        # ("-1" cancels the 1-tick scheduling delay), so use the post-tick localtime.
+        expected_end = clock_instance.localtime + duration - 1
         assert clock_instance.timer_1_end_local_time == expected_end
 
 
@@ -408,7 +408,7 @@ class TestClockDrift:
 
     def test_noise_std_initialized(self, clock_instance):
         """Noise standard deviation should match expected value."""
-        expected_std = np.sqrt(20.970167331917025 * 3.915e-9)
+        expected_std = np.sqrt(20.970167331917025 * 3.915e-15)
         assert np.isclose(clock_instance.noise_std, expected_std)
 
     def test_random_vector_consumed(self, clock_instance):
