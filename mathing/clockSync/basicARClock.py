@@ -28,7 +28,7 @@ simLength = 365*4 #days
 timeScale = 'Samples'
 samplesDay = int(24*3600/t0)
 k_Temp = 5.559e-6
-smallSamples = 5000
+smallSamples = 500
 
 AR1Const = 0.9087642375247008
 AR1Gain = 20.970167331917025
@@ -559,7 +559,7 @@ class KalmanFilterAR1Trend:
         
         Args:
             full_trajectory: List of [theta, alpha] true values for all samples
-            measurement_interval: Number of samples between measurements (default: 50)
+            measurement_interval: Number of samples between measurements (default: 120)
             
         Returns:
             Tuple of (filtered_states, prediction_states)
