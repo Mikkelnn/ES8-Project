@@ -170,6 +170,9 @@ class DLL:
                         else:
                             self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.NODE_SLEEP_FOR, data=self.d2d_rety_period_ms)
                             self.log.add(Severity.DEBUG, Area.PROTOCOL, current_global_tick, f"Node {self.node_id} finished discovery without finding route, sleeping before retrying with D2D for {self.d2d_rety_period_ms} ms")
+                    
+                    if self.d2d_layer.has_mega_sync:
+                        self.local_event_queue.add_event_to_next_tick(type=LocalEventTypes.SYNC_LOCAL_TIME, sub_type=LocalEventSubTypes.MEGA_SYNC, data=self.d2d_layer.estimated_period_correction)
 
             case DLLState.FORWARDING:
                 if self.current_period_start_time is None:

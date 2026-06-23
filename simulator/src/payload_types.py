@@ -90,14 +90,14 @@ class PayloadHopCntFull(ILength):
     slot_period_counter: int  # uint8
     use_slot: int  # uint8
     time_offset_from_period_start: int  # uint16
+    local_time: int # uint48 - 48b represent 8925 years in ms
 
     @property
     def length(self) -> int:
-        return 2 + 1 + 1 + 2
+        return 2 + 1 + 1 + 2 + 6  # 6 bytes for local_time
 
     def to_bytes(self) -> bytes:
-        return self.cnt.to_bytes(2, "big", signed=False) + self.slot_period_counter.to_bytes(1, "big", signed=False) + self.use_slot.to_bytes(1, "big", signed=False) + self.time_offset_from_period_start.to_bytes(2, "big", signed=False)
-
+        return self.cnt.to_bytes(2, "big", signed=False) + self.slot_period_counter.to_bytes(1, "big", signed=False) + self.use_slot.to_bytes(1, "big", signed=False) + self.time_offset_from_period_start.to_bytes(2, "big", signed=False) + self.local_time.to_bytes(6, "big", signed=False)
 
 @dataclass
 class MegaSync:

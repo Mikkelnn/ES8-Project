@@ -146,7 +146,7 @@ class D2DDLL:
                 use_slot = self._get_slot_for_node(dead_node.neighbor_id)
                 self._observed_slots[dead_node.neighbor_id] = use_slot
 
-                hop_cnt = PayloadHopCntFull(dead_node.hopcount_to_gateway, slot_period_counter=slot_period_counter, use_slot=use_slot, time_offset_from_period_start=self._period_start_to_tx)
+                hop_cnt = PayloadHopCntFull(dead_node.hopcount_to_gateway, slot_period_counter=slot_period_counter, use_slot=use_slot, time_offset_from_period_start=self._period_start_to_tx, local_time=current_local_clock_info.current_local_time)
                 msg = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={dead_node.neighbor_id}, type=LoRaD2DFrameType.REDISCOVER, payload=hop_cnt)
                 msg.crc_calc()
                 self._tx_buffer.append(msg)
@@ -154,7 +154,7 @@ class D2DDLL:
         # add idle packet -> used for discovery
         # only add one for each period,and only if we know about two neighbors -> prevent situations where wrong hopcounts are calculated due to lack of info
         if not self._tx_buffer and is_start_and_has_valid_TX_slot:
-            hop_cnt = PayloadHopCntFull(self.hopcount_to_gateway, slot_period_counter=slot_period_counter, time_offset_from_period_start=self._period_start_to_tx, use_slot=self._own_tx_slot)
+            hop_cnt = PayloadHopCntFull(self.hopcount_to_gateway, slot_period_counter=slot_period_counter, time_offset_from_period_start=self._period_start_to_tx, use_slot=self._own_tx_slot, local_time=current_local_clock_info.current_local_time)
             msg = LoRaD2DFrame(source_node_id=self._node_id, destination_node_id={0xFFFFFFFF}, type=LoRaD2DFrameType.CURRENT_HOP_COUNT, payload=hop_cnt)
             msg.crc_calc()
             self._tx_buffer.append(msg)
@@ -352,7 +352,10 @@ class D2DDLL:
                 if self._node_id in frame.destination_node_id:
 
                     payload = cast(PayloadHopCntFull, frame.payload)
-                    self.estimated_period_start = current_local_clock_info.current_local_time - (payload.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
+                    total_duration_from_start = (payload.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
+                    self.estimated_period_start = current_local_clock_info.current_local_time - total_duration_from_start
+                    self.estimated_period_correction = (payload.local_time + total_duration_from_start) - current_local_clock_info.current_local_time
+                    self.has_mega_sync = True
                     self.slot_period_counter = payload.slot_period_counter
 
                     has_change = payload.cnt != self.hopcount_to_gateway or payload.use_slot != self._own_tx_slot
@@ -392,8 +395,12 @@ class D2DDLL:
         self._observed_slots[frame.source_node_id] = frame_hop_cnt.use_slot
 
         if self.discovery_state in (DiscoverStates.NOT_DISCOVERED, DiscoverStates.LISTENING):
-            self.estimated_period_start = current_local_time - (frame_hop_cnt.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
+            frame_end_from_period_start = (frame_hop_cnt.time_offset_from_period_start + self._duration_calculator.get_duration(frame.length) + 2)
+            self.estimated_period_start = current_local_time - frame_end_from_period_start
             self.slot_period_counter = frame_hop_cnt.slot_period_counter
+            
+            self.estimated_period_correction = (frame_hop_cnt.local_time + frame_end_from_period_start) - current_local_time
+            self.has_mega_sync = True
 
         did_change = False
         existing = next((n for n in self._known_neighbors if n.neighbor_id == frame.source_node_id), None)
