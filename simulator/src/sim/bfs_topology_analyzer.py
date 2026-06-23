@@ -214,3 +214,57 @@ class BFSTopologyAnalyzer:
 
         results["visited"] = sorted(list(visited))
         return results
+
+    @staticmethod
+    def cluster_partition(node_neighbors: dict, n_clusters: int) -> dict[int, int]:
+        """Partition nodes into n_clusters topologically coherent groups via BFS from geo-spread seeds.
+
+        Returns {node_id: cluster_id} where cluster_id is in 0..n_clusters-1.
+        Gateways are assigned to the cluster owning most of their served nodes.
+        """
+        if n_clusters <= 1:
+            return {nid: 0 for nid in node_neighbors}
+
+        regular = {nid: info for nid, info in node_neighbors.items() if not info.is_gateway}
+        gateways = {nid: info for nid, info in node_neighbors.items() if info.is_gateway}
+
+        sorted_nodes = sorted(regular.items(), key=lambda kv: kv[1].position[0] + kv[1].position[1])
+        n = len(sorted_nodes)
+        if n == 0:
+            return {nid: 0 for nid in node_neighbors}
+
+        step = max(1, n // n_clusters)
+        seeds = [sorted_nodes[min(i * step, n - 1)][0] for i in range(n_clusters)]
+
+        node_to_cluster: dict[int, int] = {}
+        queue: deque = deque()
+        for cid, seed in enumerate(seeds):
+            if seed not in node_to_cluster:
+                node_to_cluster[seed] = cid
+                queue.append((seed, cid))
+
+        while queue:
+            nid, cid = queue.popleft()
+            for nb in node_neighbors[nid].neighbors:
+                if nb in node_to_cluster or nb not in regular:
+                    continue
+                node_to_cluster[nb] = cid
+                queue.append((nb, cid))
+
+        # Assign any disconnected regular nodes round-robin
+        fallback = 0
+        for nid in regular:
+            if nid not in node_to_cluster:
+                node_to_cluster[nid] = fallback % n_clusters
+                fallback += 1
+
+        # Assign each gateway to the cluster owning the majority of its served nodes
+        for gw_id, gw_info in gateways.items():
+            votes: dict[int, int] = {}
+            for nb in gw_info.neighbors:
+                cid = node_to_cluster.get(nb)
+                if cid is not None:
+                    votes[cid] = votes.get(cid, 0) + 1
+            node_to_cluster[gw_id] = max(votes, key=votes.get) if votes else 0
+
+        return node_to_cluster

@@ -202,11 +202,11 @@ class GUI(QMainWindow):
         if until_time and hasattr(self, "_target_tick") and self._target_tick is not None:
             # Calculate progress based on delta from start_tick to target_tick
             start_tick = getattr(self, "_start_tick", 0)
-            current_tick = latest_tick if latest_tick is not None else start_tick
+            current_tick = max(start_tick, latest_tick if latest_tick is not None else start_tick)
             total_delta = self._target_tick - start_tick
             progress_delta = current_tick - start_tick
 
-            progress_pct = min(100, int((progress_delta / total_delta * 100))) if total_delta > 0 else 0
+            progress_pct = max(0, min(100, int((progress_delta / total_delta * 100)))) if total_delta > 0 else 0
             progress_bar = "█" * (progress_pct // 5) + "░" * (20 - progress_pct // 5)
 
             # Only update ETA when running (not paused)
